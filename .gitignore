@@ -1,0 +1,16 @@
+node_modules/
+dist/
+build/
+out/
+.DS_Store
+*.log
+!fixtures/logs/*.log
+
+# Java build output
+tools/exporter/bin/
+tools/exporter/.gradle/
+*.class
+
+# Generated puzzle assets (built in CI, published to Pages; manifest is committed)
+packages/app/public/assets/*.mc4dpz
+packages/app/public/assets/*.mc4dpz.gz

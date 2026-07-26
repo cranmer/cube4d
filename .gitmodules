@@ -1,0 +1,3 @@
+[submodule "magiccube4d"]
+	path = magiccube4d
+	url = https://github.com/cranmer/magiccube4d.git
