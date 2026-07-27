@@ -34,6 +34,7 @@ for the ordinary Rubik's cube.
 | [Quirks and bugs](docs/quirks-and-bugs.md) | Traps found in the original, and what this port does about each |
 | [Implementation plan](docs/plan.md) | What gets built, in what order, and how it gets verified |
 | [Phase 0 results](docs/phase0-results.md) | Measurements for all 128 catalog puzzles |
+| [Polish backlog](docs/polish-backlog.md) | Known rough edges, and the touch/mobile design gap |
 
 ## Running it
 

@@ -13,6 +13,7 @@ If you want the conclusions rather than the story:
 | How the original works | [`legacy-internals.md`](legacy-internals.md) |
 | Traps found in the original | [`quirks-and-bugs.md`](quirks-and-bugs.md) |
 | What gets built, in what order | [`plan.md`](plan.md) |
+| Known rough edges and deferred design | [`polish-backlog.md`](polish-backlog.md) |
 | Catalog measurements | [`phase0-results.md`](phase0-results.md) |
 
 ---
@@ -605,3 +606,10 @@ never disagree mid-turn.
 **Phase 5: the rest of the catalog, and persistence.** A puzzle picker over all 128 entries with
 lazy loading, JSON save/load, drag-and-drop import of legacy `.log` files, autosave, and shareable
 permalinks.
+
+Phase 6 has grown a second strand worth naming now: **touch**. Three of the app's core inputs —
+the number keys, right-click to reverse a twist, shift-drag to rotate in 4D — simply have no touch
+equivalent, and the original never had to answer that because it was a desktop Java application
+from an era before phones. The options are worked through in
+[`polish-backlog.md`](polish-backlog.md); the 4D rotation gesture is the one that deserves a
+prototype rather than a guess.
