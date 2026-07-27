@@ -46,9 +46,11 @@ public class AssetExporter {
      *   {5,3,3} 2   the largest puzzle in the catalog
      */
     private static final String[] GOLDEN_PUZZLES = {
-        "{4,3,3} 3", "{4,3,3} 2", "{3,3,3} 3", "{3}x{3} 3",
+        "{4,3,3} 3", "{4,3,3} 2", "{4,3,3} 5", "{3,3,3} 3", "{3}x{3} 3",
         "{5}x{4} 3", "{5,3}x{} 3", "{100}x{4} 3", "{5,3,3} 2",
     };
+    // {4,3,3} 5 is here for the log corpus rather than for geometry coverage: the Hall of Fame
+    // includes 5^4 solves, and replaying them needs the matching asset.
 
     /**
      * The default puzzle is dumped exhaustively -- all 2,912 legal moves -- because it is the one

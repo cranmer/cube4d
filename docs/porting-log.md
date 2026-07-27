@@ -19,23 +19,28 @@ If you want the conclusions rather than the story:
 
 ## Status
 
-**Phases 0 and 1 of 6 complete.** Nothing is playable yet — there is no renderer.
+**Phases 0–2 of 6 complete.** Nothing is playable yet — there is no renderer.
 
 | Phase | Scope | Status |
 |---|---|---|
 | 0 | Measure and freeze the catalog | ✅ complete |
 | 1 | Exporter + asset format | ✅ complete |
-| 2 | Headless puzzle core | next |
-| 3 | Renderer, static (first shareable artifact) | not started |
+| 2 | Headless puzzle core | ✅ complete |
+| 3 | Renderer, static (first shareable artifact) | next |
 | 4 | Interaction — twisting, undo, scramble | not started |
 | 5 | Catalog + persistence | not started |
 | 6 | Polish & outreach | not started |
 
-What exists today: all 128 puzzles export to binary assets; `@mc4d/puzzle-core` decodes them and
-twists them; 80 tests pass across 8 puzzles, including a bit-for-bit match against the original Java
-on all 2,912 legal moves of the standard hypercube.
+What exists today: all 128 puzzles export to binary assets; `@mc4d/puzzle-core` decodes, twists,
+scrambles and tracks history; `@mc4d/legacy-format` reads and writes `.log` files and converts to
+JSON, with an `mc4d-convert` CLI. 206 tests.
 
-You can't see a puzzle yet, but you can solve one from a Node REPL.
+The headline result: **every real solve log in the corpus replays to a solved puzzle** — eight
+solves by eight people, including Charles Doan's 191-twist 3⁴ record and Andrey Astrelin's
+1,981-twist 5⁴, run against geometry exported from the original Java.
+
+You can't see a puzzle yet, but you can solve one from a Node REPL, and you can replay a world
+record in it.
 
 ---
 
@@ -331,11 +336,100 @@ the plan called for gathering the corpus *before* writing the codec rather than 
 
 ---
 
+## 2026-07-27 — Phase 2: replaying world records
+
+The gate for this phase was the one that actually validates the architecture. A `.log` file stores
+each move as a bare index into the grip array MagicCube4D generated when it built the puzzle.
+Nothing in the file says what a grip *is* — no axis, no face, no angle. The index is meaningful only
+against geometry generated in exactly the same order.
+
+So: take a real solve from the Hall of Fame, start from a solved puzzle, apply every move by index
+against geometry exported from the original Java, and see where you end up.
+
+**All eight version 3 solves in the corpus replay to a solved puzzle.** Charles Doan's 191-twist 3⁴
+record. Andrey Astrelin's 1,981-twist 5⁴. Sebastian's 5,765-twist blindfolded solve. Two 2⁴
+blindfolded solves. If the grip ordering were off by one, every one of these would end in a
+scrambled mess.
+
+That is the build-time-export decision paying off exactly as intended: the indices come from the
+same code that produced the files, so compatibility isn't approximated, it's inherited.
+
+A second, independent check fell out of it. The `.log` header carries a twist count, computed by
+rules that are not obvious — moves after the scramble boundary only, excluding whole-puzzle
+rotations. Our reimplementation reproduces the declared count for all eight files. That is a number
+the community reads, so matching it mattered.
+
+### Not every `.log` file was written by MagicCube4D
+
+Two files failed the byte-exact round-trip, and it took a moment to see why they were the *same*
+two files that later failed the twist-count check: both are **computer-assisted** solves, emitted by
+solver scripts rather than by the app.
+
+`andrew-luna_3x3x3x3-comp-assist.log` writes its view matrix as integers (`1 0 0 0` rather than
+`1.0 0.0 0.0 0.0`). `anderson-2x2x2x2-computer-24.log` puts its whole move list on one line instead
+of wrapping every ten tokens, and declares **0** twists for what its own filename calls a 24-twist
+solve — the script never filled the field in. (Our counter says 24, which is quietly reassuring.)
+
+The temptation is to contort the codec until it reproduces arbitrary third-party whitespace. That's
+overfitting. The right shape is: parse liberally, emit canonically, and *tell* the caller when a
+file wasn't canonical — so `parseLog` now returns a `nonCanonical` warning meaning "this wasn't
+written by MagicCube4D; saving will normalise the layout, though the moves are untouched."
+
+Eight of ten files round-trip byte-for-byte. The other two round-trip semantically, with a warning.
+That is the honest guarantee, and it's better than a false one.
+
+### Byte-exactness means emulating Java's number formatting
+
+Reproducing a `.log` byte-for-byte means reproducing Java's `Double.toString`, which differs from
+JavaScript's in three ways that all bite:
+
+| value | Java | JavaScript |
+|---|---|---|
+| `1` | `1.0` | `1` |
+| `-0` | `-0.0` | `0` |
+| `1e10` | `1.0E10` | `10000000000` |
+| `2.9e-9` | `2.9E-9` | `2.9e-9` |
+| `1e21` | `1.0E21` | `1e+21` |
+
+Java switches to scientific notation outside `[1e-3, 1e7)`; JavaScript outside `[1e-6, 1e21)`. Java
+keeps a digit on each side of the point, capitalises the `E`, and never writes `+`.
+
+The digits themselves are the same, because both languages emit the shortest decimal that
+round-trips — which is unique. So `javaDoubleToString` takes JavaScript's digits from
+`toExponential()` and re-renders them under Java's layout rules. Every number in every view matrix
+in the corpus now re-renders to its original text exactly.
+
+### Deliberate departures, now implemented
+
+Two behaviours of the original are gone, as
+[`quirks-and-bugs.md`](quirks-and-bugs.md) said they would be: appending a move that inverts the
+previous one no longer erases both, and saving no longer truncates the redo tail. Neither is
+required by the file format. The codec absorbs the mismatch rather than the core carrying it.
+
+The one genuinely forward-looking addition is the **seeded scramble**. The original uses an unseeded
+RNG, so a scramble can never be re-derived and a solve can never be verified — which is precisely
+why the Hall of Fame runs on the honour system. Recording a seed costs nothing today and cannot be
+retrofitted onto solves recorded without it.
+
+### One thing I got wrong
+
+I wrote a plausible-looking `fullScrambleLength` and commented that it was "reproduced rather than
+invented" — then checked, and it wasn't. The original's `goldilocks` heuristic is a coupon-collector
+estimate: `0.577` is the Euler–Mascheroni constant, so `0.577 + ln(nPieces)` approximates how many
+random draws it takes to touch every piece, scaled by how many pieces a twist moves and then by a
+dimension-and-face term. Now ported verbatim. The number decides whether a scramble counts as
+"full", which decides whether a solve is celebrated and recorded, so it is not a place to improvise.
+
+---
+
 ## Next
 
-**Phase 2: the headless core.** Move list and undo/redo, seeded scramble, solve detection, the 4D
-rotation handler, and the `.log` / `.macros` codec.
+**Phase 3: the renderer.** The first thing you can look at — `{4,3,3} 3` at rest, rotating, deployed
+to a public URL. No twisting yet; that's Phase 4. This is deliberately the first shareable artifact
+and the one worth blogging about.
 
-The gate: property tests green, a real community `.log` replaying to a solved state, and
-`mc4d-convert a.log → a.json → b.log` round-tripping byte-identically — including preserving line
-endings. Version 1 support is now a tempting stretch goal rather than a non-goal.
+The work is mapping the original's twelve-stage software pipeline onto vertex shaders: the shrink,
+the 4D rotation, the 4D→3D projection, and above all the front-cell cull that produces the
+cube-within-a-cube image. Then a real depth buffer instead of the painter's-algorithm sort, and the
+three drag modes — including the shift-drag that rotates through the fourth dimension and has no 3D
+analogue.

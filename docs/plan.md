@@ -110,8 +110,8 @@ a solve without trusting the client. It costs nothing now and cannot be retrofit
 |---|---|---|
 | **0** | Measure and freeze the catalog | ✅ **done** — see [`phase0-results.md`](phase0-results.md) |
 | **1** | Exporter + asset format | ✅ **done** — all 2,912 permutations match the Java |
-| **2** | Headless core | next |
-| **3** | Renderer, static | not started |
+| **2** | Headless core | ✅ **done** — all 8 real solve logs replay to solved |
+| **3** | Renderer, static | next |
 | **4** | Interaction | not started |
 | **5** | Catalog + persistence | not started |
 | **6** | Polish & outreach | not started |

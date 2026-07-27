@@ -196,6 +196,28 @@ Grips are picked by proximity to sticker and polygon centres, never by their own
 
 ---
 
+## Not every `.log` file was written by MagicCube4D
+
+Discovered by running the codec over the real corpus: two of the ten version 3 files on the Hall of
+Fame were emitted by solver scripts rather than by the app, and they use a looser variant of the
+format.
+
+- `andrew-luna_3x3x3x3-comp-assist.log` writes its view matrix as integers (`1 0 0 0` rather than
+  `1.0 0.0 0.0 0.0`), which the Java's `Double.toString` would never produce.
+- `anderson-2x2x2x2-computer-24.log` puts its whole move list on one line instead of wrapping every
+  ten tokens, and declares **0** twists in a header field for what its own filename calls a 24-twist
+  solve. The script never filled the field in.
+
+Both parse unambiguously and both replay to a solved puzzle. They simply cannot be re-emitted
+byte-for-byte, because the bytes were never canonical.
+
+**Decision:** parse liberally, emit canonically, and report the difference. `parseLog` returns a
+`nonCanonical` warning meaning "this was not written by MagicCube4D; saving will normalise the
+layout, though the moves are untouched." Contorting the writer to reproduce arbitrary third-party
+whitespace would be overfitting to two files.
+
+---
+
 ## Performance characteristics worth knowing
 
 ### Geometry is rebuilt every frame

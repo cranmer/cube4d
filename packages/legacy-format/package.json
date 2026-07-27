@@ -1,0 +1,25 @@
+{
+  "name": "@mc4d/legacy-format",
+  "version": "0.0.0",
+  "description": "Codec for MagicCube4D's .log and .macros files",
+  "license": "MIT",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "bin": {
+    "mc4d-convert": "./src/cli.ts"
+  },
+  "dependencies": {
+    "@mc4d/puzzle-core": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.1"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  }
+}
