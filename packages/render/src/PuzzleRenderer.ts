@@ -9,11 +9,18 @@
 import * as THREE from 'three';
 import type { PuzzleGeometry } from '@mc4d/puzzle-core';
 
-import { buildBuffers, buildFaceColorTexture, updateStickerColors, type PuzzleBuffers } from './buildGeometry.js';
+import {
+  buildBuffers,
+  buildFaceColorTexture,
+  buildPickGeometry,
+  setTwistingSlice,
+  updateStickerColors,
+  type PuzzleBuffers,
+} from './buildGeometry.js';
 import { projectPoint } from './pipeline.js';
 import { facePalette, SKY, type Rgb } from './colors.js';
 import { DEFAULT_VIEW, projectedRadius, type ViewParams } from './pipeline.js';
-import { fragmentShader, vertexShader } from './shaders.js';
+import { fragmentShader, pickFragmentShader, pickVertexShader, vertexShader } from './shaders.js';
 
 /** `MagicCube.SUNVEC`, normalised. Points toward the light. */
 const SUN = new THREE.Vector3(0.82, 1.55, 3.3).normalize();
@@ -52,6 +59,13 @@ export class PuzzleRenderer {
   private zoom = 1;
   private opacity = 1;
   private sortScratch: { sticker: number; depth: number }[] = [];
+
+  // Pick pass, built lazily — it costs memory and is not needed until someone clicks.
+  private pickTarget: THREE.WebGLRenderTarget | null = null;
+  private pickScene: THREE.Scene | null = null;
+  private pickMaterial: THREE.ShaderMaterial | null = null;
+  private pickMesh: THREE.Mesh | null = null;
+  private readonly pickPixel = new Uint8Array(4);
 
   constructor(private readonly options: RendererOptions) {
     this.renderer = new THREE.WebGLRenderer({
@@ -102,6 +116,10 @@ export class PuzzleRenderer {
         uSun: { value: SUN },
         uAmbient: { value: this.options.ambient ?? 0.15 },
         uOpacity: { value: this.opacity },
+        uTwistMat: { value: new THREE.Matrix4() },
+        uTwisting: { value: 0 },
+        uHighlightSticker: { value: -1 },
+        uHighlightCubie: { value: -1 },
       },
     });
     this.applyOpacity();
@@ -110,6 +128,101 @@ export class PuzzleRenderer {
     this.mesh.frustumCulled = false; // positions are computed in the shader; a CPU bound is meaningless
     this.scene.add(this.mesh);
     this.refreshFraming();
+  }
+
+  // ---------------------------------------------------------------- twisting
+
+  /**
+   * Show a twist partway through.
+   *
+   * `inSlice` marks which stickers are turning; pass it once when the twist starts. `matrix` is the
+   * partial rotation for the current instant, row-major like everything else from the core.
+   */
+  beginTwist(inSlice: Uint8Array): void {
+    if (!this.buffers) return;
+    setTwistingSlice(this.buffers, inSlice);
+    if (this.material) this.material.uniforms.uTwisting.value = 1;
+  }
+
+  setTwistMatrix(matrix: Float64Array): void {
+    if (!this.material) return;
+    (this.material.uniforms.uTwistMat.value as THREE.Matrix4).fromArray(Array.from(matrix));
+  }
+
+  /** Clear the animation. Call once the move has been applied to the puzzle state. */
+  endTwist(): void {
+    if (!this.buffers) return;
+    setTwistingSlice(this.buffers, null);
+    if (this.material) this.material.uniforms.uTwisting.value = 0;
+  }
+
+  /** Light up the sticker or piece under the cursor. Pass -1 for neither. */
+  setHighlight(sticker: number, cubie: number): void {
+    if (!this.material) return;
+    this.material.uniforms.uHighlightSticker.value = sticker;
+    this.material.uniforms.uHighlightCubie.value = cubie;
+  }
+
+  // ---------------------------------------------------------------- picking
+
+  /**
+   * What is under the cursor, in canvas pixels.
+   *
+   * Renders a single pixel through the same vertex shader and the same cull as the visible pass,
+   * with sticker and polygon ids as colour, then reads it back. Whatever is on screen is what gets
+   * picked, by construction — there is no second geometry representation to fall out of step.
+   */
+  pick(x: number, y: number): { sticker: number; poly: number } | null {
+    const geo = this.geo;
+    if (!geo) return null;
+    this.ensurePickPass(geo);
+    if (!this.pickTarget || !this.pickScene) return null;
+
+    const size = this.renderer.getSize(new THREE.Vector2());
+    const ratio = this.renderer.getPixelRatio();
+    const px = Math.round(x * ratio);
+    const py = Math.round((size.y - y) * ratio);
+
+    // Render just the one pixel the cursor is over, by offsetting the view so that pixel fills the
+    // whole 1x1 target. Far cheaper than a full-resolution pass per mouse move.
+    this.camera.setViewOffset(size.x * ratio, size.y * ratio, px, size.y * ratio - py - 1, 1, 1);
+    const previousTarget = this.renderer.getRenderTarget();
+    this.renderer.setRenderTarget(this.pickTarget);
+    this.renderer.setClearColor(0x000000, 0);
+    this.renderer.clear();
+    this.renderer.render(this.pickScene, this.camera);
+    this.renderer.readRenderTargetPixels(this.pickTarget, 0, 0, 1, 1, this.pickPixel);
+    this.renderer.setRenderTarget(previousTarget);
+    this.camera.clearViewOffset();
+
+    const [r, g, b, a] = this.pickPixel;
+    if (a === 0) return null;
+    const sticker = r + g * 256;
+    if (sticker >= geo.nStickers) return null;
+    return { sticker, poly: b };
+  }
+
+  private ensurePickPass(geo: PuzzleGeometry): void {
+    if (this.pickScene || !this.material) return;
+    this.pickTarget = new THREE.WebGLRenderTarget(1, 1, {
+      format: THREE.RGBAFormat,
+      type: THREE.UnsignedByteType,
+      depthBuffer: true,
+    });
+    this.pickMaterial = new THREE.ShaderMaterial({
+      glslVersion: THREE.GLSL3,
+      vertexShader: pickVertexShader,
+      fragmentShader: pickFragmentShader,
+      side: THREE.DoubleSide,
+      // Ids must not be blended or dithered — every fragment is a discrete value.
+      transparent: false,
+      // Shares the visible pass's uniform objects, so it can never disagree about the view.
+      uniforms: this.material.uniforms,
+    });
+    this.pickMesh = new THREE.Mesh(buildPickGeometry(geo), this.pickMaterial);
+    this.pickMesh.frustumCulled = false;
+    this.pickScene = new THREE.Scene();
+    this.pickScene.add(this.pickMesh);
   }
 
   /** Update the 4D view rotation. `mat4d` is row-major, as the puzzle core produces it. */
@@ -276,6 +389,13 @@ export class PuzzleRenderer {
 
   private disposePuzzle(): void {
     if (this.mesh) this.scene.remove(this.mesh);
+    this.pickMesh?.geometry.dispose();
+    this.pickMaterial?.dispose();
+    this.pickTarget?.dispose();
+    this.pickMesh = null;
+    this.pickMaterial = null;
+    this.pickTarget = null;
+    this.pickScene = null;
     this.buffers?.geometry.dispose();
     this.buffers?.stickerData.dispose();
     this.faceColorTexture?.dispose();

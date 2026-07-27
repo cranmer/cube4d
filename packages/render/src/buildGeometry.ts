@@ -147,6 +147,78 @@ function buildStickerTexture(geo: PuzzleGeometry): {
   return { texture, array, width };
 }
 
+/**
+ * Geometry for the pick pass: the same triangles, but non-indexed so each vertex can carry the
+ * polygon it belongs to.
+ *
+ * Vertices are shared between the polygons of a sticker, so a polygon id cannot live on the shared
+ * vertex — hence the expansion. Built lazily, since it is only needed once someone clicks.
+ */
+export function buildPickGeometry(geo: PuzzleGeometry): THREE.BufferGeometry {
+  let triangles = 0;
+  for (let p = 0; p < geo.nPolys; ++p) triangles += Math.max(0, geo.polyVertCount[p] - 2);
+
+  const count = triangles * 3;
+  const offsets = new Float32Array(count * 4);
+  const stickerIds = new Float32Array(count);
+  const polyIds = new Float32Array(count);
+
+  let poly = 0;
+  let ind = 0;
+  let out = 0;
+  for (let s = 0; s < geo.nStickers; ++s) {
+    const base = geo.stickerVertBegin[s];
+    const nPolys = geo.stickerPolyCount[s];
+    for (let k = 0; k < nPolys; ++k) {
+      const n = geo.polyVertCount[poly + k];
+      const emit = (localIndex: number) => {
+        const v = base + geo.polyIndsLocal[ind + localIndex];
+        offsets.set(geo.vertsMinusStickerCenters.subarray(v * 4, v * 4 + 4), out * 4);
+        stickerIds[out] = s;
+        polyIds[out] = k;
+        out++;
+      };
+      for (let t = 1; t + 1 < n; ++t) {
+        emit(0);
+        emit(t);
+        emit(t + 1);
+      }
+      ind += n;
+    }
+    poly += nPolys;
+  }
+
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('aVertMinusStickerCenter', new THREE.BufferAttribute(offsets, 4));
+  geometry.setAttribute('aStickerId', new THREE.BufferAttribute(stickerIds, 1));
+  geometry.setAttribute('aPolyId', new THREE.BufferAttribute(polyIds, 1));
+
+  // A sequential index, purely so Three.js knows how many vertices to draw. It takes that count
+  // from the index buffer or from an attribute literally named `position`, and this geometry has
+  // neither — without one of them the renderer returns early and draws nothing at all, silently.
+  const sequential = count > 65535 ? new Uint32Array(count) : new Uint16Array(count);
+  for (let i = 0; i < count; ++i) sequential[i] = i;
+  geometry.setIndex(new THREE.BufferAttribute(sequential, 1));
+
+  geometry.boundingSphere = new THREE.Sphere(new THREE.Vector3(), Number.POSITIVE_INFINITY);
+  return geometry;
+}
+
+/**
+ * Mark which stickers belong to the slice currently turning.
+ *
+ * The shader reads this per sticker, so an animating twist needs no geometry changes at all —
+ * only this flag and a matrix uniform.
+ */
+export function setTwistingSlice(buffers: PuzzleBuffers, inSlice: Uint8Array | null): void {
+  const n = inSlice ? inSlice.length : buffers.stickerTriBegin.length;
+  for (let s = 0; s < n; ++s) {
+    buffers.stickerArray[(s * TEXELS_PER_STICKER + STICKER_TEXEL.meta) * 4 + 2] =
+      inSlice ? inSlice[s] : 0;
+  }
+  buffers.stickerData.needsUpdate = true;
+}
+
 /** Rewrite the colour each sticker shows, from a puzzle state. Used once a twist completes. */
 export function updateStickerColors(
   buffers: PuzzleBuffers,

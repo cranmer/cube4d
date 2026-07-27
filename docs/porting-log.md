@@ -19,7 +19,8 @@ If you want the conclusions rather than the story:
 
 ## Status
 
-**Phases 0–3 of 6 complete.** The puzzle renders and rotates in a browser. It does not twist yet.
+**Phases 0–4 of 6 complete.** The puzzle is playable in a browser: click to twist, scramble, undo,
+solve.
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -27,14 +28,16 @@ If you want the conclusions rather than the story:
 | 1 | Exporter + asset format | ✅ complete |
 | 2 | Headless puzzle core | ✅ complete |
 | 3 | Renderer, static (first shareable artifact) | ✅ complete |
-| 4 | Interaction — twisting, undo, scramble | next |
-| 5 | Catalog + persistence | not started |
+| 4 | Interaction — twisting, undo, scramble | ✅ complete |
+| 5 | Catalog + persistence | next |
 | 6 | Polish & outreach | not started |
 
 What exists today: all 128 puzzles export to binary assets; `@mc4d/puzzle-core` decodes, twists,
 scrambles and tracks history; `@mc4d/legacy-format` reads and writes `.log` files, with an
 `mc4d-convert` CLI; and `@mc4d/render` puts the whole 4D→3D projection into a vertex shader.
-223 tests.
+255 tests, plus a headless browser that scrambles and solves the puzzle end to end.
+
+**Playable at <https://theoryandpractice.org/cube4d/>.**
 
 ![The hypercube in a browser](images/hypercube.png)
 
@@ -542,9 +545,63 @@ stronger statement than byte-equality, and unlike byte-equality it is one that c
 
 ---
 
+## 2026-07-27 — Phase 4: it plays
+
+Clicking a sticker now twists the piece it belongs to. Number keys choose which layers turn, undo
+and redo work, and the puzzle can be scrambled and solved.
+
+The gate was end-to-end and mechanical: drive a real browser, ask the renderer where the stickers
+are, click eight of them, check the twist counter and that the puzzle is no longer solved, undo
+everything, check it is solved again. Then scramble 46 moves and undo the whole thing. All green.
+
+### Picking
+
+The original picks by walking its sorted draw list and testing point-in-polygon in screen space.
+That is not available here — the CPU no longer has the projected geometry, because the projection
+happens on the GPU. So the pick is a second render pass that runs the *same* vertex shader with the
+*same* cull, writing sticker and polygon ids as colour, into a one-pixel target positioned under the
+cursor. Whatever is visible is what gets picked, by construction, and the two can never disagree.
+
+Resolving a sticker to a twist axis is then a faithful port of the original's rule: the piece's
+colour count gives the grip dimension — a 4-colour corner turns about a vertex, a 3-colour edge
+about an edge — and the nearest matching axis on that cell wins.
+
+### Three bugs, three lessons
+
+**Nothing was drawn at all in the pick pass.** Three.js takes its draw count from the index buffer
+or from an attribute literally named `position`, and the pick geometry has neither — it is
+non-indexed with custom attribute names. The renderer returns early, silently, drawing nothing.
+Adding a sequential index fixed it. The visible pass had worked all along because it *is* indexed.
+
+**Every polygon id came back one too high.** I had written `(polyId + 0.5) / 255.0`, thinking of
+rounding, when the GPU already rounds: it stores `round(v × 255)`, so dividing by exactly 255 is
+what round-trips a small integer unchanged. The offset shifted every id by one.
+
+**And a test that was wrong rather than the code.** I asserted that every sticker resolves to a
+usable twist axis. Eight stickers on the hypercube do not — the cell centres, whose axis has
+symmetry order 0. The original has the same behaviour and filters it in the UI, as does this app.
+Pushing further, duoprisms turned out to have *vertex and edge* axes with order 1 — a full turn
+that does nothing — because a prism's rotation group is smaller than a cube's. The honest invariant
+is not "always usable" but "never fails for any other reason", and that is now what the test says.
+
+### Animation
+
+Time-based rather than the original's frame counting, so speed does not depend on refresh rate,
+with the same `(sin((x−0.5)π)+1)/2` easing. A 180° twist takes twice as long as a 90° one, so every
+move turns at the same angular rate.
+
+The animation costs nothing per frame beyond a matrix: the shader already knows which stickers are
+in the turning slice, from a flag in the per-sticker texture, so a partial twist is one more
+multiply inside the transform that was happening anyway. The state is committed only when the
+animation finishes — exactly as the original does it, so what you see and what the puzzle believes
+never disagree mid-turn.
+
+![Mid-twist](images/midtwist.png)
+
+---
+
 ## Next
 
-**Phase 4: making it twist.** GPU colour-ID picking, hover highlighting, click-to-twist with
-time-based animation, the number keys for slice selection, undo/redo, scramble, and solve detection.
-
-Done when a 2⁴ can be scrambled and solved end to end in the browser.
+**Phase 5: the rest of the catalog, and persistence.** A puzzle picker over all 128 entries with
+lazy loading, JSON save/load, drag-and-drop import of legacy `.log` files, autosave, and shareable
+permalinks.

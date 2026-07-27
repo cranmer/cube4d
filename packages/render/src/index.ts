@@ -1,5 +1,12 @@
 export { PuzzleRenderer, type RendererOptions } from './PuzzleRenderer.js';
-export { buildBuffers, buildFaceColorTexture, updateStickerColors, type PuzzleBuffers } from './buildGeometry.js';
+export {
+  buildBuffers,
+  buildFaceColorTexture,
+  buildPickGeometry,
+  setTwistingSlice,
+  updateStickerColors,
+  type PuzzleBuffers,
+} from './buildGeometry.js';
 export { DEFAULT_FACE_COLORS, facePalette, SKY, type Rgb } from './colors.js';
 export {
   countVisibleStickers,
@@ -12,4 +19,11 @@ export {
   visibleStickerMask,
   type ViewParams,
 } from './pipeline.js';
-export { fragmentShader, STICKER_TEXEL, TEXELS_PER_STICKER, vertexShader } from './shaders.js';
+export {
+  fragmentShader,
+  pickFragmentShader,
+  pickVertexShader,
+  STICKER_TEXEL,
+  TEXELS_PER_STICKER,
+  vertexShader,
+} from './shaders.js';

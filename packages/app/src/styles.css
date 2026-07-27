@@ -94,3 +94,36 @@ dl.help dd { color: var(--dim); margin: 1px 0 0; }
   color: var(--dim);
 }
 .overlay .error { color: #ff7b72; max-width: 42ch; }
+
+.buttons { display: flex; gap: 8px; margin-bottom: 8px; }
+.buttons button { flex: 1; }
+button:disabled { opacity: 0.4; cursor: default; }
+button:disabled:hover { background: #21262d; }
+
+.hud {
+  position: absolute;
+  left: 14px;
+  bottom: 12px;
+  display: flex;
+  gap: 14px;
+  font-size: 13px;
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55);
+  pointer-events: none;
+}
+.hud b { font-variant-numeric: tabular-nums; }
+.hud .slices { opacity: 0.85; }
+
+.banner {
+  position: absolute;
+  top: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 18px;
+  border-radius: 999px;
+  background: rgba(20, 22, 26, 0.72);
+  color: #fff;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  pointer-events: none;
+}

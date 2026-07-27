@@ -1,15 +1,36 @@
+import { useMemo, useRef } from 'react';
+
 import { DEFAULT_CONTROLS, usePuzzleCanvas } from './usePuzzleCanvas.js';
+import { usePuzzleSession, type PuzzleActions } from './usePuzzle.js';
 
 /**
- * Phase 3: the puzzle, rotating. No twisting yet — that is Phase 4.
+ * Phase 4: the puzzle is playable.
  *
- * The controls exposed here are deliberately the ones that teach something. Face shrink and sticker
- * shrink open the gaps you see through; the 4D eye distance changes how violently the projection
- * distorts, and dragging it toward 1 makes the fourth dimension unmistakable.
+ * Click a sticker to twist the piece it belongs to; hold number keys to choose which layers turn.
+ * The view controls are deliberately the ones that teach something — the shrink sliders open the
+ * gaps you see through, and dragging the 4D eye toward 1 makes the fourth dimension unmistakable.
  */
 export function App() {
-  const puzzle = usePuzzleCanvas(`${import.meta.env.BASE_URL}assets/4-3-3_3.mc4dpz.gz`);
+  const assetUrl = `${import.meta.env.BASE_URL}assets/4-3-3_3.mc4dpz.gz`;
+
+  // The canvas and the session each need the other, so the handlers reach the session through a
+  // ref that is filled in immediately below.
+  const actionsRef = useRef<PuzzleActions | null>(null);
+  const handlers = useMemo(
+    () => ({
+      onTap: (x: number, y: number, button: number) => actionsRef.current?.onClick(x, y, button),
+      onHover: (x: number, y: number) => actionsRef.current?.onPointerMove(x, y),
+      onLeave: () => actionsRef.current?.onPointerLeave(),
+    }),
+    [],
+  );
+
+  const puzzle = usePuzzleCanvas(assetUrl, handlers);
+  const { session, actions } = usePuzzleSession(puzzle.getRenderer, puzzle.geometry);
+  actionsRef.current = actions;
+
   const { controls, setControls } = puzzle;
+  const sliceLabel = describeSlices(session.slicemask);
 
   return (
     <div className="layout">
@@ -17,18 +38,63 @@ export function App() {
         <canvas ref={puzzle.canvasRef} />
         {(puzzle.loading || puzzle.error) && (
           <div className="overlay">
-            {puzzle.error ? (
-              <p className="error">{puzzle.error}</p>
-            ) : (
-              <p>Loading the hypercube…</p>
-            )}
+            {puzzle.error ? <p className="error">{puzzle.error}</p> : <p>Loading the hypercube…</p>}
           </div>
         )}
+        {session.solved && session.scrambled && (
+          <div className="banner">Solved</div>
+        )}
+        <div className="hud">
+          <span>
+            <b>{session.twistCount}</b> twist{session.twistCount === 1 ? '' : 's'}
+          </span>
+          {sliceLabel && <span className="slices">slice {sliceLabel}</span>}
+        </div>
       </div>
 
       <aside className="panel">
         <h1>MagicCube4D</h1>
         <p className="sub">A four-dimensional Rubik&rsquo;s cube.</p>
+
+        <div className="group">
+          <h2>Play</h2>
+          <div className="buttons">
+            <button onClick={() => actions.scramble()}>Scramble</button>
+            <button onClick={() => actions.reset()}>Reset</button>
+          </div>
+          <div className="buttons">
+            <button disabled={!session.canUndo} onClick={() => actions.undo()}>
+              Undo
+            </button>
+            <button disabled={!session.canRedo} onClick={() => actions.redo()}>
+              Redo
+            </button>
+          </div>
+        </div>
+
+        <div className="group">
+          <h2>Controls</h2>
+          <dl className="help">
+            <dt>Click a sticker</dt>
+            <dd>Twist that piece. Right-click turns the other way.</dd>
+            <dt>Hold 1–9</dt>
+            <dd>
+              Choose which layers turn, counting inward from the cell you click. Holding several
+              turns several at once; holding all of them rotates the whole puzzle.
+            </dd>
+            <dt>Drag</dt>
+            <dd>Rotate in 3D — the familiar trackball.</dd>
+            <dt>Shift + drag</dt>
+            <dd>
+              Rotate in 4D. This is the one with no 3D analogue: it turns cells through the fourth
+              dimension and brings the hidden cell to the front.
+            </dd>
+            <dt>Right-drag</dt>
+            <dd>Roll, and rotate in the ZW plane.</dd>
+            <dt>Scroll</dt>
+            <dd>Zoom.</dd>
+          </dl>
+        </div>
 
         <div className="group">
           <h2>View</h2>
@@ -71,21 +137,6 @@ export function App() {
           </button>
         </div>
 
-        <div className="group">
-          <h2>Controls</h2>
-          <dl className="help">
-            <dt>Drag</dt>
-            <dd>Rotate in 3D — the familiar trackball.</dd>
-            <dt>Shift + drag</dt>
-            <dd>Rotate in 4D. This is the one with no 3D analogue: it turns cells through the
-              fourth dimension and brings the hidden cell to the front.</dd>
-            <dt>Right-drag</dt>
-            <dd>Roll, and rotate in the ZW plane.</dd>
-            <dt>Scroll</dt>
-            <dd>Zoom.</dd>
-          </dl>
-        </div>
-
         {puzzle.geometry && (
           <div className="group">
             <h2>This puzzle</h2>
@@ -95,7 +146,10 @@ export function App() {
               <b>{puzzle.geometry.nFaces}</b> cells, <b>{puzzle.geometry.nCubies}</b> pieces,{' '}
               <b>{puzzle.geometry.nStickers}</b> stickers
               <br />
-              <b>1.76 × 10<sup>120</sup></b> reachable states
+              <b>
+                1.76 × 10<sup>120</sup>
+              </b>{' '}
+              reachable states
             </p>
           </div>
         )}
@@ -112,6 +166,14 @@ export function App() {
       </aside>
     </div>
   );
+}
+
+/** "1", "1+2", … for the slice indicator. */
+function describeSlices(mask: number): string {
+  if (mask === 0) return '';
+  const parts: number[] = [];
+  for (let i = 0; i < 9; ++i) if (mask & (1 << i)) parts.push(i + 1);
+  return parts.join('+');
 }
 
 function Slider(props: {

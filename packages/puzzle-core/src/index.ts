@@ -9,10 +9,21 @@ export {
   isValidTwist,
   numSlicesForGrip,
   permutationFor,
+  stickersInSlice,
   twistMatrix,
 } from './twist.js';
 
 export { countMisplaced, isSolved, solvedState, stateHash } from './state.js';
+
+export type { PickInfo } from './grips.js';
+export {
+  gripForPick,
+  is2x2x2Cell,
+  numColorsForCubie,
+  polygonCenter,
+  standardStickerVerts,
+  stickerPickCenter,
+} from './grips.js';
 
 export { FuzzyException, FuzzyPointHash } from './fuzzyPointHash.js';
 export * as vecmath from './vecmath.js';

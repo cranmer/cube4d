@@ -187,3 +187,23 @@ export function applyTwist(
 export function applyMove(geo: PuzzleGeometry, state: Int32Array, move: Move): Int32Array {
   return applyTwist(geo, state, move.g, move.d, move.s);
 }
+
+/**
+ * Which stickers a move sets in motion, as a 0/1 flag per sticker.
+ *
+ * The renderer needs this to animate a partial twist: those stickers get the rotation applied,
+ * everything else stays put.
+ */
+export function stickersInSlice(
+  geo: PuzzleGeometry,
+  gripIndex: number,
+  slicemask: number,
+): Uint8Array {
+  const mask = slicemask === 0 ? 1 : slicemask;
+  const faceIndex = geo.grip2face[gripIndex];
+  const out = new Uint8Array(geo.nStickers);
+  for (let s = 0; s < geo.nStickers; ++s) {
+    out[s] = isInSliceMask(geo, s * geo.nDims, geo.stickerCenters, faceIndex, mask) ? 1 : 0;
+  }
+  return out;
+}

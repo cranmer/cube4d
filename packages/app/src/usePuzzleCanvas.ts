@@ -1,21 +1,23 @@
 /**
- * Wires the renderer to a canvas: pointer drags, wheel zoom, resize, and the animation loop.
+ * Wires the renderer to a canvas: pointer input, wheel zoom, resize, and the render loop.
  *
- * Kept out of the component so the interaction rules — which drag rotates in which plane — read as
- * one piece rather than being scattered through JSX.
+ * The one subtlety is telling a click from a drag. The same button both rotates the puzzle and
+ * twists it, so a press that moves is a rotation and a press that doesn't is a twist — which is how
+ * the original behaves, and it stays out of the way once your hands learn it.
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   continueSpin,
   createRotation,
-  decodeAsset,
   drag,
   stopSpinning,
   type PuzzleGeometry,
   type RotationState,
 } from '@mc4d/puzzle-core';
 import { PuzzleRenderer } from '@mc4d/render';
+
+import { loadPuzzle } from './usePuzzle.js';
 
 export interface ViewControls {
   faceShrink: number;
@@ -32,57 +34,39 @@ export const DEFAULT_CONTROLS: ViewControls = {
   opacity: 1,
 };
 
+/** A press that moves less than this is a click, not a drag. */
+const DRAG_THRESHOLD_PX = 4;
+
+export interface CanvasHandlers {
+  onTap(x: number, y: number, button: number): void;
+  onHover(x: number, y: number): void;
+  onLeave(): void;
+}
+
 export interface PuzzleCanvas {
   readonly canvasRef: React.RefObject<HTMLCanvasElement>;
   readonly geometry: PuzzleGeometry | null;
   readonly error: string | null;
   readonly loading: boolean;
-  setControls(controls: Partial<ViewControls>): void;
   readonly controls: ViewControls;
+  setControls(controls: Partial<ViewControls>): void;
   resetView(): void;
+  getRenderer(): PuzzleRenderer | null;
 }
 
-/**
- * Fetch and decode a puzzle asset.
- *
- * Assets are stored gzipped, but whether they arrive that way is not up to us: many static hosts —
- * GitHub Pages and Vite's own preview server among them — serve a `.gz` file with
- * `Content-Encoding: gzip`, so the browser transparently inflates it before we ever see the bytes.
- * Others serve it verbatim. Decide from the data rather than the file extension: a gzip stream
- * always begins with 0x1f 0x8b.
- */
-async function loadPuzzle(url: string): Promise<PuzzleGeometry> {
-  const response = await fetch(url);
-  if (!response.ok) throw new Error(`could not load ${url} (${response.status})`);
-
-  let bytes = new Uint8Array(await response.arrayBuffer());
-  if (bytes[0] === 0x1f && bytes[1] === 0x8b) {
-    const stream = new Response(bytes).body?.pipeThrough(new DecompressionStream('gzip'));
-    if (!stream) throw new Error('could not decompress the puzzle asset');
-    bytes = new Uint8Array(await new Response(stream).arrayBuffer());
-  }
-
-  // The decoder builds Float64 views over this buffer, which requires 8-byte alignment. A
-  // Uint8Array from fetch is aligned, but one produced by slicing or decompression need not be.
-  if (bytes.byteOffset % 8 !== 0) {
-    const aligned = new ArrayBuffer(bytes.byteLength);
-    new Uint8Array(aligned).set(bytes);
-    return decodeAsset(aligned);
-  }
-  return decodeAsset(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength));
-}
-
-export function usePuzzleCanvas(assetUrl: string): PuzzleCanvas {
+export function usePuzzleCanvas(assetUrl: string, handlers: CanvasHandlers): PuzzleCanvas {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<PuzzleRenderer | null>(null);
   const rotationRef = useRef<RotationState>(createRotation());
+  // Held in a ref so the pointer listeners never need re-binding when a callback identity changes.
+  const handlersRef = useRef(handlers);
+  handlersRef.current = handlers;
 
   const [geometry, setGeometry] = useState<PuzzleGeometry | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [controls, setControlsState] = useState<ViewControls>(DEFAULT_CONTROLS);
 
-  // --- load the puzzle
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
@@ -104,7 +88,6 @@ export function usePuzzleCanvas(assetUrl: string): PuzzleCanvas {
     };
   }, [assetUrl]);
 
-  // --- create the renderer once the canvas and geometry both exist
   useEffect(() => {
     if (!canvasRef.current || !geometry) return;
     let renderer: PuzzleRenderer;
@@ -129,9 +112,16 @@ export function usePuzzleCanvas(assetUrl: string): PuzzleCanvas {
     const observer = new ResizeObserver(resize);
     observer.observe(canvas);
 
+    // A handle for automated testing: lets a headless browser interrogate the picker and drive the
+    // view deterministically, neither of which is reachable through the UI.
+    (globalThis as unknown as { __mc4d?: unknown }).__mc4d = {
+      renderer,
+      geometry,
+      pick: (x: number, y: number) => renderer.pick(x, y),
+    };
+
     let frame = 0;
     const tick = () => {
-      // Momentum: the puzzle keeps turning if it was moving when released.
       const spun = continueSpin(rotationRef.current);
       if (spun !== rotationRef.current || spun.spin) {
         rotationRef.current = spun;
@@ -150,25 +140,44 @@ export function usePuzzleCanvas(assetUrl: string): PuzzleCanvas {
     };
   }, [geometry]);
 
-  // --- pointer interaction
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas || !geometry) return;
 
-    let dragging = false;
+    let pressed = false;
+    let moved = false;
     let button: 'left' | 'middle' | 'right' = 'left';
+    let rawButton = 0;
+    let start = { x: 0, y: 0 };
     let last = { x: 0, y: 0 };
 
+    const local = (event: PointerEvent) => {
+      const rect = canvas.getBoundingClientRect();
+      return { x: event.clientX - rect.left, y: event.clientY - rect.top };
+    };
+
     const onPointerDown = (event: PointerEvent) => {
-      dragging = true;
+      pressed = true;
+      moved = false;
+      rawButton = event.button;
       button = event.button === 2 ? 'right' : event.button === 1 ? 'middle' : 'left';
-      last = { x: event.clientX, y: event.clientY };
+      start = { x: event.clientX, y: event.clientY };
+      last = start;
       rotationRef.current = stopSpinning(rotationRef.current);
       canvas.setPointerCapture(event.pointerId);
     };
 
     const onPointerMove = (event: PointerEvent) => {
-      if (!dragging) return;
+      if (!pressed) {
+        const p = local(event);
+        handlersRef.current.onHover(p.x, p.y);
+        return;
+      }
+      if (Math.hypot(event.clientX - start.x, event.clientY - start.y) > DRAG_THRESHOLD_PX) {
+        moved = true;
+      }
+      if (!moved) return;
+
       // The original measures the drag as (previous − current) and inverts Y, since screen Y grows
       // downward. Matching that keeps the puzzle following the cursor rather than opposing it.
       const dx = last.x - event.clientX;
@@ -177,17 +186,23 @@ export function usePuzzleCanvas(assetUrl: string): PuzzleCanvas {
 
       rotationRef.current = drag(rotationRef.current, dx, dy, {
         button,
-        // Shift switches from the XZ/YZ rotation that looks like a 3D trackball to the XW/YW
-        // rotation that turns the puzzle through the fourth dimension.
+        // Shift switches from the XZ/YZ rotation that reads as a 3D trackball to the XW/YW one
+        // that turns the puzzle through the fourth dimension.
         shift: event.shiftKey,
       });
       rendererRef.current?.setRotation(rotationRef.current.mat);
     };
 
     const onPointerUp = (event: PointerEvent) => {
-      dragging = false;
+      if (pressed && !moved) {
+        const p = local(event);
+        handlersRef.current.onTap(p.x, p.y, rawButton);
+      }
+      pressed = false;
       canvas.releasePointerCapture(event.pointerId);
     };
+
+    const onPointerLeave = () => handlersRef.current.onLeave();
 
     const onWheel = (event: WheelEvent) => {
       event.preventDefault();
@@ -195,13 +210,14 @@ export function usePuzzleCanvas(assetUrl: string): PuzzleCanvas {
       if (renderer) renderer.setZoom(renderer.getZoom() * (event.deltaY > 0 ? 0.92 : 1.08));
     };
 
-    // Right-drag is a rotation, so suppress the context menu over the canvas.
+    // Right-click both twists and rotates, so the context menu must not appear over the canvas.
     const onContextMenu = (event: Event) => event.preventDefault();
 
     canvas.addEventListener('pointerdown', onPointerDown);
     canvas.addEventListener('pointermove', onPointerMove);
     canvas.addEventListener('pointerup', onPointerUp);
     canvas.addEventListener('pointercancel', onPointerUp);
+    canvas.addEventListener('pointerleave', onPointerLeave);
     canvas.addEventListener('wheel', onWheel, { passive: false });
     canvas.addEventListener('contextmenu', onContextMenu);
     return () => {
@@ -209,6 +225,7 @@ export function usePuzzleCanvas(assetUrl: string): PuzzleCanvas {
       canvas.removeEventListener('pointermove', onPointerMove);
       canvas.removeEventListener('pointerup', onPointerUp);
       canvas.removeEventListener('pointercancel', onPointerUp);
+      canvas.removeEventListener('pointerleave', onPointerLeave);
       canvas.removeEventListener('wheel', onWheel);
       canvas.removeEventListener('contextmenu', onContextMenu);
     };
@@ -229,5 +246,7 @@ export function usePuzzleCanvas(assetUrl: string): PuzzleCanvas {
     rendererRef.current?.setZoom(1);
   };
 
-  return { canvasRef, geometry, error, loading, controls, setControls, resetView };
+  const getRenderer = useCallback(() => rendererRef.current, []);
+
+  return { canvasRef, geometry, error, loading, controls, setControls, resetView, getRenderer };
 }
