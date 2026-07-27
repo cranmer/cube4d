@@ -1,6 +1,6 @@
 import { useMemo, useRef } from 'react';
 
-import { PALETTES } from '@mc4d/render';
+import { PALETTES, paletteSwatches } from '@mc4d/render';
 
 import { DEFAULT_CONTROLS, usePuzzleCanvas } from './usePuzzleCanvas.js';
 import { usePuzzleSession, type PuzzleActions } from './usePuzzle.js';
@@ -109,7 +109,7 @@ export function App() {
                 title={palette.note}
               >
                 <span className="swatches">
-                  {palette.colors.map((c, i) => (
+                  {paletteSwatches(palette).map((c, i) => (
                     <i key={i} style={{ background: `rgb(${c.r},${c.g},${c.b})` }} />
                   ))}
                 </span>

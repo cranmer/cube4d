@@ -18,7 +18,7 @@ import {
   type PuzzleBuffers,
 } from './buildGeometry.js';
 import { projectPoint } from './pipeline.js';
-import { facePalette, SKY, type Rgb } from './colors.js';
+import { assignFaceColors, DEFAULT_PALETTE_ID, paletteById, SKY, type Palette, type Rgb } from './colors.js';
 import { DEFAULT_VIEW, projectedRadius, type ViewParams } from './pipeline.js';
 import { fragmentShader, pickFragmentShader, pickVertexShader, vertexShader } from './shaders.js';
 
@@ -48,6 +48,8 @@ export interface RendererOptions {
    * background it would simply disappear. A little ambient keeps every face legible.
    */
   readonly ambient?: number;
+  /** Strength of a dim light from behind, so faces turned away keep their colour. */
+  readonly fill?: number;
 }
 
 export class PuzzleRenderer {
@@ -64,6 +66,7 @@ export class PuzzleRenderer {
   private radius = 1;
   private zoom = 1;
   private opacity = 1;
+  private palette: Palette = paletteById(DEFAULT_PALETTE_ID);
   private sortScratch: { sticker: number; depth: number }[] = [];
 
   // Pick pass, built lazily — it costs memory and is not needed until someone clicks.
@@ -97,11 +100,14 @@ export class PuzzleRenderer {
   }
 
   /** Swap in a puzzle. Disposes whatever was there before. */
-  setPuzzle(geo: PuzzleGeometry, colors?: readonly Rgb[]): void {
+  setPuzzle(geo: PuzzleGeometry, palette: Palette = paletteById(DEFAULT_PALETTE_ID)): void {
     this.disposePuzzle();
     this.geo = geo;
     this.buffers = buildBuffers(geo);
-    this.faceColorTexture = buildFaceColorTexture(facePalette(geo.nFaces, colors));
+    this.palette = palette;
+    this.faceColorTexture = buildFaceColorTexture(
+      assignFaceColors(geo.nFaces, geo.face2OppositeFace, palette),
+    );
 
     this.material = new THREE.ShaderMaterial({
       glslVersion: THREE.GLSL3,
@@ -120,7 +126,8 @@ export class PuzzleRenderer {
         uStickerShrink: { value: this.view.stickerShrink },
         uFaceColors: { value: this.faceColorTexture },
         uSun: { value: SUN },
-        uAmbient: { value: this.options.ambient ?? 0.24 },
+        uAmbient: { value: this.options.ambient ?? 0.22 },
+        uFill: { value: this.options.fill ?? 0.35 },
         uOpacity: { value: this.opacity },
         uTwistMat: { value: new THREE.Matrix4() },
         uTwisting: { value: 0 },
@@ -362,11 +369,15 @@ export class PuzzleRenderer {
   }
 
   /** Swap the face colours without rebuilding any geometry. */
-  setPalette(colors: readonly Rgb[]): void {
+  setPalette(palette: Palette): void {
     if (!this.material || !this.geo) return;
+    this.palette = palette;
     this.faceColorTexture?.dispose();
-    this.faceColorTexture = buildFaceColorTexture(facePalette(this.geo.nFaces, colors));
+    this.faceColorTexture = buildFaceColorTexture(
+      assignFaceColors(this.geo.nFaces, this.geo.face2OppositeFace, palette),
+    );
     this.material.uniforms.uFaceColors.value = this.faceColorTexture;
+    this.setBackground(palette.background);
   }
 
   /** Recolour the stickers from a puzzle state. */

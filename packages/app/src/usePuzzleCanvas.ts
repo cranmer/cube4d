@@ -124,7 +124,7 @@ export function usePuzzleCanvas(assetUrl: string, handlers: CanvasHandlers): Puz
     }
     rendererRef.current = renderer;
     const palette = paletteById(controls.paletteId);
-    renderer.setPuzzle(geometry, palette.colors);
+    renderer.setPuzzle(geometry, palette);
     renderer.setBackground(palette.background);
     renderer.setRotation(rotationRef.current.mat);
     renderer.setViewParams(controls);
@@ -265,9 +265,7 @@ export function usePuzzleCanvas(assetUrl: string, handlers: CanvasHandlers): Puz
       if (next.opacity !== undefined) rendererRef.current?.setOpacity(next.opacity);
       if (next.paletteId !== undefined) {
         storePalette(next.paletteId);
-        const palette = paletteById(next.paletteId);
-        rendererRef.current?.setPalette(palette.colors);
-        rendererRef.current?.setBackground(palette.background);
+        rendererRef.current?.setPalette(paletteById(next.paletteId));
       }
       return merged;
     });

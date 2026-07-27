@@ -134,6 +134,7 @@ flat in float vSticker;
 uniform sampler2D uFaceColors;
 uniform vec3 uSun;
 uniform float uAmbient;
+uniform float uFill;
 uniform float uOpacity;
 
 // What the cursor is over, or -1 for nothing. Highlighting by cubie lights the whole piece.
@@ -142,6 +143,10 @@ uniform float uHighlightCubie;
 
 out vec4 fragColor;
 
+vec3 linearToSRGB(vec3 c) {
+  return mix(c * 12.92, 1.055 * pow(max(c, vec3(0.0)), vec3(1.0 / 2.4)) - 0.055, step(0.0031308, c));
+}
+
 void main() {
   // Flat shading from the geometry itself: for a planar polygon the screen-space derivatives of
   // the interpolated 3D position give exactly the plane's normal, so no normal attribute is
@@ -149,9 +154,15 @@ void main() {
   vec3 normal = normalize(cross(dFdx(vPos3), dFdy(vPos3)));
   if (!gl_FrontFacing) normal = -normal;
 
-  float brightness = max(0.0, dot(normal, uSun));
+  // Key light, plus a dim fill from behind so faces turned away from the sun keep their hue
+  // instead of sinking into the background. The original has neither — a face pointing away goes
+  // pure black — which was survivable against its bright sky but not against a dark one.
+  float key = max(0.0, dot(normal, uSun));
+  float fill = uFill * max(0.0, dot(normal, -uSun));
+  float lit = clamp(key + fill, 0.0, 1.0);
+
   vec3 color = texelFetch(uFaceColors, ivec2(int(vColorIndex + 0.5), 0), 0).rgb;
-  color *= uAmbient + (1.0 - uAmbient) * brightness;
+  color *= uAmbient + (1.0 - uAmbient) * lit;
 
   bool highlit =
     (uHighlightCubie >= 0.0 && abs(vCubie - uHighlightCubie) < 0.5) ||
@@ -159,7 +170,13 @@ void main() {
   // The original brightens twice, each step a 1/0.7 scale — about 2x, clamped.
   if (highlit) color = min(color * 2.04, vec3(1.0));
 
-  fragColor = vec4(color, uOpacity);
+  // Back to sRGB for display.
+  //
+  // Shading has to happen in linear space to be right, and the palette is converted on the way in
+  // — but a ShaderMaterial writing gl_FragColor by hand gets no encoding applied on the way out.
+  // Without this the linear values are shown as though they were already sRGB, which darkens
+  // everything by roughly a gamma.
+  fragColor = vec4(linearToSRGB(color), uOpacity);
 }
 `;
 

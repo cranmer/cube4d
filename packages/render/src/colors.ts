@@ -1,9 +1,23 @@
 /**
  * Face colours.
  *
- * The hypercube's eight cells use the original's hand-picked palette; anything else gets colours
- * generated to be as visually distinct as possible, since some puzzles in the catalog have 120
- * faces and no hand-picked palette would scale.
+ * Colours are assigned by *opposite pair*, not by face index. On a Rubik's cube white faces yellow,
+ * red faces orange, green faces blue — related colours placed opposite each other, where you never
+ * see both at once. MagicCube4D follows the same convention and adds a fourth pair, purple/pink,
+ * for the hypercube's extra two cells.
+ *
+ * The convention transfers to 4D, but only partly, and it is worth being precise about why. The
+ * front-cell cull hides exactly one cell, so the pair containing it is split — its other half sits
+ * at the centre of the picture. The remaining three pairs are *both* on screen at once. So unlike a
+ * 3D cube, where an opposite pair is never visible together, here three quarters of the pairs
+ * always are.
+ *
+ * That means related-but-similar is not good enough: the two colours of a pair have to be plainly
+ * distinguishable side by side, the way white and yellow are. Red against orange is the pair that
+ * strains this even on a physical cube, and it is the one to watch here.
+ *
+ * Every palette defines four pairs in the same order, so a cell keeps its colour family when you
+ * switch palettes: the yellow cell stays yellow-ish, the green cell stays green-ish.
  */
 
 export interface Rgb {
@@ -12,7 +26,9 @@ export interface Rgb {
   readonly b: number;
 }
 
-/** `MagicCube.DEFAULT_FACE_COLORS` — the eight colours of the 3×3×3×3 hypercube. */
+export type ColorPair = readonly [Rgb, Rgb];
+
+/** `MagicCube.DEFAULT_FACE_COLORS` — the eight colours of the 3×3×3×3 hypercube, in face order. */
 export const DEFAULT_FACE_COLORS: readonly Rgb[] = [
   { r: 153, g: 89, b: 255 }, // purple
   { r: 255, g: 229, b: 0 }, // yellow
@@ -24,25 +40,23 @@ export const DEFAULT_FACE_COLORS: readonly Rgb[] = [
   { r: 255, g: 127, b: 255 }, // pink
 ];
 
-/**
- * Alternative palettes.
- *
- * The original's colours were chosen for a 3D-shaped intuition: red and orange are *opposite*
- * cells, as are blue and purple, and on a physical cube you almost never see an opposite pair at
- * once. In 4D the front-cell cull shows you seven cells simultaneously, so opposite pairs sit side
- * by side constantly and near-hues become genuinely hard to tell apart.
- */
 export interface Palette {
   readonly id: string;
   readonly name: string;
   readonly note: string;
-  readonly colors: readonly Rgb[];
+  /**
+   * Four opposite-face pairs, in a fixed order of roles: violet, light, green–blue, warm.
+   *
+   * Keeping the order consistent across palettes is what makes them interchangeable — switching
+   * palette recolours the puzzle without relabelling which cell is which.
+   */
+  readonly pairs: readonly ColorPair[];
   /**
    * Backgrounds belong to palettes, not to the app.
    *
-   * The original's sky blue is the reason its blues are hard to read: any blue or cyan cell
-   * competes with it, and the Lambert shading only darkens cells further. A neutral dark
-   * background removes that competition entirely and lets saturated colours carry.
+   * The original's sky blue is why its blues are hard to read: any blue or cyan cell competes with
+   * it, and the shading only darkens cells further. A neutral dark background removes that
+   * competition and lets saturated colours carry.
    */
   readonly background: Rgb;
 }
@@ -50,25 +64,31 @@ export interface Palette {
 /** The original's sky colour. */
 export const SKY: Rgb = { r: 20, g: 170, b: 235 };
 
-const hex = (...values: string[]): Rgb[] =>
-  values.map((v) => ({
-    r: parseInt(v.slice(1, 3), 16),
-    g: parseInt(v.slice(3, 5), 16),
-    b: parseInt(v.slice(5, 7), 16),
-  }));
-
 /** Neutral, slightly cool, dark enough that every saturated hue reads against it. */
 const SLATE: Rgb = { r: 22, g: 26, b: 33 };
+
+const rgb = (v: string): Rgb => ({
+  r: parseInt(v.slice(1, 3), 16),
+  g: parseInt(v.slice(3, 5), 16),
+  b: parseInt(v.slice(5, 7), 16),
+});
+const pair = (a: string, b: string): ColorPair => [rgb(a), rgb(b)];
 
 export const PALETTES: readonly Palette[] = [
   {
     id: 'distinct',
     name: 'Distinct',
     note: 'Okabe–Ito — stays readable with any common colour vision.',
-    // The Okabe–Ito qualitative palette happens to have exactly eight entries, which is exactly
-    // what a hypercube needs. Its black is swapped for white, since an unlit black cell is
-    // indistinguishable from shadow.
-    colors: hex('#ffffff', '#e69f00', '#56b4e9', '#009e73', '#f0e442', '#0072b2', '#d55e00', '#cc79a7'),
+    // The Okabe–Ito qualitative palette has exactly eight entries, which is exactly what a
+    // hypercube needs. Its black is swapped for white, since an unlit black cell is
+    // indistinguishable from shadow. The pairings are the closest same-family groupings the
+    // palette allows: it was designed for maximum separation, not for related pairs.
+    pairs: [
+      pair('#cc79a7', '#0072b2'), // reddish purple / blue
+      pair('#f0e442', '#ffffff'), // yellow / white
+      pair('#009e73', '#56b4e9'), // bluish green / sky blue
+      pair('#e69f00', '#d55e00'), // orange / vermillion
+    ],
     background: SLATE,
   },
   {
@@ -76,20 +96,27 @@ export const PALETTES: readonly Palette[] = [
     name: 'Vivid',
     note: 'Saturated, with lightness varied so neighbouring hues still separate.',
     // Hue alone is not enough for eight cells: the shading darkens whatever faces away, which
-    // compresses hues together. So lightness alternates as well — a deep red beside a bright
-    // orange stays legible where two mid-tones would not.
-    colors: hex('#c1121f', '#fb8500', '#ffd500', '#2a9d8f', '#52d1dc', '#1d4ed8', '#d946ef', '#f1f5f9'),
+    // compresses hues together. So lightness varies within each pair as well.
+    pairs: [
+      pair('#a347d1', '#f06ac9'), // purple / pink
+      pair('#ffd60a', '#f1f5f9'), // yellow / white
+      pair('#26a269', '#1c71d8'), // green / blue
+      pair('#ff7800', '#e01b24'), // orange / red
+    ],
     background: SLATE,
   },
   {
     id: 'classic',
     name: 'Classic',
     note: "MagicCube4D's original colours, on its original sky.",
-    // Kept exactly as the original, sky included. Its red/orange and blue/purple pairs are opposite
-    // cells — a convention from 3D cubes, where you never see an opposite pair at once. In 4D you
-    // see seven cells simultaneously and the pairs sit side by side, which is why it is no longer
-    // the default.
-    colors: DEFAULT_FACE_COLORS,
+    // Exactly the original's colours, grouped into the pairs the original actually places
+    // opposite each other — verified against the geometry rather than assumed.
+    pairs: [
+      [DEFAULT_FACE_COLORS[0], DEFAULT_FACE_COLORS[7]], // purple / pink
+      [DEFAULT_FACE_COLORS[1], DEFAULT_FACE_COLORS[6]], // yellow / white
+      [DEFAULT_FACE_COLORS[2], DEFAULT_FACE_COLORS[5]], // green / blue
+      [DEFAULT_FACE_COLORS[3], DEFAULT_FACE_COLORS[4]], // orange / red
+    ],
     background: SKY,
   },
 ];
@@ -101,27 +128,58 @@ export function paletteById(id: string): Palette {
 }
 
 /**
- * A palette of `n` visually distinct colours.
+ * Colour every cell of a puzzle, keeping opposite cells in the same colour family.
  *
- * Uses the hand-picked eight where they fit. Beyond that, walks hue by the golden angle — which
- * spreads successive hues about as evenly as possible however many you take — and varies lightness
- * and saturation on shorter cycles so that neighbouring hues still separate.
+ * Faces are walked in order and grouped with their opposites; each group takes the next pair. A
+ * face with no opposite — a simplex has none at all — takes a single colour from the pool.
  *
- * The original instead samples YUV space at random and iteratively pushes the closest pair apart.
- * That is a better optimiser, but it is seeded-random and produces a palette nobody can predict;
- * this is deterministic and good enough to tell 120 cells apart.
+ * Puzzles larger than the palette (the 120-cell needs sixty pairs) fall back to generated hues,
+ * still assigned in pairs so the convention holds all the way up.
  */
-export function facePalette(n: number, base: readonly Rgb[] | undefined = DEFAULT_FACE_COLORS): Rgb[] {
-  base = base ?? DEFAULT_FACE_COLORS;
-  if (n <= base.length) return base.slice(0, n).map((c) => ({ ...c }));
+export function assignFaceColors(
+  nFaces: number,
+  face2OppositeFace: ArrayLike<number>,
+  palette: Palette,
+): Rgb[] {
+  // Group faces into opposite pairs, in face order.
+  const groups: number[][] = [];
+  const placed = new Uint8Array(nFaces);
+  for (let f = 0; f < nFaces; ++f) {
+    if (placed[f]) continue;
+    const opposite = face2OppositeFace[f];
+    if (opposite > f && opposite < nFaces && !placed[opposite]) {
+      groups.push([f, opposite]);
+      placed[f] = placed[opposite] = 1;
+    } else {
+      groups.push([f]);
+      placed[f] = 1;
+    }
+  }
 
+  const pairs = groups.length <= palette.pairs.length ? palette.pairs : generatePairs(groups.length);
+
+  const out: Rgb[] = new Array(nFaces);
+  for (let g = 0; g < groups.length; ++g) {
+    const [a, b] = pairs[g % pairs.length];
+    out[groups[g][0]] = { ...a };
+    if (groups[g].length > 1) out[groups[g][1]] = { ...b };
+  }
+  return out;
+}
+
+/**
+ * Pairs for puzzles too large for a hand-picked palette.
+ *
+ * Hues walk by the golden angle, which spreads them about as evenly as possible however many you
+ * take, and each pair is a light and a dark of the same hue — so opposite cells stay related, as
+ * they do on a Rubik's cube, while every other cell is a different hue entirely.
+ */
+function generatePairs(count: number): ColorPair[] {
   const GOLDEN_ANGLE = 137.50776405003785;
-  const out: Rgb[] = [];
-  for (let i = 0; i < n; ++i) {
+  const out: ColorPair[] = [];
+  for (let i = 0; i < count; ++i) {
     const hue = (i * GOLDEN_ANGLE) % 360;
-    const lightness = 0.45 + 0.2 * ((i % 3) / 2);
-    const saturation = 0.65 + 0.3 * ((i % 2) / 1);
-    out.push(hslToRgb(hue, saturation, lightness));
+    out.push([hslToRgb(hue, 0.72, 0.62), hslToRgb(hue, 0.85, 0.38)]);
   }
   return out;
 }
@@ -144,4 +202,9 @@ function hslToRgb(h: number, s: number, l: number): Rgb {
     g: Math.round((g + m) * 255),
     b: Math.round((b + m) * 255),
   };
+}
+
+/** The palette's colours in a flat list, for swatches in the UI. */
+export function paletteSwatches(palette: Palette): Rgb[] {
+  return palette.pairs.flatMap((p) => [p[0], p[1]]);
 }

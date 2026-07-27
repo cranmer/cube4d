@@ -8,12 +8,14 @@ export {
   type PuzzleBuffers,
 } from './buildGeometry.js';
 export {
+  assignFaceColors,
   DEFAULT_FACE_COLORS,
   DEFAULT_PALETTE_ID,
-  facePalette,
   PALETTES,
   paletteById,
+  paletteSwatches,
   SKY,
+  type ColorPair,
   type Palette,
   type Rgb,
 } from './colors.js';

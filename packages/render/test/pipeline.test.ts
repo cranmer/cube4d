@@ -23,7 +23,7 @@ import {
   vertexToSticker,
   visibleStickerMask,
 } from '../src/pipeline.js';
-import { DEFAULT_FACE_COLORS, facePalette } from '../src/colors.js';
+import { assignFaceColors, DEFAULT_FACE_COLORS, paletteById, paletteSwatches } from '../src/colors.js';
 
 const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 
@@ -190,23 +190,64 @@ describe('projected extent', () => {
 });
 
 describe('face colours', () => {
-  it('uses the original palette for the hypercube', () => {
-    const palette = facePalette(8);
-    expect(palette).toHaveLength(8);
-    expect(palette[0]).toEqual(DEFAULT_FACE_COLORS[0]);
-    expect(palette[6]).toEqual({ r: 255, g: 255, b: 255 });
+  it('reproduces the original assignment exactly for the hypercube', () => {
+    // Classic is defined as pairs, but assigning them by the puzzle's real opposite-face relation
+    // has to land every cell on the colour the original gave it.
+    const geo = loadGeometry('4-3-3_3');
+    const colors = assignFaceColors(geo.nFaces, geo.face2OppositeFace, paletteById('classic'));
+    expect(colors).toEqual(DEFAULT_FACE_COLORS.map((c) => ({ ...c })));
   });
 
-  it('generates distinct colours for the 120-cell', () => {
-    const palette = facePalette(120);
-    expect(palette).toHaveLength(120);
-    const seen = new Set(palette.map((c) => `${c.r},${c.g},${c.b}`));
-    expect(seen.size).toBe(120);
-    for (const c of palette) {
+  it.each(['distinct', 'vivid', 'classic'])('puts %s opposite cells in the same pair', (id) => {
+    // The Rubik's convention: white faces yellow, red faces orange. Each palette pair must land on
+    // an actual opposite pair of the puzzle, or the convention is decorative rather than real.
+    const geo = loadGeometry('4-3-3_3');
+    const palette = paletteById(id);
+    const colors = assignFaceColors(geo.nFaces, geo.face2OppositeFace, palette);
+    const key = (c: { r: number; g: number; b: number }) => `${c.r},${c.g},${c.b}`;
+
+    for (const [a, b] of palette.pairs) {
+      const faceA = colors.findIndex((c) => key(c) === key(a));
+      const faceB = colors.findIndex((c) => key(c) === key(b));
+      expect(faceA, `${id}: ${key(a)} unused`).toBeGreaterThanOrEqual(0);
+      expect(geo.face2OppositeFace[faceA]).toBe(faceB);
+    }
+  });
+
+  it.each(['distinct', 'vivid', 'classic'])('gives %s eight distinct colours', (id) => {
+    const geo = loadGeometry('4-3-3_3');
+    const colors = assignFaceColors(geo.nFaces, geo.face2OppositeFace, paletteById(id));
+    expect(new Set(colors.map((c) => `${c.r},${c.g},${c.b}`)).size).toBe(8);
+    expect(paletteSwatches(paletteById(id))).toHaveLength(8);
+  });
+
+  it('keeps the convention on the 120-cell, where no palette is big enough', () => {
+    const geo = loadGeometry('5-3-3_2');
+    const colors = assignFaceColors(geo.nFaces, geo.face2OppositeFace, paletteById('distinct'));
+    expect(colors).toHaveLength(geo.nFaces);
+    for (const c of colors) {
       for (const channel of [c.r, c.g, c.b]) {
         expect(channel).toBeGreaterThanOrEqual(0);
         expect(channel).toBeLessThanOrEqual(255);
       }
     }
+    // Opposite cells should be a light and a dark of one hue, so never identical but always close
+    // in hue — which is exactly the Rubik's relationship, generated rather than hand-picked.
+    let checked = 0;
+    for (let f = 0; f < geo.nFaces && checked < 20; ++f) {
+      const o = geo.face2OppositeFace[f];
+      if (o <= f) continue;
+      expect(colors[f]).not.toEqual(colors[o]);
+      checked++;
+    }
+    expect(checked).toBeGreaterThan(0);
+  });
+
+  it('colours a simplex, which has no opposite faces at all', () => {
+    const geo = loadGeometry('3-3-3_3');
+    for (let f = 0; f < geo.nFaces; ++f) expect(geo.face2OppositeFace[f]).toBe(-1);
+    const colors = assignFaceColors(geo.nFaces, geo.face2OppositeFace, paletteById('distinct'));
+    expect(colors).toHaveLength(geo.nFaces);
+    expect(new Set(colors.map((c) => `${c.r},${c.g},${c.b}`)).size).toBe(geo.nFaces);
   });
 });
