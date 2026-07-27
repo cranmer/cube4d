@@ -1,0 +1,13 @@
+{
+  "name": "@mc4d/render",
+  "version": "0.0.0",
+  "description": "Three.js renderer for MagicCube4D puzzles",
+  "license": "MIT",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": { ".": "./src/index.ts" },
+  "dependencies": { "@mc4d/puzzle-core": "*", "three": "^0.169.0" },
+  "devDependencies": { "@types/three": "^0.169.0", "@types/node": "^26.1.1" },
+  "scripts": { "test": "vitest run", "typecheck": "tsc --noEmit" }
+}

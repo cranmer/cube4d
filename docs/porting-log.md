@@ -19,28 +19,24 @@ If you want the conclusions rather than the story:
 
 ## Status
 
-**Phases 0–2 of 6 complete.** Nothing is playable yet — there is no renderer.
+**Phases 0–3 of 6 complete.** The puzzle renders and rotates in a browser. It does not twist yet.
 
 | Phase | Scope | Status |
 |---|---|---|
 | 0 | Measure and freeze the catalog | ✅ complete |
 | 1 | Exporter + asset format | ✅ complete |
 | 2 | Headless puzzle core | ✅ complete |
-| 3 | Renderer, static (first shareable artifact) | next |
-| 4 | Interaction — twisting, undo, scramble | not started |
+| 3 | Renderer, static (first shareable artifact) | ✅ complete |
+| 4 | Interaction — twisting, undo, scramble | next |
 | 5 | Catalog + persistence | not started |
 | 6 | Polish & outreach | not started |
 
 What exists today: all 128 puzzles export to binary assets; `@mc4d/puzzle-core` decodes, twists,
-scrambles and tracks history; `@mc4d/legacy-format` reads and writes `.log` files and converts to
-JSON, with an `mc4d-convert` CLI. 206 tests.
+scrambles and tracks history; `@mc4d/legacy-format` reads and writes `.log` files, with an
+`mc4d-convert` CLI; and `@mc4d/render` puts the whole 4D→3D projection into a vertex shader.
+223 tests.
 
-The headline result: **every real solve log in the corpus replays to a solved puzzle** — eight
-solves by eight people, including Charles Doan's 191-twist 3⁴ record and Andrey Astrelin's
-1,981-twist 5⁴, run against geometry exported from the original Java.
-
-You can't see a puzzle yet, but you can solve one from a Node REPL, and you can replay a world
-record in it.
+![The hypercube in a browser](images/hypercube.png)
 
 ---
 
@@ -422,14 +418,76 @@ dimension-and-face term. Now ported verbatim. The number decides whether a scram
 
 ---
 
+## 2026-07-27 — Phase 3: you can finally see it
+
+The original recomputes every vertex position on the CPU on every repaint, even when nothing is
+moving — for the largest puzzle that is 65,000 vertices in software, per frame. Here the whole
+per-vertex pipeline lives in a vertex shader, so rotating the puzzle costs sixteen uniform floats
+and nothing else. It costs the same for the 216-sticker hypercube as for the 7,560-sticker 120-cell.
+
+What makes that fit is an observation about the data: a vertex only needs *its own* offset from its
+sticker's centre. Everything else — the sticker's offset from its cell centre, the cell centre, and
+the four vertices that decide the cull — is per **sticker**, so it goes in a texture indexed by a
+sticker id carried on the vertex. Two small attributes, one texture fetch, done.
+
+Three details worth recording:
+
+**The row-vector convention resolves itself for free.** The original transforms points as `v · M`;
+GLSL multiplies as `M · v`. Loading a row-major array into Three's column-major `Matrix4`
+transposes it — which converts between exactly those two conventions. No explicit transpose is
+needed, or wanted. Adding one would have silently produced a puzzle that rotated the wrong way.
+
+**Flat shading needs no normals.** The original computes one brightness per polygon from its first
+three vertices. For a planar polygon, `normalize(cross(dFdx(pos), dFdy(pos)))` in the fragment
+shader gives precisely that same plane normal — so there is no normal attribute, no `flat` varying,
+and no per-polygon data at all.
+
+**Real depth buffer, not the painter's algorithm.** This looked like the risky choice, since the
+image involves *two* perspective projections. It isn't: after the 4D→3D step you are holding honest
+3D geometry, and the original's own sort key is already camera-space depth. A depth buffer computes
+per-pixel what the original approximates per-polygon, and it fixes the sliver artifacts its source
+comments complain about.
+
+### What the tests could not tell me
+
+A shader cannot be unit tested in Node, so I mirrored the pipeline on the CPU and tested that. Two
+of those tests failed in ways that taught me something.
+
+**"Roughly half the cells face away from the eye."** Wrong. The 4D eye sits at 1.05 against a puzzle
+normalised to circumradius 1 — almost touching the surface — so exactly the *nearest* cell faces it.
+For the 3×3×3×3 that is 27 of 216 stickers culled, one cell's worth, and you look through the gap
+into the interior. That hole is the cube-within-a-cube.
+
+**"Rotating changes which cells are culled."** Also wrong, and more interesting. A plain drag rotates
+in the XZ and YZ planes — purely 3D — which leaves every point's W coordinate untouched, and a proper
+3D rotation preserves the sign of the tetrahedron volume. So an ordinary drag *cannot* change which
+cell is hidden, however far you drag it. Only shift-drag, which rotates in XW and YW, can. That is
+precisely why the original gives 4D rotation its own modifier, and it is now asserted as a pair of
+tests: plain drag leaves the culled set identical, shift-drag changes it.
+
+### Then I actually looked at it
+
+Unit tests said the maths was right; they could not say whether anything appeared on screen. So I
+put a headless browser in the loop and took a screenshot — and found a bug no test had caught.
+
+Vite's preview server, like GitHub Pages, serves a `.gz` file with `Content-Encoding: gzip`. The
+browser therefore inflates it before the app sees a byte, and the app's own `DecompressionStream`
+then choked on already-plain data. Deciding from the extension was the mistake; a gzip stream always
+starts `0x1f 0x8b`, so the fix is to look. This would have worked locally and broken in production.
+
+A second bug the screenshots caught: on a portrait window the puzzle overflowed the sides, because
+a perspective camera's field of view is vertical while the original frames against whichever
+dimension is *smaller*.
+
+Sweeping the sliders is what finally convinced me the projection was right. At `faceShrink` 0.95 the
+cells close up into the unmistakable MagicCube4D silhouette; at a 4D eye distance of 4 the projection
+flattens toward orthographic and the side cells become thin slabs, exactly as they should.
+
+---
+
 ## Next
 
-**Phase 3: the renderer.** The first thing you can look at — `{4,3,3} 3` at rest, rotating, deployed
-to a public URL. No twisting yet; that's Phase 4. This is deliberately the first shareable artifact
-and the one worth blogging about.
+**Phase 4: making it twist.** GPU colour-ID picking, hover highlighting, click-to-twist with
+time-based animation, the number keys for slice selection, undo/redo, scramble, and solve detection.
 
-The work is mapping the original's twelve-stage software pipeline onto vertex shaders: the shrink,
-the 4D rotation, the 4D→3D projection, and above all the front-cell cull that produces the
-cube-within-a-cube image. Then a real depth buffer instead of the painter's-algorithm sort, and the
-three drag modes — including the shift-drag that rotates through the fourth dimension and has no 3D
-analogue.
+Done when a 2⁴ can be scrambled and solved end to end in the browser.

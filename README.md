@@ -6,8 +6,11 @@ functional four-dimensional Rubik's cube, plus dozens of other 4D twisty puzzles
 The original is an excellent piece of software that requires a Java installation to run. This is a
 zero-install version: open a link, solve a hypercube.
 
-> **Status: early development — Phase 0 of 6 complete. Nothing is playable yet.**
-> The [porting log](docs/porting-log.md) tracks progress and explains the reasoning as it happens.
+![The 3×3×3×3 hypercube, rendered in the browser](docs/images/hypercube.png)
+
+> **Status: early development — Phases 0–3 of 6 complete.** The puzzle renders and rotates in a
+> browser; it does not twist yet. The [porting log](docs/porting-log.md) tracks progress and
+> explains the reasoning as it happens.
 
 ## What this is
 
@@ -31,6 +34,21 @@ for the ordinary Rubik's cube.
 | [Quirks and bugs](docs/quirks-and-bugs.md) | Traps found in the original, and what this port does about each |
 | [Implementation plan](docs/plan.md) | What gets built, in what order, and how it gets verified |
 | [Phase 0 results](docs/phase0-results.md) | Measurements for all 128 catalog puzzles |
+
+## Running it
+
+```sh
+git clone --recurse-submodules <this repo>
+npm install
+npm test                              # 200+ tests, no GPU or JDK needed
+npm run dev --workspace @mc4d/app     # then open the printed URL
+```
+
+Regenerating the puzzle assets needs a JDK 21 and takes about 30 seconds:
+
+```sh
+npm run assets
+```
 
 The porting log is the place to start if you're curious rather than contributing.
 

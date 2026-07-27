@@ -15,6 +15,7 @@
     "assets": "tools/exporter/build.sh && tools/exporter/export.sh"
   },
   "devDependencies": {
+    "playwright": "^1.62.0",
     "typescript": "^5.6.0",
     "vitest": "^2.1.0"
   }
