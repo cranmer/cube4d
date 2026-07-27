@@ -19,20 +19,23 @@ If you want the conclusions rather than the story:
 
 ## Status
 
-**Phase 0 of 6 complete.** Nothing is playable yet.
+**Phases 0 and 1 of 6 complete.** Nothing is playable yet — there is no renderer.
 
 | Phase | Scope | Status |
 |---|---|---|
 | 0 | Measure and freeze the catalog | ✅ complete |
-| 1 | Exporter + asset format | next |
-| 2 | Headless puzzle core | not started |
+| 1 | Exporter + asset format | ✅ complete |
+| 2 | Headless puzzle core | next |
 | 3 | Renderer, static (first shareable artifact) | not started |
 | 4 | Interaction — twisting, undo, scramble | not started |
 | 5 | Catalog + persistence | not started |
 | 6 | Polish & outreach | not started |
 
-What exists today: the repo scaffold, four design documents, a Java survey tool that builds every
-puzzle in the catalog, and the golden count fixtures it produced. No TypeScript yet.
+What exists today: all 128 puzzles export to binary assets; `@mc4d/puzzle-core` decodes them and
+twists them; 80 tests pass across 8 puzzles, including a bit-for-bit match against the original Java
+on all 2,912 legal moves of the standard hypercube.
+
+You can't see a puzzle yet, but you can solve one from a Node REPL.
 
 ---
 
@@ -201,12 +204,94 @@ retired.
 
 ---
 
+---
+
+## 2026-07-27 — Phase 1: the asset format, and the moment of truth
+
+The gate for this phase was deliberately harsh: TypeScript `applyTwist` had to reproduce
+Java-generated permutations **bit-identically for every legal move** of the standard hypercube —
+2,912 of them, being 208 rotating grips × 7 slicemasks × 2 directions. One test, exercising the
+fuzzy hash port, the twist matrix construction, the slicemask classification, and the grip ordering
+all at once.
+
+It passes. So does the same test on seven other puzzles, chosen to hit different parts of the
+original's construction: a simplex (no opposite faces), a uniform triangular duoprism (the
+special-case cut logic), an even edge length (the coincident-cut epsilon path), a dodecahedral prism
+(the hardcoded polytope data), the hundred-gonal duoprism (the precision stress case), and the
+120-cell (the largest puzzle in the catalog). 80 tests, ~4 seconds.
+
+### The asset format
+
+`.mc4dpz`: a magic string, a JSON block table, then 8-byte-aligned typed-array blocks. Loading is
+`fetch` → `ArrayBuffer` → typed-array views, with nothing copied and no numbers parsed.
+
+Two structural claims from the plan turned out to hold, and both matter:
+
+- **Each sticker owns a contiguous, private block of vertices.** The original builds each sticker's
+  geometry independently and concatenates, so there is no vertex sharing. The exporter asserts this
+  rather than trusting it, which lets polygon indices be stored sticker-locally in a single byte.
+  Largest vertex range in the whole catalog: 200, comfortably under 256.
+- **Two of the three shrink arrays are aliases**, one entry per sticker and one per face, replicated
+  across every vertex. Storing them at their true cardinality is lossless and roughly thirds the
+  dominant term.
+
+Gzip did much better than expected. `{4,3,3} 3` is 81 KB raw and **8.2 KB gzipped** — against a
+40 KB estimate. The hypercube is highly symmetric and the float data repeats, so it compresses far
+better than generic geometry would. The largest puzzle, `{5,3,3}`, is 2.79 MB raw and 805 KB
+gzipped.
+
+### Two bugs of my own
+
+**The block table wouldn't converge.** The header has to contain each block's byte offset, but the
+offsets depend on how long the header is — and writing a larger offset makes the header longer,
+which pushes the offsets out again. My first attempt laid out against a header with all offsets zero
+and then asserted the real header would fit, which it never does. Fixed by iterating to a fixpoint:
+lay out, re-render, repeat until the header stops growing. Converges in two rounds, since each round
+only adds digits.
+
+**Node's Buffer is not 8-byte aligned.** Reading a fixture with `readFileSync` and handing its
+`ArrayBuffer` to the decoder throws a `RangeError` — Node pools Buffer allocations, so a Buffer's
+`byteOffset` is essentially never a multiple of 8, and `Float64Array` views refuse to be created at
+a misaligned offset. Worth knowing about generally: it will bite anyone doing zero-copy binary work
+in Node. The fixture loader copies into a fresh `ArrayBuffer`.
+
+### On the golden fixtures
+
+First attempt dumped 24 MB of permutations — too much for a git repository. The mistake was capping
+by *entry count*, when the cost of an entry is `nStickers × 4` bytes and `nStickers` ranges from 75
+to 7,560 across the catalog. Budgeting by bytes instead, and gzipping, brings the whole set to
+2.1 MB while still giving *exhaustive* coverage to five of the eight puzzles.
+
+### What the tests found that the goldens couldn't
+
+The goldens only prove we match the Java on moves that were sampled — and for the two largest
+puzzles, that is a small fraction. So there are property tests that must hold everywhere:
+
+- every twist permutation is a **bijection** (the precision canary — a float32 leak makes hash
+  lookups miss, which shows up as two slots mapping to the same source)
+- a grip of order *k* applied *k* times is the identity
+- a twist followed by its inverse is the identity
+- the colour census is conserved
+- moving *every* slice of a cell together leaves the puzzle solved, because that rotates the whole
+  puzzle rather than twisting it
+
+Plus some structural facts that are pleasing to see fall out of exported data rather than being
+asserted anywhere: the standard hypercube has exactly 80 pieces — 16 four-colour corners,
+32 three-colour edges, 24 two-colour faces, 8 single-colour centres — and each cell's grips recover
+the rotation group of a cube, with order 3 about vertices, 2 about edges, and 4 about faces.
+
+### Verdict
+
+The riskiest part of the port is done. Everything downstream — history, scramble, rendering,
+interaction — is ordinary work on a foundation that is now known to agree with the original.
+
+---
+
 ## Next
 
-**Phase 1: the exporter and the asset format.** Extend the survey tool into something that writes
-`.mc4dpz` files, and write the TypeScript decoder.
+**Phase 2: the headless core.** Move list and undo/redo, seeded scramble, solve detection, the 4D
+rotation handler, and the `.log` / `.macros` codec.
 
-The gate is deliberately harsh: TypeScript `applyTwist` must reproduce Java-generated permutations
-**bit-identically for all 216 grips × 2 directions × every slicemask** on `{4,3,3} 3`. That single
-test exercises the fuzzy hash port, the twist matrix construction, the slicemask logic, and the grip
-ordering all at once. If it passes, the riskiest part of the port is done.
+The gate: property tests green, a real community `.log` file replaying to a solved state, and
+`mc4d-convert a.log → a.json → b.log` round-tripping byte-identically. Which means the corpus of
+real log files — the one artifact that cannot be regenerated — needs to be collected first.

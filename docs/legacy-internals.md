@@ -183,9 +183,37 @@ naive reading suggests.
 
 ## 4. Grips: how twists are addressed
 
-A **grip** is a rotation axis, and there is one for every (cell, sub-element of that cell) pair for
-sub-element dimensions 0 through 3. For `{4,3,3}`: 8 cells × (8 vertices + 12 edges + 6 faces + 1
-cell centre) = **216 grips**.
+**A grip is a twist axis.**
+
+On a 3D Rubik's cube you grab a face and turn it — one axis per face, 90° per click. In 4D this
+decomposes into something richer. A 4D polytope's "faces" are 3D *cells*; the hypercube has 8 cubical
+cells. But naming a cell does not determine a rotation, because a cube can be spun about several
+different axes:
+
+| Axis through the cell's centre and… | Symmetry order | Twist angle |
+|---|---|---|
+| a vertex (body diagonal) | 3 | 120° |
+| an edge midpoint | 2 | 180° |
+| a face centre | 4 | 90° |
+| the cell centre itself | 0 — degenerate | cannot rotate |
+
+So there is one grip for every **(cell, sub-element of that cell)** pair, for sub-element dimensions 0
+through 3. Each names "rotate *this* cell about the axis pointing at *that* sub-element." For
+`{4,3,3}`: 8 cells × (8 vertices + 12 edges + 6 faces + 1 cell centre) = **216 grips**.
+
+A grip determines two things independently:
+
+- **Which stickers move** — from the grip's *cell* alone, combined with the slicemask. Two grips on
+  the same cell move exactly the same set of stickers; they differ only in where those stickers go.
+- **Where they move to** — from the grip's rotation axis and symmetry order.
+
+You never select a grip directly in the UI. You click a sticker, and the program infers which grip you
+meant from the *piece type* you clicked: a 4-colour corner implies a vertex grip, a 3-colour edge
+piece an edge grip, a 2-colour face piece a face grip. That inference is the heuristic its authors
+flag as inadequate — see [`quirks-and-bugs.md`](quirks-and-bugs.md#sticker--grip-resolution).
+
+Confusingly, the `.log` format and parts of the source call a grip index a "sticker id", a leftover
+from an earlier design; `Macro.java:11` notes `XXX - now grips!`.
 
 Grip count depends only on the polytope's element lattice, **not on the length** — `{4,3,3}` has 216
 grips at every length from 1 to 9. Measured counts for the whole catalog are in `fixtures/sizes.csv`.

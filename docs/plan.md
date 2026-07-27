@@ -109,8 +109,8 @@ a solve without trusting the client. It costs nothing now and cannot be retrofit
 | Phase | Scope | Status |
 |---|---|---|
 | **0** | Measure and freeze the catalog | ✅ **done** — see [`phase0-results.md`](phase0-results.md) |
-| **1** | Exporter + asset format | not started |
-| **2** | Headless core | not started |
+| **1** | Exporter + asset format | ✅ **done** — all 2,912 permutations match the Java |
+| **2** | Headless core | next |
 | **3** | Renderer, static | not started |
 | **4** | Interaction | not started |
 | **5** | Catalog + persistence | not started |

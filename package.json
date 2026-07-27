@@ -1,0 +1,21 @@
+{
+  "name": "cube4d",
+  "private": true,
+  "version": "0.0.0",
+  "description": "A modern browser-based rewrite of MagicCube4D",
+  "license": "MIT",
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "assets": "tools/exporter/build.sh && tools/exporter/export.sh"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}
