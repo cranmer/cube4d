@@ -10,8 +10,8 @@ const page = await browser.newPage({ viewport: { width: 900, height: 900 }, devi
 await page.goto('http://localhost:4173/', { waitUntil: 'networkidle' });
 await page.waitForTimeout(2000);
 
-// Hide the side panel so the canvas takes the whole square, and close the cells up so the icon
-// reads as one solid object at 32 pixels rather than a scatter of specks.
+// Hide the side panel so the canvas takes the whole square. The view is otherwise left at the
+// app's defaults, so the icon is exactly what you see on opening the page.
 await page.evaluate(() => {
   document.querySelector('.panel').style.display = 'none';
   document.querySelector('.layout').style.gridTemplateColumns = '1fr';
@@ -28,8 +28,8 @@ const setSlider = async (i, v) => {
   }, { i, v });
   await page.waitForTimeout(400);
 };
-await setSlider(0, 0.86);           // face shrink: cells nearly touching
-await page.evaluate(() => window.__mc4d.renderer.setZoom(0.98));
+// Default face shrink (0.4) — the separated cells that make the 4D cross shape recognisable.
+await page.evaluate(() => window.__mc4d.renderer.setZoom(1.18));
 await page.waitForTimeout(500);
 
 await page.locator('canvas').screenshot({ path: 'build/shots/favicon-source.png' });
