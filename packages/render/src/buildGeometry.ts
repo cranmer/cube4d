@@ -23,6 +23,11 @@ export interface PuzzleBuffers {
   /** Backing store for `stickerData`, so a twist can rewrite entries in place. */
   readonly stickerArray: Float32Array;
   readonly triangleCount: number;
+  /** Index data in sticker order, kept so transparency can reorder it back-to-front. */
+  readonly baseIndices: Uint16Array | Uint32Array;
+  /** Where each sticker's triangles start in the index buffer, in triangles. */
+  readonly stickerTriBegin: Uint32Array;
+  readonly stickerTriCount: Uint32Array;
 }
 
 /**
@@ -47,12 +52,16 @@ export function buildBuffers(geo: PuzzleGeometry): PuzzleBuffers {
   const use32Bit = geo.nVerts > 65535;
   const indices = use32Bit ? new Uint32Array(triangles * 3) : new Uint16Array(triangles * 3);
 
+  const stickerTriBegin = new Uint32Array(geo.nStickers);
+  const stickerTriCount = new Uint32Array(geo.nStickers);
+
   let poly = 0;
   let ind = 0;
   let out = 0;
   for (let s = 0; s < geo.nStickers; ++s) {
     const base = geo.stickerVertBegin[s];
     const nPolys = geo.stickerPolyCount[s];
+    stickerTriBegin[s] = out / 3;
     for (let k = 0; k < nPolys; ++k) {
       const count = geo.polyVertCount[poly + k];
       const first = base + geo.polyIndsLocal[ind];
@@ -63,6 +72,7 @@ export function buildBuffers(geo: PuzzleGeometry): PuzzleBuffers {
       }
       ind += count;
     }
+    stickerTriCount[s] = out / 3 - stickerTriBegin[s];
     poly += nPolys;
   }
 
@@ -81,6 +91,12 @@ export function buildBuffers(geo: PuzzleGeometry): PuzzleBuffers {
     stickerArray: array,
     stickerTexWidth: width,
     triangleCount: triangles,
+    // A copy, not the live buffer. The transparency sort reads from this while writing into the
+    // geometry's index array; if they were the same array it would overwrite its own source and
+    // silently drop whole cells.
+    baseIndices: indices.slice(),
+    stickerTriBegin,
+    stickerTriCount,
   };
 }
 

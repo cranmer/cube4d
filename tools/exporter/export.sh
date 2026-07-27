@@ -25,4 +25,8 @@ for f in "$ROOT"/fixtures/perm/*.bin.gz; do
   name="$(basename "$f" .bin.gz)"
   cp "$OUT/$name.mc4dpz.gz" "$ROOT/fixtures/assets/"
 done
-echo "staged $(ls "$ROOT"/fixtures/assets/*.gz | wc -l | tr -d ' ') test fixtures"
+# The manifest records a sha256 of each *uncompressed* asset. That is the thing worth pinning:
+# grip indices inside it are a wire format, and a change means every saved solve is reinterpreted.
+# Compressed bytes are an implementation detail and are deliberately not compared.
+cp "$OUT/manifest.json" "$ROOT/fixtures/manifest.json"
+echo "staged $(ls "$ROOT"/fixtures/assets/*.gz | wc -l | tr -d ' ') test fixtures + manifest"

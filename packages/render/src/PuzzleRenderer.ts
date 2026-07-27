@@ -10,6 +10,7 @@ import * as THREE from 'three';
 import type { PuzzleGeometry } from '@mc4d/puzzle-core';
 
 import { buildBuffers, buildFaceColorTexture, updateStickerColors, type PuzzleBuffers } from './buildGeometry.js';
+import { projectPoint } from './pipeline.js';
 import { facePalette, SKY, type Rgb } from './colors.js';
 import { DEFAULT_VIEW, projectedRadius, type ViewParams } from './pipeline.js';
 import { fragmentShader, vertexShader } from './shaders.js';
@@ -49,6 +50,8 @@ export class PuzzleRenderer {
   private view: ViewParams = { ...DEFAULT_VIEW, mat4d: new Float64Array(16) };
   private radius = 1;
   private zoom = 1;
+  private opacity = 1;
+  private sortScratch: { sticker: number; depth: number }[] = [];
 
   constructor(private readonly options: RendererOptions) {
     this.renderer = new THREE.WebGLRenderer({
@@ -98,8 +101,10 @@ export class PuzzleRenderer {
         uFaceColors: { value: this.faceColorTexture },
         uSun: { value: SUN },
         uAmbient: { value: this.options.ambient ?? 0.15 },
+        uOpacity: { value: this.opacity },
       },
     });
+    this.applyOpacity();
 
     this.mesh = new THREE.Mesh(this.buffers.geometry, this.material);
     this.mesh.frustumCulled = false; // positions are computed in the shader; a CPU bound is meaningless
@@ -115,6 +120,99 @@ export class PuzzleRenderer {
     // row-major array into Three's column-major Matrix4 transposes it, which converts between the
     // two exactly. No explicit transpose is needed — or wanted.
     (this.material.uniforms.uRot4d.value as THREE.Matrix4).fromArray(Array.from(mat4d));
+    // Blending is order-dependent, so a rotation invalidates the draw order.
+    if (this.opacity < 1) this.sortStickersBackToFront();
+  }
+
+  /**
+   * How opaque the stickers are. Below 1 the puzzle becomes a glass model of itself, which is the
+   * clearest way to see that the cells really do nest inside one another.
+   */
+  setOpacity(opacity: number): void {
+    const next = Math.max(0.05, Math.min(1, opacity));
+    const wasTransparent = this.opacity < 1;
+    this.opacity = next;
+    if (!this.material) return;
+    this.material.uniforms.uOpacity.value = next;
+    this.applyOpacity();
+    if (next < 1) this.sortStickersBackToFront();
+    else if (wasTransparent) this.restoreStickerOrder();
+  }
+
+  getOpacity(): number {
+    return this.opacity;
+  }
+
+  private applyOpacity(): void {
+    if (!this.material) return;
+    const transparent = this.opacity < 1;
+    this.material.transparent = transparent;
+    // Writing depth from a translucent surface would let it hide what is behind it, which is the
+    // one thing transparency exists to prevent. Depth *testing* stays on, so opaque geometry still
+    // occludes correctly.
+    this.material.depthWrite = !transparent;
+    this.material.needsUpdate = true;
+  }
+
+  /**
+   * Reorder the index buffer so stickers draw far-to-near.
+   *
+   * Alpha blending is not commutative, so translucent geometry has to be drawn back to front or
+   * the result depends on buffer order rather than on what is actually behind what. Sorting whole
+   * stickers rather than triangles is an approximation — two interpenetrating stickers can still
+   * blend wrongly — but stickers are small, convex and disjoint, so in practice it is exact.
+   */
+  private sortStickersBackToFront(): void {
+    const geo = this.geo;
+    const buffers = this.buffers;
+    if (!geo || !buffers) return;
+
+    if (this.sortScratch.length !== geo.nStickers) {
+      this.sortScratch = Array.from({ length: geo.nStickers }, () => ({ sticker: 0, depth: 0 }));
+    }
+
+    // A sticker's centre is what you get by running the pipeline with a zero vertex offset.
+    const zero = new Float64Array(4);
+    const out = new Float32Array(3);
+    const scale4d = 1 / geo.circumRadius;
+    for (let s = 0; s < geo.nStickers; ++s) {
+      projectPoint(
+        out,
+        zero,
+        0,
+        geo.stickerCenterMinusFaceCenter,
+        s * 4,
+        geo.faceCenters,
+        geo.sticker2face[s] * 4,
+        this.view.mat4d,
+        scale4d,
+        this.view.eyeW,
+        this.view.faceShrink,
+        this.view.stickerShrink,
+      );
+      this.sortScratch[s].sticker = s;
+      this.sortScratch[s].depth = out[2]; // larger z is nearer the camera at +eyeZ
+    }
+    this.sortScratch.sort((a, b) => a.depth - b.depth);
+
+    const indices = buffers.geometry.getIndex()!;
+    const target = indices.array as Uint16Array | Uint32Array;
+    let write = 0;
+    for (const { sticker } of this.sortScratch) {
+      const begin = buffers.stickerTriBegin[sticker] * 3;
+      const count = buffers.stickerTriCount[sticker] * 3;
+      target.set(buffers.baseIndices.subarray(begin, begin + count), write);
+      write += count;
+    }
+    indices.needsUpdate = true;
+  }
+
+  private restoreStickerOrder(): void {
+    const buffers = this.buffers;
+    if (!buffers) return;
+    const indices = buffers.geometry.getIndex()!;
+    (indices.array as Uint16Array | Uint32Array).set(buffers.baseIndices);
+    indices.needsUpdate = true;
   }
 
   /** Shrink sliders and the 4D eye distance. Any change reframes the camera. */

@@ -21,12 +21,15 @@ export interface ViewControls {
   faceShrink: number;
   stickerShrink: number;
   eyeW: number;
+  /** 1 is solid. Below that the puzzle becomes a glass model of itself. */
+  opacity: number;
 }
 
 export const DEFAULT_CONTROLS: ViewControls = {
   faceShrink: 0.4,
   stickerShrink: 0.5,
   eyeW: 1.05,
+  opacity: 1,
 };
 
 export interface PuzzleCanvas {
@@ -115,6 +118,7 @@ export function usePuzzleCanvas(assetUrl: string): PuzzleCanvas {
     renderer.setPuzzle(geometry);
     renderer.setRotation(rotationRef.current.mat);
     renderer.setViewParams(controls);
+    renderer.setOpacity(controls.opacity);
 
     const canvas = canvasRef.current;
     const resize = () => {
@@ -214,6 +218,7 @@ export function usePuzzleCanvas(assetUrl: string): PuzzleCanvas {
     setControlsState((current) => {
       const merged = { ...current, ...next };
       rendererRef.current?.setViewParams(merged);
+      if (next.opacity !== undefined) rendererRef.current?.setOpacity(next.opacity);
       return merged;
     });
   };

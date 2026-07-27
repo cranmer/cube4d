@@ -483,6 +483,38 @@ Sweeping the sliders is what finally convinced me the projection was right. At `
 cells close up into the unmistakable MagicCube4D silhouette; at a 4D eye distance of 4 the projection
 flattens toward orthographic and the side cells become thin slabs, exactly as they should.
 
+### Afterwards: transparency, and the deploy
+
+Two things landed just after the phase closed.
+
+**The site went live** at <https://theoryandpractice.org/cube4d/> — and immediately 404'd on its own
+puzzle asset. The file had been copied into the app's `public/` directory by hand, but that path is
+gitignored as generated output, so it was never committed and CI built without it. The assets now
+get staged out of `fixtures/` at build time, which keeps one source of truth and means CI ships
+exactly what it verified.
+
+Worth noting what the fix earlier in this phase bought: GitHub Pages serves these `.gz` files
+*without* `Content-Encoding`, where Vite's preview server sets it. Sniffing the magic bytes rather
+than trusting the extension means the same code path works on both.
+
+**A transparency slider**, which is the single highest-value thing for actually understanding the
+picture — at 60% opacity you can see the cells genuinely nesting inside one another rather than
+inferring it.
+
+![The hypercube with transparency](images/transparency.png)
+
+It needed more than an alpha value. Blending is not commutative, so translucent geometry has to be
+drawn back to front, which means sorting stickers by depth whenever the puzzle rotates and
+suppressing depth *writes* (while keeping depth *tests*, so opaque geometry still occludes).
+
+And it produced the most embarrassing bug of the project: whole cells vanished. The sort read from
+a `baseIndices` array while writing into the geometry's index buffer — and those were the same
+array, so it overwrote its own source as it went. A one-word fix (`indices.slice()`), invisible to
+every unit test, and obvious the instant I looked at a screenshot.
+
+That is now the third bug this phase that only a rendered image could have caught. Screenshotting is
+staying in the loop.
+
 ---
 
 ## Next

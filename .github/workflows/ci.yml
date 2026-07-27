@@ -36,5 +36,7 @@ jobs:
           java-version: '21'
       - run: tools/exporter/build.sh
       - run: tools/exporter/export.sh
-      - name: Fixtures must be unchanged
-        run: git diff --exit-code -- fixtures/
+      - name: Puzzle geometry must be unchanged
+        # Compares the sha256 of every *uncompressed* asset, not the gzip bytes — compression is an
+        # implementation detail, while the geometry is a wire format that saved solves depend on.
+        run: git diff --exit-code -- fixtures/manifest.json

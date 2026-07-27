@@ -47,6 +47,13 @@ export function App() {
             onChange={(stickerShrink) => setControls({ stickerShrink })}
           />
           <Slider
+            label="Opacity"
+            value={controls.opacity}
+            min={0.1}
+            max={1}
+            onChange={(opacity) => setControls({ opacity })}
+          />
+          <Slider
             label="4D eye distance"
             value={controls.eyeW}
             min={1.01}

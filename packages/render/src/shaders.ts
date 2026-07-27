@@ -110,6 +110,7 @@ flat in float vColorIndex;
 uniform sampler2D uFaceColors;
 uniform vec3 uSun;
 uniform float uAmbient;
+uniform float uOpacity;
 
 out vec4 fragColor;
 
@@ -122,6 +123,6 @@ void main() {
 
   float brightness = max(0.0, dot(normal, uSun));
   vec3 color = texelFetch(uFaceColors, ivec2(int(vColorIndex + 0.5), 0), 0).rgb;
-  fragColor = vec4(color * (uAmbient + (1.0 - uAmbient) * brightness), 1.0);
+  fragColor = vec4(color * (uAmbient + (1.0 - uAmbient) * brightness), uOpacity);
 }
 `;
