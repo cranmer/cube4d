@@ -7,7 +7,16 @@ export {
   updateStickerColors,
   type PuzzleBuffers,
 } from './buildGeometry.js';
-export { DEFAULT_FACE_COLORS, facePalette, SKY, type Rgb } from './colors.js';
+export {
+  DEFAULT_FACE_COLORS,
+  DEFAULT_PALETTE_ID,
+  facePalette,
+  PALETTES,
+  paletteById,
+  SKY,
+  type Palette,
+  type Rgb,
+} from './colors.js';
 export {
   countVisibleStickers,
   cullWitnesses,

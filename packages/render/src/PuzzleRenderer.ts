@@ -40,7 +40,13 @@ const FRAMING = 1.25 / (2 * 4.7);
 export interface RendererOptions {
   readonly canvas: HTMLCanvasElement;
   readonly background?: Rgb;
-  /** Ambient light fraction. The original uses none; a little makes unlit faces legible. */
+  /**
+   * Ambient light fraction.
+   *
+   * The original uses none at all — a face pointing away from the sun goes black. That was
+   * tolerable against its bright sky, where a black cell still stood out; against a dark
+   * background it would simply disappear. A little ambient keeps every face legible.
+   */
   readonly ambient?: number;
 }
 
@@ -91,11 +97,11 @@ export class PuzzleRenderer {
   }
 
   /** Swap in a puzzle. Disposes whatever was there before. */
-  setPuzzle(geo: PuzzleGeometry, colors: readonly Rgb[] = facePalette(geo.nFaces)): void {
+  setPuzzle(geo: PuzzleGeometry, colors?: readonly Rgb[]): void {
     this.disposePuzzle();
     this.geo = geo;
     this.buffers = buildBuffers(geo);
-    this.faceColorTexture = buildFaceColorTexture(colors);
+    this.faceColorTexture = buildFaceColorTexture(facePalette(geo.nFaces, colors));
 
     this.material = new THREE.ShaderMaterial({
       glslVersion: THREE.GLSL3,
@@ -114,7 +120,7 @@ export class PuzzleRenderer {
         uStickerShrink: { value: this.view.stickerShrink },
         uFaceColors: { value: this.faceColorTexture },
         uSun: { value: SUN },
-        uAmbient: { value: this.options.ambient ?? 0.15 },
+        uAmbient: { value: this.options.ambient ?? 0.24 },
         uOpacity: { value: this.opacity },
         uTwistMat: { value: new THREE.Matrix4() },
         uTwisting: { value: 0 },
@@ -345,6 +351,22 @@ export class PuzzleRenderer {
 
   getZoom(): number {
     return this.zoom;
+  }
+
+  setBackground(color: Rgb): void {
+    this.scene.background = new THREE.Color(
+      color.r / 255,
+      color.g / 255,
+      color.b / 255,
+    ).convertSRGBToLinear();
+  }
+
+  /** Swap the face colours without rebuilding any geometry. */
+  setPalette(colors: readonly Rgb[]): void {
+    if (!this.material || !this.geo) return;
+    this.faceColorTexture?.dispose();
+    this.faceColorTexture = buildFaceColorTexture(facePalette(this.geo.nFaces, colors));
+    this.material.uniforms.uFaceColors.value = this.faceColorTexture;
   }
 
   /** Recolour the stickers from a puzzle state. */

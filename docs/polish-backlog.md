@@ -111,9 +111,16 @@ only the modules actually used — the renderer touches a small fraction of the 
 
 ### Favicon at 16 and 32 pixels
 
-The icon is the default view, which means separated cells and so not much ink at small sizes. If it
-reads faint in a real tab, either nudge face shrink up for the icon only, or keep the default view
-for large sizes and use tighter framing for 16/32.
+The icon is the default view, which means separated cells and so not much ink at small sizes. It
+reads better since the background went dark, but if it still looks faint in a real tab, either
+nudge face shrink up for the icon only, or keep the default view for large sizes and use tighter
+framing for 16/32.
+
+### More palettes
+
+Three ship today. Worth considering: a light-background theme, and per-cell colour editing for
+people who solve by colour association and have their own conventions. The original reads an
+optional `facecolors.txt`, so there is precedent for user-supplied palettes.
 
 ---
 

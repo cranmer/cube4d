@@ -1,5 +1,7 @@
 import { useMemo, useRef } from 'react';
 
+import { PALETTES } from '@mc4d/render';
+
 import { DEFAULT_CONTROLS, usePuzzleCanvas } from './usePuzzleCanvas.js';
 import { usePuzzleSession, type PuzzleActions } from './usePuzzle.js';
 
@@ -97,6 +99,27 @@ export function App() {
         </div>
 
         <div className="group">
+          <h2>Colours</h2>
+          <div className="palettes">
+            {PALETTES.map((palette) => (
+              <button
+                key={palette.id}
+                className={palette.id === controls.paletteId ? 'palette selected' : 'palette'}
+                onClick={() => setControls({ paletteId: palette.id })}
+                title={palette.note}
+              >
+                <span className="swatches">
+                  {palette.colors.map((c, i) => (
+                    <i key={i} style={{ background: `rgb(${c.r},${c.g},${c.b})` }} />
+                  ))}
+                </span>
+                <span className="name">{palette.name}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="group">
           <h2>View</h2>
           <Slider
             label="Face shrink"
@@ -129,7 +152,9 @@ export function App() {
           />
           <button
             onClick={() => {
-              setControls(DEFAULT_CONTROLS);
+              // Keep the chosen palette; this resets the view, not every preference.
+              const { paletteId, ...view } = DEFAULT_CONTROLS;
+              setControls(view);
               puzzle.resetView();
             }}
           >

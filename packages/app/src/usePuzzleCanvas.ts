@@ -15,7 +15,7 @@ import {
   type PuzzleGeometry,
   type RotationState,
 } from '@mc4d/puzzle-core';
-import { PuzzleRenderer } from '@mc4d/render';
+import { DEFAULT_PALETTE_ID, paletteById, PuzzleRenderer } from '@mc4d/render';
 
 import { loadPuzzle } from './usePuzzle.js';
 
@@ -25,6 +25,7 @@ export interface ViewControls {
   eyeW: number;
   /** 1 is solid. Below that the puzzle becomes a glass model of itself. */
   opacity: number;
+  paletteId: string;
 }
 
 export const DEFAULT_CONTROLS: ViewControls = {
@@ -32,6 +33,7 @@ export const DEFAULT_CONTROLS: ViewControls = {
   stickerShrink: 0.5,
   eyeW: 1.05,
   opacity: 1,
+  paletteId: DEFAULT_PALETTE_ID,
 };
 
 /** A press that moves less than this is a click, not a drag. */
@@ -54,6 +56,25 @@ export interface PuzzleCanvas {
   getRenderer(): PuzzleRenderer | null;
 }
 
+const PALETTE_KEY = 'mc4d.palette';
+
+function readStoredPalette(): string | null {
+  try {
+    return globalThis.localStorage?.getItem(PALETTE_KEY) ?? null;
+  } catch {
+    // Storage can be unavailable in private modes and inside sandboxed frames.
+    return null;
+  }
+}
+
+function storePalette(id: string): void {
+  try {
+    globalThis.localStorage?.setItem(PALETTE_KEY, id);
+  } catch {
+    /* not worth surfacing */
+  }
+}
+
 export function usePuzzleCanvas(assetUrl: string, handlers: CanvasHandlers): PuzzleCanvas {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<PuzzleRenderer | null>(null);
@@ -65,7 +86,11 @@ export function usePuzzleCanvas(assetUrl: string, handlers: CanvasHandlers): Puz
   const [geometry, setGeometry] = useState<PuzzleGeometry | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [controls, setControlsState] = useState<ViewControls>(DEFAULT_CONTROLS);
+  const [controls, setControlsState] = useState<ViewControls>(() => ({
+    ...DEFAULT_CONTROLS,
+    // The palette is a taste and an accessibility choice, so it should survive a reload.
+    paletteId: readStoredPalette() ?? DEFAULT_CONTROLS.paletteId,
+  }));
 
   useEffect(() => {
     let cancelled = false;
@@ -98,7 +123,9 @@ export function usePuzzleCanvas(assetUrl: string, handlers: CanvasHandlers): Puz
       return;
     }
     rendererRef.current = renderer;
-    renderer.setPuzzle(geometry);
+    const palette = paletteById(controls.paletteId);
+    renderer.setPuzzle(geometry, palette.colors);
+    renderer.setBackground(palette.background);
     renderer.setRotation(rotationRef.current.mat);
     renderer.setViewParams(controls);
     renderer.setOpacity(controls.opacity);
@@ -236,6 +263,12 @@ export function usePuzzleCanvas(assetUrl: string, handlers: CanvasHandlers): Puz
       const merged = { ...current, ...next };
       rendererRef.current?.setViewParams(merged);
       if (next.opacity !== undefined) rendererRef.current?.setOpacity(next.opacity);
+      if (next.paletteId !== undefined) {
+        storePalette(next.paletteId);
+        const palette = paletteById(next.paletteId);
+        rendererRef.current?.setPalette(palette.colors);
+        rendererRef.current?.setBackground(palette.background);
+      }
       return merged;
     });
   };

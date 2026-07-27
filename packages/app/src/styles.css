@@ -127,3 +127,16 @@ button:disabled:hover { background: #21262d; }
   letter-spacing: 0.04em;
   pointer-events: none;
 }
+
+.palettes { display: flex; flex-direction: column; gap: 6px; }
+.palette {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+  padding: 6px 8px;
+}
+.palette.selected { border-color: #5b9dff; background: #1b2430; }
+.palette .swatches { display: flex; border-radius: 3px; overflow: hidden; flex: none; }
+.palette .swatches i { display: block; width: 9px; height: 16px; }
+.palette .name { font-size: 12.5px; }

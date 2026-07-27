@@ -24,8 +24,81 @@ export const DEFAULT_FACE_COLORS: readonly Rgb[] = [
   { r: 255, g: 127, b: 255 }, // pink
 ];
 
-/** The original's sky colour, used as the default background. */
+/**
+ * Alternative palettes.
+ *
+ * The original's colours were chosen for a 3D-shaped intuition: red and orange are *opposite*
+ * cells, as are blue and purple, and on a physical cube you almost never see an opposite pair at
+ * once. In 4D the front-cell cull shows you seven cells simultaneously, so opposite pairs sit side
+ * by side constantly and near-hues become genuinely hard to tell apart.
+ */
+export interface Palette {
+  readonly id: string;
+  readonly name: string;
+  readonly note: string;
+  readonly colors: readonly Rgb[];
+  /**
+   * Backgrounds belong to palettes, not to the app.
+   *
+   * The original's sky blue is the reason its blues are hard to read: any blue or cyan cell
+   * competes with it, and the Lambert shading only darkens cells further. A neutral dark
+   * background removes that competition entirely and lets saturated colours carry.
+   */
+  readonly background: Rgb;
+}
+
+/** The original's sky colour. */
 export const SKY: Rgb = { r: 20, g: 170, b: 235 };
+
+const hex = (...values: string[]): Rgb[] =>
+  values.map((v) => ({
+    r: parseInt(v.slice(1, 3), 16),
+    g: parseInt(v.slice(3, 5), 16),
+    b: parseInt(v.slice(5, 7), 16),
+  }));
+
+/** Neutral, slightly cool, dark enough that every saturated hue reads against it. */
+const SLATE: Rgb = { r: 22, g: 26, b: 33 };
+
+export const PALETTES: readonly Palette[] = [
+  {
+    id: 'distinct',
+    name: 'Distinct',
+    note: 'Okabe–Ito — stays readable with any common colour vision.',
+    // The Okabe–Ito qualitative palette happens to have exactly eight entries, which is exactly
+    // what a hypercube needs. Its black is swapped for white, since an unlit black cell is
+    // indistinguishable from shadow.
+    colors: hex('#ffffff', '#e69f00', '#56b4e9', '#009e73', '#f0e442', '#0072b2', '#d55e00', '#cc79a7'),
+    background: SLATE,
+  },
+  {
+    id: 'vivid',
+    name: 'Vivid',
+    note: 'Saturated, with lightness varied so neighbouring hues still separate.',
+    // Hue alone is not enough for eight cells: the shading darkens whatever faces away, which
+    // compresses hues together. So lightness alternates as well — a deep red beside a bright
+    // orange stays legible where two mid-tones would not.
+    colors: hex('#c1121f', '#fb8500', '#ffd500', '#2a9d8f', '#52d1dc', '#1d4ed8', '#d946ef', '#f1f5f9'),
+    background: SLATE,
+  },
+  {
+    id: 'classic',
+    name: 'Classic',
+    note: "MagicCube4D's original colours, on its original sky.",
+    // Kept exactly as the original, sky included. Its red/orange and blue/purple pairs are opposite
+    // cells — a convention from 3D cubes, where you never see an opposite pair at once. In 4D you
+    // see seven cells simultaneously and the pairs sit side by side, which is why it is no longer
+    // the default.
+    colors: DEFAULT_FACE_COLORS,
+    background: SKY,
+  },
+];
+
+export const DEFAULT_PALETTE_ID = 'distinct';
+
+export function paletteById(id: string): Palette {
+  return PALETTES.find((p) => p.id === id) ?? PALETTES[0];
+}
 
 /**
  * A palette of `n` visually distinct colours.
@@ -38,8 +111,9 @@ export const SKY: Rgb = { r: 20, g: 170, b: 235 };
  * That is a better optimiser, but it is seeded-random and produces a palette nobody can predict;
  * this is deterministic and good enough to tell 120 cells apart.
  */
-export function facePalette(n: number): Rgb[] {
-  if (n <= DEFAULT_FACE_COLORS.length) return DEFAULT_FACE_COLORS.slice(0, n).map((c) => ({ ...c }));
+export function facePalette(n: number, base: readonly Rgb[] | undefined = DEFAULT_FACE_COLORS): Rgb[] {
+  base = base ?? DEFAULT_FACE_COLORS;
+  if (n <= base.length) return base.slice(0, n).map((c) => ({ ...c }));
 
   const GOLDEN_ANGLE = 137.50776405003785;
   const out: Rgb[] = [];
