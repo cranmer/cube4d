@@ -515,6 +515,31 @@ every unit test, and obvious the instant I looked at a screenshot.
 That is now the third bug this phase that only a rendered image could have caught. Screenshotting is
 staying in the loop.
 
+### And a finding from CI
+
+The first CI run failed on the asset-determinism check — regenerating the puzzle geometry on
+Linux/x64 produced different bytes than the committed macOS/arm64 files. That check exists precisely
+to catch geometry drift, so it needed a real answer rather than a looser threshold.
+
+The differences turned out to be tightly confined. Byte length, piece count, sticker count, grip
+count and vertex count are identical for every puzzle. Only coordinates move, only in their last
+bit, and only for `{7}x{7}`, `{9}x{9}`, `{10}x{10}` and `{100}x{4}` — while `{8}x{8}` is untouched.
+
+That pattern names the cause: `java.lang.Math.sin` and `cos` are specified to within 1–2 ulp rather
+than bit-exactly and may use platform intrinsics. A regular *n*-gon's vertices are `cos(2πk/n)`,
+`sin(2πk/n)`, so an octagon — angles at multiples of π/4 — is identical everywhere and a nonagon is
+not.
+
+It does not affect compatibility, and the reason is quantitative rather than hopeful: a 1-ulp
+difference at these magnitudes is ~2 × 10⁻¹⁵, and the fuzzy hash that resolves twists tolerates
+10⁻⁸. Eight orders of magnitude of headroom. Grip ordering is combinatorial and never touches
+coordinates at all.
+
+So the check was wrong, not the geometry. Byte-reproducibility across architectures was never
+achievable. CI now pins grip ordering and piece structure, and then verifies that geometry
+regenerated on Linux still reproduces golden twist permutations recorded on macOS — which is a
+stronger statement than byte-equality, and unlike byte-equality it is one that can actually hold.
+
 ---
 
 ## Next

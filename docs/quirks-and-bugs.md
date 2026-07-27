@@ -248,6 +248,34 @@ the source with `// XXX ARGH!`.
 
 ---
 
+## Puzzle geometry is not bit-reproducible across architectures
+
+Found when CI first regenerated the assets on Linux/x64 and compared them against ones generated on
+macOS/arm64: some differ.
+
+The differences are confined and diagnosable. Byte length, piece count, sticker count, grip count and
+vertex count are **identical** for every puzzle. Only the coordinates move, only in their last bit,
+and only for `{7}x{7}`, `{9}x{9}`, `{10}x{10}` and `{100}x{4}`. `{8}x{8}` is unaffected — as are the
+hypercube, the simplex and the dodecahedral prism.
+
+That pattern is the fingerprint of `java.lang.Math`. Its `sin` and `cos` are specified to within 1–2
+ulp rather than bit-exactly, and are free to use platform intrinsics; `StrictMath` is the bit-exact
+variant, which the original does not use. A regular *n*-gon's vertices are `cos(2πk/n), sin(2πk/n)`,
+so an octagon — whose angles are multiples of π/4 — comes out identical everywhere, while a
+nonagon does not.
+
+**This does not affect compatibility, and the reason is quantitative.** A 1-ulp difference at these
+magnitudes is about 2 × 10⁻¹⁵, while the fuzzy hash that resolves twists tolerates 10⁻⁸ — eight
+orders of magnitude of headroom. Grip *ordering* is combinatorial, derived from a breadth-first walk
+of the polytope's element lattice, and does not depend on coordinates at all.
+
+**Decision:** do not pin the bits; pin what matters. CI checks that grip ordering and piece structure
+are unchanged, and then verifies that geometry regenerated on Linux still reproduces golden twist
+permutations recorded on macOS. That is a stronger guarantee than byte-equality would have been, and
+unlike byte-equality it is actually achievable.
+
+---
+
 ## Precision trap (ours, not theirs)
 
 Not a bug in the original — a trap for anyone porting it.
