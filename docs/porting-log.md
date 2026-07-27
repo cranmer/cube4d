@@ -287,11 +287,55 @@ interaction — is ordinary work on a foundation that is now known to agree with
 
 ---
 
+## 2026-07-27 — Collecting the log corpus, and a surprise
+
+Phase 2 needs real `.log` files: the codec has to round-trip actual solves byte-for-byte, and the
+corpus is the one fixture that cannot be regenerated. The Hall of Fame publishes 19 of them for
+download.
+
+Downloading all 19 and reading their headers gave a more interesting picture than expected:
+
+| | Count | Openable by MagicCube4D 4.3? |
+|---|---|---|
+| Log format **version 3** | 10 | yes |
+| Log format **version 1** | 6 | **no** |
+| Headerless move list | 1 | no |
+| A *different program's* format | 1 | no |
+| Dead link (served a 404 page) | 1 | — |
+
+**About half the publicly linked Hall of Fame solve logs cannot be opened by the current
+MagicCube4D.** The loader demands a 6-field header and rejects any version but 3
+(`MC4DSwing.java:1209` and `:1214`). Among the casualties is `roice_4x4x4x4-2581.log` — Roice
+Nelson's 4⁴ solve, by one of the project's own contributors.
+
+Version 1 is not a near-miss, it is a different format: it stores the puzzle *position* as a grid of
+colour digits rather than a view matrix, never records which puzzle it is, and encodes moves as a
+three-digit id with an optional `:direction` suffix. Its marks use a different vocabulary too.
+Supporting it is a project, not a parser tweak — but supporting it would let this app open solves
+the original no longer can, which is a genuinely appealing thing for a successor to do.
+
+Three format details the source alone would not have revealed:
+
+- **Line endings are mixed** — 13 of 18 CRLF, 5 LF, because the original writes
+  `System.getProperty("line.separator")` and files reflect whichever OS the solver used. A
+  byte-exact round-trip must *preserve* the file's line ending, not normalise it. That is a
+  requirement I would have got wrong.
+- **View matrices use Java's scientific notation** (`-2.925836087297376E-9`). `parseFloat` copes; a
+  hand-rolled numeric scanner would not.
+- **The `c ` current-position marker does occur in the wild**, in version 1 files written before
+  saving began truncating the redo tail. No version 3 file in the corpus has one — matching the
+  prediction from reading `MC4DSwing.saveAs`.
+
+Collected in [`fixtures/logs/`](../fixtures/logs/) with per-file attribution. This is exactly why
+the plan called for gathering the corpus *before* writing the codec rather than after.
+
+---
+
 ## Next
 
 **Phase 2: the headless core.** Move list and undo/redo, seeded scramble, solve detection, the 4D
 rotation handler, and the `.log` / `.macros` codec.
 
-The gate: property tests green, a real community `.log` file replaying to a solved state, and
-`mc4d-convert a.log → a.json → b.log` round-tripping byte-identically. Which means the corpus of
-real log files — the one artifact that cannot be regenerated — needs to be collected first.
+The gate: property tests green, a real community `.log` replaying to a solved state, and
+`mc4d-convert a.log → a.json → b.log` round-tripping byte-identically — including preserving line
+endings. Version 1 support is now a tempting stretch goal rather than a non-goal.

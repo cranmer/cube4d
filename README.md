@@ -27,6 +27,7 @@ for the ordinary Rubik's cube.
 | [Porting log](docs/porting-log.md) | The narrative: what was found, what was decided, current status |
 | [Architecture options](docs/architecture-options.md) | The design choices and their trade-offs, including the options not taken |
 | [Legacy internals](docs/legacy-internals.md) | A dissection of the original Java — the CSG library, the render pipeline, the file formats |
+| [Asset format](docs/asset-format.md) | The `.mc4dpz` container: how puzzle geometry is precomputed and shipped |
 | [Quirks and bugs](docs/quirks-and-bugs.md) | Traps found in the original, and what this port does about each |
 | [Implementation plan](docs/plan.md) | What gets built, in what order, and how it gets verified |
 | [Phase 0 results](docs/phase0-results.md) | Measurements for all 128 catalog puzzles |
