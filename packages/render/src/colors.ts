@@ -204,7 +204,19 @@ function hslToRgb(h: number, s: number, l: number): Rgb {
   };
 }
 
+/**
+ * Order the pairs are shown in, which is deliberately not the order they are assigned in.
+ *
+ * Assignment starts with the violet pair because that is what reproduces the original's per-face
+ * colours exactly. But a swatch strip should lead with what people recognise — yellow/white,
+ * green/blue, orange/red are the Rubik's pairs — so violet goes last for display only.
+ */
+const SWATCH_ORDER = [1, 2, 3, 0];
+
 /** The palette's colours in a flat list, for swatches in the UI. */
 export function paletteSwatches(palette: Palette): Rgb[] {
-  return palette.pairs.flatMap((p) => [p[0], p[1]]);
+  const order = palette.pairs.length === SWATCH_ORDER.length
+    ? SWATCH_ORDER
+    : palette.pairs.map((_, i) => i);
+  return order.flatMap((i) => [palette.pairs[i][0], palette.pairs[i][1]]);
 }

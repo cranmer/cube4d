@@ -12,6 +12,8 @@ import { usePuzzleSession, type PuzzleActions } from './usePuzzle.js';
  * The view controls are deliberately the ones that teach something — the shrink sliders open the
  * gaps you see through, and dragging the 4D eye toward 1 makes the fourth dimension unmistakable.
  */
+const REPO_URL = 'https://github.com/cranmer/cube4d';
+
 export function App() {
   const assetUrl = `${import.meta.env.BASE_URL}assets/4-3-3_3.mc4dpz.gz`;
 
@@ -62,7 +64,7 @@ export function App() {
           </div>
           <a
             className="icon-link"
-            href="https://github.com/cranmer/cube4d"
+            href={REPO_URL}
             target="_blank"
             rel="noopener noreferrer"
             aria-label="Source code on GitHub"
@@ -84,12 +86,20 @@ export function App() {
             </svg>
           </a>
         </header>
+        {/* Two links, one line: this project and its ancestor. The original's licence asks for
+            attribution "with links to the main project page", which the second link is. Naming two
+            of its four authors would be worse than naming none, so the full credit lives in the
+            README and LICENSE. */}
         <p className="lede">
-          A modern port of{' '}
+          A{' '}
+          <a href={REPO_URL} target="_blank" rel="noopener noreferrer">
+            modern port
+          </a>{' '}
+          of{' '}
           <a href="https://superliminal.com/cube/" target="_blank" rel="noopener noreferrer">
             the original
-          </a>{' '}
-          by Melinda Green and Don Hatch.
+          </a>
+          .
         </p>
 
         <div className="group">
