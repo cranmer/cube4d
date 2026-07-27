@@ -4,9 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
+    "dev": "npm run stage && vite",
+    "build": "npm run stage && vite build",
     "preview": "vite preview",
+    "stage": "node scripts/stage-assets.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
