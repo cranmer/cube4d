@@ -4,6 +4,9 @@ This document lays out the design choices for rewriting [MagicCube4D](https://su
 as a web application, with the trade-offs for each. It is meant to be read before the implementation
 plan — it explains *why* the recommended architecture is what it is.
 
+The size and feasibility claims here have since been measured rather than estimated; see
+[Phase 0 results](phase0-results.md).
+
 Every claim about the original is grounded in the Java source in `magiccube4d/` (registered here as
 a submodule); file and line references are given so anything can be re-checked.
 
@@ -115,8 +118,9 @@ That's about 40 lines. Partial-twist animation geometry is another 25.
 
 **Cons**
 - Requires a JDK at build time (once, in CI — not for users, not for most contributors).
-- Ships static assets: ~40 KB gzipped for the default puzzle, ~1.4 MB for the largest, 10–20 MB for
-  the full 128-entry catalog, lazy-loaded per puzzle.
+- Ships static assets, lazy-loaded per puzzle. **Measured** ([Phase 0](phase0-results.md)): 78.8 KB
+  for the default `{4,3,3} 3`, 2.76 MB for the largest puzzle in the catalog, 56.9 MB for all 128
+  entries combined. All 128 build successfully in 17.9 s total.
 - **Loses runtime "Invent my own!"** — arbitrary Schläfli symbols can't be constructed in the browser.
 - The generated assets become a compatibility surface: regenerating them with a different JDK or a
   modified exporter could silently reorder grips. Needs hash pinning in CI.
