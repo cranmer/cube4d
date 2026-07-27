@@ -76,6 +76,20 @@ const pair = (a: string, b: string): ColorPair => [rgb(a), rgb(b)];
 
 export const PALETTES: readonly Palette[] = [
   {
+    id: 'vivid',
+    name: 'Vivid',
+    note: 'Saturated, with lightness varied so neighbouring hues still separate.',
+    // Hue alone is not enough for eight cells: the shading darkens whatever faces away, which
+    // compresses hues together. So lightness varies within each pair as well.
+    pairs: [
+      pair('#a347d1', '#f06ac9'), // purple / pink
+      pair('#ffd60a', '#f1f5f9'), // yellow / white
+      pair('#26a269', '#1c71d8'), // green / blue
+      pair('#ff7800', '#e01b24'), // orange / red
+    ],
+    background: SLATE,
+  },
+  {
     id: 'distinct',
     name: 'Distinct',
     note: 'Okabe–Ito — stays readable with any common colour vision.',
@@ -88,20 +102,6 @@ export const PALETTES: readonly Palette[] = [
       pair('#f0e442', '#ffffff'), // yellow / white
       pair('#009e73', '#56b4e9'), // bluish green / sky blue
       pair('#e69f00', '#d55e00'), // orange / vermillion
-    ],
-    background: SLATE,
-  },
-  {
-    id: 'vivid',
-    name: 'Vivid',
-    note: 'Saturated, with lightness varied so neighbouring hues still separate.',
-    // Hue alone is not enough for eight cells: the shading darkens whatever faces away, which
-    // compresses hues together. So lightness varies within each pair as well.
-    pairs: [
-      pair('#a347d1', '#f06ac9'), // purple / pink
-      pair('#ffd60a', '#f1f5f9'), // yellow / white
-      pair('#26a269', '#1c71d8'), // green / blue
-      pair('#ff7800', '#e01b24'), // orange / red
     ],
     background: SLATE,
   },
@@ -121,7 +121,7 @@ export const PALETTES: readonly Palette[] = [
   },
 ];
 
-export const DEFAULT_PALETTE_ID = 'distinct';
+export const DEFAULT_PALETTE_ID = 'vivid';
 
 export function paletteById(id: string): Palette {
   return PALETTES.find((p) => p.id === id) ?? PALETTES[0];
