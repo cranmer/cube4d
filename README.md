@@ -6,8 +6,8 @@ functional four-dimensional Rubik's cube, plus dozens of other 4D twisty puzzles
 The original is an excellent piece of software that requires a Java installation to run. This is a
 zero-install version: open a link, solve a hypercube.
 
-> **Status: early development.** Nothing is playable yet. See
-> [`docs/architecture-options.md`](docs/architecture-options.md) for the design rationale.
+> **Status: early development — Phase 0 of 6 complete. Nothing is playable yet.**
+> The [porting log](docs/porting-log.md) tracks progress and explains the reasoning as it happens.
 
 ## What this is
 
@@ -19,6 +19,19 @@ it.
 
 The 3×3×3×3 hypercube has roughly 1.76 × 10<sup>120</sup> reachable states, against 4.3 × 10<sup>19</sup>
 for the ordinary Rubik's cube.
+
+## Documentation
+
+| | |
+|---|---|
+| [Porting log](docs/porting-log.md) | The narrative: what was found, what was decided, current status |
+| [Architecture options](docs/architecture-options.md) | The design choices and their trade-offs, including the options not taken |
+| [Legacy internals](docs/legacy-internals.md) | A dissection of the original Java — the CSG library, the render pipeline, the file formats |
+| [Quirks and bugs](docs/quirks-and-bugs.md) | Traps found in the original, and what this port does about each |
+| [Implementation plan](docs/plan.md) | What gets built, in what order, and how it gets verified |
+| [Phase 0 results](docs/phase0-results.md) | Measurements for all 128 catalog puzzles |
+
+The porting log is the place to start if you're curious rather than contributing.
 
 ## Design in one paragraph
 
