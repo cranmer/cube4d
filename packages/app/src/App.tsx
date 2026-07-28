@@ -309,6 +309,10 @@ export function App() {
           <a href="https://superliminal.com/cube/" target="_blank" rel="noopener noreferrer">
             the original
           </a>
+          , by{' '}
+          <a href="https://theoryandpractice.org/" target="_blank" rel="noopener noreferrer">
+            Kyle Cranmer
+          </a>
           .
         </p>
 
@@ -495,14 +499,42 @@ export function App() {
             >
               MagicCube4D Hall of Fame
             </a>
-            . Each loads at the position the solver faced — press Play to watch it come apart.
+            . Each loads at the position the solver faced — press Play to watch it come apart, or
+            download the log to keep or to open in the original.
           </p>
           <div className="examples">
             {EXAMPLES.map((example) => (
-              <button key={example.file} className="example" onClick={() => void loadExample(example)}>
-                <span className="who">{example.solver}</span>
-                <span className="what">{example.note}</span>
-              </button>
+              <div key={example.file} className="example">
+                <button className="example-load" onClick={() => void loadExample(example)}>
+                  <span className="who">{example.solver}</span>
+                  <span className="what">{example.note}</span>
+                </button>
+                {/* The file itself, so it can be kept or opened in the original MagicCube4D.
+                    An anchor rather than a nested button, which would be invalid inside one. */}
+                <a
+                  className="example-download"
+                  href={`${import.meta.env.BASE_URL}examples/${example.file}`}
+                  download={example.file}
+                  title={`Download ${example.file}`}
+                  aria-label={`Download ${example.solver}'s log file`}
+                >
+                  <svg
+                    viewBox="0 0 16 16"
+                    width="14"
+                    height="14"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M8 2v8" />
+                    <polyline points="4.5 7 8 10.5 11.5 7" />
+                    <path d="M2.5 13h11" />
+                  </svg>
+                </a>
+              </div>
             ))}
           </div>
         </Section>
