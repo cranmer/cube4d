@@ -49,6 +49,22 @@ export {
 export type { ScrambleOptions } from './scramble.js';
 export { countCubiesWithColors, fullScrambleLength, mulberry32, scramble } from './scramble.js';
 
+export type { CanonicalView } from './canonicalViews.js';
+export {
+  CANONICAL_VIEWS,
+  canonicalViewById,
+  nextCanonicalView,
+  viewDistance,
+} from './canonicalViews.js';
+export type { Quat } from './so4.js';
+export {
+  interpolateRotation,
+  matrixFromPair,
+  pairFromMatrix,
+  quatConj,
+  quatMul,
+  slerp,
+} from './so4.js';
 export type { DragButton, DragOptions, RotationState } from './rotation.js';
 export {
   continueSpin,

@@ -8,9 +8,12 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  canonicalViewById,
   continueSpin,
   createRotation,
   drag,
+  interpolateRotation,
+  nextCanonicalView,
   stopSpinning,
   type PuzzleGeometry,
   type RotationState,
@@ -41,6 +44,18 @@ export const DEFAULT_CONTROLS: ViewControls = {
 /** A press that moves less than this is a click, not a drag. */
 const DRAG_THRESHOLD_PX = 4;
 
+/**
+ * How long a glide between viewpoints takes.
+ *
+ * Long enough to be followed — the whole point is to show you how the orientations relate, and an
+ * instant cut would teach nothing — and short enough not to be in the way when stepping through
+ * several in a row.
+ */
+const VIEW_GLIDE_MS = 520;
+
+/** Ease in and out, so a glide starts and ends at rest rather than jerking. */
+const easeInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+
 export interface CanvasHandlers {
   onTap(x: number, y: number, button: number): void;
   onHover(x: number, y: number): void;
@@ -60,6 +75,14 @@ export interface PuzzleCanvas {
   readonly controls: ViewControls;
   setControls(controls: Partial<ViewControls>): void;
   resetView(): void;
+  /**
+   * Which named viewpoint the camera is at or heading for, or null once it has been dragged away.
+   */
+  readonly canonicalView: string | null;
+  /** Glide to a named viewpoint. */
+  goToCanonicalView(id: string): void;
+  /** Glide to the next or previous viewpoint in the list. */
+  stepCanonicalView(step: 1 | -1): void;
   getRenderer(): PuzzleRenderer | null;
   /** The current 4D view rotation, row-major, as `.log` files store it. */
   getRotation(): number[];
@@ -102,6 +125,12 @@ export function usePuzzleCanvas(
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<PuzzleRenderer | null>(null);
   const rotationRef = useRef<RotationState>(createRotation());
+  // A glide in progress: where it started, where it is going, and when it began. Held in a ref so
+  // the render loop can read it without re-subscribing every frame.
+  const glideRef = useRef<{ from: Float64Array; to: readonly number[]; startedAt: number } | null>(
+    null,
+  );
+  const [canonicalView, setCanonicalView] = useState<string | null>('default');
   // Held in a ref so the pointer listeners never need re-binding when a callback identity changes.
   const handlersRef = useRef(handlers);
   handlersRef.current = handlers;
@@ -204,10 +233,19 @@ export function usePuzzleCanvas(
 
     let frame = 0;
     const tick = () => {
-      const spun = continueSpin(rotationRef.current);
-      if (spun !== rotationRef.current || spun.spin) {
-        rotationRef.current = spun;
-        renderer.setRotation(spun.mat);
+      const glide = glideRef.current;
+      if (glide) {
+        const t = Math.min(1, (performance.now() - glide.startedAt) / VIEW_GLIDE_MS);
+        const mat = interpolateRotation(glide.from, glide.to, easeInOut(t));
+        rotationRef.current = { mat, spin: null };
+        renderer.setRotation(mat);
+        if (t >= 1) glideRef.current = null;
+      } else {
+        const spun = continueSpin(rotationRef.current);
+        if (spun !== rotationRef.current || spun.spin) {
+          rotationRef.current = spun;
+          renderer.setRotation(spun.mat);
+        }
       }
       renderer.render();
       frame = requestAnimationFrame(tick);
@@ -296,6 +334,10 @@ export function usePuzzleCanvas(
       const dy = -(last.y - event.clientY);
       last = { x: event.clientX, y: event.clientY };
 
+      // Dragging abandons whatever viewpoint we were at or gliding towards; the label going blank
+      // is the honest report of that.
+      glideRef.current = null;
+      setCanonicalView(null);
       rotationRef.current = drag(rotationRef.current, dx, dy, {
         button,
         // Shift switches from the XZ/YZ rotation that reads as a 3D trackball to the XW/YW one
@@ -367,15 +409,47 @@ export function usePuzzleCanvas(
   };
 
   const resetView = () => {
+    glideRef.current = null;
+    setCanonicalView('default');
     rotationRef.current = createRotation();
     rendererRef.current?.setRotation(rotationRef.current.mat);
     rendererRef.current?.setZoom(1);
   };
 
+  const goToCanonicalView = useCallback((id: string) => {
+    const view = canonicalViewById(id);
+    if (!view) return;
+    // Start from wherever the camera is now, including mid-glide, so repeated presses chain
+    // smoothly instead of snapping back to the last waypoint.
+    glideRef.current = {
+      from: Float64Array.from(rotationRef.current.mat),
+      to: view.mat,
+      startedAt: performance.now(),
+    };
+    setCanonicalView(view.id);
+  }, []);
+
+  const stepCanonicalView = useCallback(
+    (step: 1 | -1) => {
+      setCanonicalView((current) => {
+        const view = nextCanonicalView(current, step);
+        glideRef.current = {
+          from: Float64Array.from(rotationRef.current.mat),
+          to: view.mat,
+          startedAt: performance.now(),
+        };
+        return view.id;
+      });
+    },
+    [],
+  );
+
   const getRenderer = useCallback(() => rendererRef.current, []);
   const getRotation = useCallback(() => Array.from(rotationRef.current.mat), []);
   const setRotation = useCallback((mat4d: readonly number[]) => {
     if (mat4d.length !== 16) return;
+    glideRef.current = null;
+    setCanonicalView(null);
     rotationRef.current = { mat: Float64Array.from(mat4d), spin: null };
     rendererRef.current?.setRotation(rotationRef.current.mat);
   }, []);
@@ -397,6 +471,9 @@ export function usePuzzleCanvas(
     controls,
     setControls,
     resetView,
+    canonicalView,
+    goToCanonicalView,
+    stepCanonicalView,
     getRenderer,
     getRotation,
     setRotation,

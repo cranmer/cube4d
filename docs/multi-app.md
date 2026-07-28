@@ -176,18 +176,31 @@ Cycling between named orientations instead of free-dragging is arguably a *bette
 newcomer: a free trackball in 4D is easy to get lost in, and a small set of known-good viewpoints is
 easy to reason about.
 
-The machinery already exists. `rotation.ts` has `rotateTowards(from, to, fraction)`, an incremental
-slerp that already drives ctrl-click's "bring this cell to the centre", and `NICE_VIEW` is already a
-named canonical orientation. Canonical views are therefore a *table* of 4×4 matrices plus repeated
-application of a function that is already written and already tested.
+**Done**, and it cost more than the "small" in this heading promised — the interesting part is why.
 
-This belongs in the shared layer, not in one app, so that the classic app can bind keys to it while
-another app draws buttons for the same thing.
+The estimate assumed the animation was free, because `rotation.ts` already had `rotateTowards`, an
+incremental slerp between two *vectors*. It turned out to be unused by the app (ctrl-click centring
+was specified in Phase 3 and never landed), and more to the point it solves a different problem:
+gliding the camera means interpolating a *rotation*, not carrying one vector to another.
 
-Open question worth settling when implementing: whether the canonical set is puzzle-independent
-(orientations of 4-space, identical for every puzzle) or derived per puzzle from its cell centres.
-The former is simpler and probably right; the latter is the only thing that would make canonical
-views meaningful for the duoprisms.
+Two cheap schemes were tried and both failed on the same case. Blending the two matrices and
+re-orthonormalising cannot reverse a row, because Gram-Schmidt fixes lengths and not signs — the
+view silently sticks. Stepping along the antisymmetric part of the relative rotation, which is
+exactly what the drag integrator does and is excellent for small increments, recovers `sin θ` times
+each plane's generator, and `sin θ` vanishes at θ = π as surely as at θ = 0. Half-turns are not a
+corner case here: six of the eight axis-aligned viewpoints differ from the default by a rotation
+containing one.
+
+The tool that works is peculiar to four dimensions. Every 4D rotation factors as `v ↦ L·v·R` for a
+pair of unit quaternions, so interpolating one is just slerping two quaternions — exact at both
+ends, constant angular speed between, no singularity anywhere. That is `so4.ts`, about 100 lines
+with 13 tests, and it is genuinely reusable: any app that wants to move a camera in 4D wants it.
+
+The viewpoints themselves are puzzle-independent, as expected — orientations of 4-space, so the
+same key means the same rotation on every puzzle. For the hypercube, whose eight cell centres *are*
+the eight signed axes, each one also brings a specific cell to the centre, which is the case that
+matters. Deriving them per puzzle from cell centres remains the only way to make them meaningful for
+the duoprisms, and remains unbuilt.
 
 ### 4.3 Multiple simultaneous viewports — the one real refactor
 

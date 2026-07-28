@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { DEFAULT_PUZZLE_ID, findEntry } from '@mc4d/puzzle-core';
+import { CANONICAL_VIEWS, DEFAULT_PUZZLE_ID, findEntry } from '@mc4d/puzzle-core';
 import { PALETTES, paletteSwatches } from '@mc4d/render';
 
 import {
@@ -58,6 +58,8 @@ export function App() {
 
   const { controls, setControls } = puzzle;
   const sliceLabel = describeSlices(session.slicemask);
+  const viewpointLabel =
+    CANONICAL_VIEWS.find((v) => v.id === puzzle.canonicalView)?.name ?? 'Free';
   const [notice, setNotice] = useState<string | null>(null);
   // State, not a ref: a restore has to wait for the right geometry, and setting a ref would not
   // schedule the effect that consumes it — so a link for the puzzle already on screen would sit
@@ -71,6 +73,20 @@ export function App() {
 
   // One instance for the life of the page: it owns a debounce timer and page-lifecycle listeners.
   const autosave = useMemo(() => new Autosave({ onUnavailable: say }), [say]);
+
+  // --- stepping between named viewpoints
+  const { stepCanonicalView } = puzzle;
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      // Brackets sit next to each other and mean nothing else here. Sliders answer to the arrow
+      // keys, so leave those alone.
+      if (event.key === ']') stepCanonicalView(1);
+      else if (event.key === '[') stepCanonicalView(-1);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [stepCanonicalView]);
 
   // --- opening a permalink
   const [hash, setHash] = useState(() => globalThis.location?.hash ?? '');
@@ -431,7 +447,28 @@ export function App() {
           </p>
         </Section>
 
-        <Section id="view" title="View controls">
+        <Section id="view" title="View controls" badge={viewpointLabel}>
+          {/* Named orientations, so there is always a way back from a 4D rotation that got away
+              from you. Cycling with [ and ] is the fastest way to see how they relate. */}
+          <h3 className="subhead">Viewpoint</h3>
+          <div className="viewpoints">
+            {CANONICAL_VIEWS.map((view) => (
+              <button
+                key={view.id}
+                className={view.id === puzzle.canonicalView ? 'viewpoint selected' : 'viewpoint'}
+                onClick={() => puzzle.goToCanonicalView(view.id)}
+                title={view.hint}
+              >
+                {view.name}
+              </button>
+            ))}
+          </div>
+          <p className="hint">
+            Each brings one direction to the centre of the picture. Step through them with{' '}
+            <kbd>[</kbd> and <kbd>]</kbd>. Dragging leaves them behind, which is what the blank
+            label means.
+          </p>
+
           <h3 className="subhead">Colors</h3>
           <div className="palettes">
             {PALETTES.map((palette) => (
