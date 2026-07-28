@@ -7,7 +7,7 @@ mkdirSync('build/shots', { recursive: true });
 const browser = await chromium.launch({ args: ['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader'] });
 // Square viewport so the canvas is square and the puzzle is not framed against a wide axis.
 const page = await browser.newPage({ viewport: { width: 900, height: 900 }, deviceScaleFactor: 2 });
-await page.goto('http://localhost:4173/', { waitUntil: 'networkidle' });
+await page.goto('http://localhost:4173/classic/', { waitUntil: 'networkidle' });
 await page.waitForTimeout(2000);
 
 // Hide the side panel so the canvas takes the whole square. The view is otherwise left at the

@@ -11,7 +11,7 @@ const problems = [];
 page.on('pageerror', (e) => problems.push('pageerror: ' + e.message));
 page.on('console', (m) => { if (m.type() === 'error') problems.push('console: ' + m.text()); });
 
-await page.goto('http://localhost:4173/', { waitUntil: 'networkidle' });
+await page.goto('http://localhost:4173/classic/', { waitUntil: 'networkidle' });
 await page.waitForTimeout(2000);
 
 const canvas = page.locator('canvas');

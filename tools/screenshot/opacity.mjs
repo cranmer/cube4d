@@ -6,7 +6,7 @@ const page = await browser.newPage({ viewport: { width: 800, height: 760 } });
 const problems = [];
 page.on('pageerror', (e) => problems.push(e.message));
 page.on('console', (m) => { if (m.type() === 'error') problems.push(m.text()); });
-await page.goto('http://localhost:4173/', { waitUntil: 'networkidle' });
+await page.goto('http://localhost:4173/classic/', { waitUntil: 'networkidle' });
 await page.waitForTimeout(2000);
 const set = async (i, v) => {
   await page.evaluate(({ i, v }) => {

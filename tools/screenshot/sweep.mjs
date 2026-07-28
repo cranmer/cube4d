@@ -3,7 +3,7 @@ import { mkdirSync } from 'node:fs';
 mkdirSync('build/shots', { recursive: true });
 const browser = await chromium.launch({ args: ['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader'] });
 const page = await browser.newPage({ viewport: { width: 760, height: 700 } });
-await page.goto('http://localhost:4173/', { waitUntil: 'networkidle' });
+await page.goto('http://localhost:4173/classic/', { waitUntil: 'networkidle' });
 await page.waitForTimeout(2000);
 
 async function setSlider(index, value) {

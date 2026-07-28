@@ -22,7 +22,7 @@ jobs:
       - name: Build the app
         # A compile check, not a deployable artifact — this job has no JDK, so it cannot export
         # puzzle geometry. The Pages workflow does, and refuses to deploy without the full set.
-        run: npm run build --workspace @mc4d/app
+        run: npm run build --workspace @mc4d/web
         env:
           MC4D_ALLOW_PARTIAL_ASSETS: '1'
 

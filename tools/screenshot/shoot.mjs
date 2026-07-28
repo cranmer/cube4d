@@ -3,7 +3,7 @@
 import { chromium } from 'playwright';
 import { mkdirSync } from 'node:fs';
 
-const url = process.argv[2] ?? 'http://localhost:4173/';
+const url = process.argv[2] ?? 'http://localhost:4173/classic/';
 const out = process.argv[3] ?? 'build/shots/puzzle.png';
 mkdirSync(out.replace(/\/[^/]+$/, ''), { recursive: true });
 

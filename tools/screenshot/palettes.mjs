@@ -5,7 +5,7 @@ const browser = await chromium.launch({ args: ['--use-gl=angle','--use-angle=swi
 const page = await browser.newPage({ viewport: { width: 900, height: 820 } });
 const problems = [];
 page.on('pageerror', (e) => problems.push(e.message));
-await page.goto('http://localhost:4173/', { waitUntil: 'networkidle' });
+await page.goto('http://localhost:4173/classic/', { waitUntil: 'networkidle' });
 await page.waitForTimeout(2200);
 const names = await page.locator('.palette .name').allInnerTexts();
 for (const name of names) {

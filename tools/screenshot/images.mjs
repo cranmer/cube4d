@@ -16,7 +16,7 @@ const setSlider = async (page, i, v) => {
 // Hero: cells closed up, which is the silhouette people recognise as MagicCube4D.
 {
   const page = await browser.newPage({ viewport: { width: 1000, height: 900 }, deviceScaleFactor: 2 });
-  await page.goto('http://localhost:4173/', { waitUntil: 'networkidle' });
+  await page.goto('http://localhost:4173/classic/', { waitUntil: 'networkidle' });
   await page.waitForTimeout(2200);
   await page.evaluate(() => {
     document.querySelector('.panel').style.display = 'none';
@@ -33,7 +33,7 @@ const setSlider = async (page, i, v) => {
 // The full app, at defaults.
 {
   const page = await browser.newPage({ viewport: { width: 1100, height: 780 }, deviceScaleFactor: 2 });
-  await page.goto('http://localhost:4173/', { waitUntil: 'networkidle' });
+  await page.goto('http://localhost:4173/classic/', { waitUntil: 'networkidle' });
   await page.waitForTimeout(2200);
   await page.screenshot({ path: 'build/shots/app.png' });
   await page.close();
@@ -42,7 +42,7 @@ const setSlider = async (page, i, v) => {
 // Transparency, for the porting log.
 {
   const page = await browser.newPage({ viewport: { width: 900, height: 860 } });
-  await page.goto('http://localhost:4173/', { waitUntil: 'networkidle' });
+  await page.goto('http://localhost:4173/classic/', { waitUntil: 'networkidle' });
   await page.waitForTimeout(2200);
   await page.evaluate(() => {
     document.querySelector('.panel').style.display = 'none';

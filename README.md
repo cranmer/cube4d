@@ -42,7 +42,7 @@ for the ordinary Rubik's cube.
 git clone --recurse-submodules <this repo>
 npm install
 npm test                              # 200+ tests, no GPU or JDK needed
-npm run dev --workspace @mc4d/app     # then open the printed URL
+npm run dev --workspace @mc4d/web     # then open the printed URL
 ```
 
 Regenerating the puzzle assets needs a JDK 21 and takes about 30 seconds:
@@ -75,8 +75,15 @@ packages/
   puzzle-core/      pure TypeScript puzzle model — no DOM, no rendering, runs in Node
   legacy-format/    .log / .macros codec and the mc4d-convert CLI
   render/           Three.js renderer
-  app/              React application (the deployable)
+  shell/            headless React hooks, persistence — everything an app needs but a layout
+apps/
+  web/              the deployable: a landing page plus one page per front-end
+    index.html        landing page
+    classic/          the full-catalog app, closest to the original
 ```
+
+Several front-ends share one engine rather than one app growing modes; the reasoning is in
+[docs/multi-app.md](docs/multi-app.md).
 
 Clone with submodules:
 

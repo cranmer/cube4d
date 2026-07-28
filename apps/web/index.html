@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MagicCube4D</title>
+    <meta name="description" content="A four-dimensional Rubik's cube, in your browser." />
+
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/favicon-180.png" />
+    <meta name="theme-color" content="#161a21" />
+
+    <meta property="og:title" content="MagicCube4D" />
+    <meta property="og:description" content="A four-dimensional Rubik's cube, in your browser." />
+    <meta property="og:image" content="/favicon-512.png" />
+
+    <!--
+      Permalinks were shared against the root URL before the app moved to /classic/, and a fragment
+      survives a redirect only if something carries it. This runs before the page paints so an old
+      link lands on the solve it encoded rather than on this menu.
+    -->
+    <script>
+      if (location.hash.length > 1) location.replace('classic/' + location.hash);
+    </script>
+
+    <style>
+      :root {
+        --bg: #0e1116;
+        --panel: #161b22;
+        --edge: #2a323d;
+        --text: #e6edf3;
+        --dim: #8b949e;
+        --link: #6cb0ff;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        padding: 8vh 24px 12vh;
+        background: var(--bg);
+        color: var(--text);
+        font: 15px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
+        display: flex;
+        justify-content: center;
+      }
+      main { width: 100%; max-width: 720px; }
+      h1 { font-size: 30px; margin: 0 0 6px; letter-spacing: -0.01em; }
+      .lede { color: var(--dim); margin: 0 0 6px; }
+      a { color: var(--link); }
+      .apps { display: grid; gap: 14px; margin: 38px 0 0; }
+      .app {
+        display: block;
+        padding: 18px 20px;
+        background: var(--panel);
+        border: 1px solid var(--edge);
+        border-radius: 10px;
+        text-decoration: none;
+        color: inherit;
+        transition: border-color 120ms ease, background 120ms ease;
+      }
+      a.app:hover { background: #1b2029; border-color: #3b4655; }
+      .app h2 { margin: 0 0 4px; font-size: 17px; }
+      .app p { margin: 0; color: var(--dim); font-size: 14px; }
+      .app.soon { opacity: 0.55; }
+      .app.soon h2::after {
+        content: "planned";
+        margin-left: 9px;
+        padding: 2px 7px;
+        border: 1px solid var(--edge);
+        border-radius: 20px;
+        font-size: 10.5px;
+        letter-spacing: 0.07em;
+        text-transform: uppercase;
+        color: var(--dim);
+        vertical-align: 2px;
+      }
+      footer { margin-top: 44px; color: var(--dim); font-size: 13px; }
+      footer p { margin: 0 0 6px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>MagicCube4D</h1>
+      <p class="lede">A four-dimensional Rubik&rsquo;s cube, in your browser.</p>
+      <p class="lede">
+        A modern port of
+        <a href="https://superliminal.com/cube/">the original</a>, by
+        <a href="https://theoryandpractice.org/">Kyle Cranmer</a> and
+        <a href="https://claude.ai/">Claude</a>. Every one of the 128 puzzles it can build is here,
+        and solve files from the original open and replay unchanged.
+      </p>
+
+      <!--
+        One engine, several front-ends. These are different answers to "what is this for" rather
+        than different feature sets, which is why they are separate pages instead of modes in one
+        panel. See docs/multi-app.md.
+      -->
+      <nav class="apps">
+        <a class="app" href="classic/">
+          <h2>Classic</h2>
+          <p>
+            The full catalog &mdash; all 128 puzzles, free rotation, save and load, and the Hall of
+            Fame records replaying at your own pace. Closest to the original.
+          </p>
+        </a>
+        <div class="app soon">
+          <h2>Hypercube</h2>
+          <p>
+            A layout built around the 3&times;3&times;3&times;3 itself rather than around a catalog,
+            with named viewpoints and more than one view at once.
+          </p>
+        </div>
+      </nav>
+
+      <footer>
+        <p>
+          <a href="https://github.com/cranmer/cube4d">Source and porting log on GitHub</a>
+        </p>
+        <p>
+          The original MagicCube4D is by Melinda Green, Don Hatch, Jay Berkenbilt and Roice Nelson.
+        </p>
+      </footer>
+    </main>
+  </body>
+</html>

@@ -39,13 +39,13 @@ jobs:
       - name: Export puzzle geometry
         run: tools/exporter/build.sh && tools/exporter/export.sh
       - name: Build
-        run: npm run build --workspace @mc4d/app
+        run: npm run build --workspace @mc4d/web
         env:
           # Project pages are served from /<repo>/, so assets must resolve relative to it.
           MC4D_BASE: /${{ github.event.repository.name }}/
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: packages/app/dist
+          path: apps/web/dist
       - id: deployment
         uses: actions/deploy-pages@v4
