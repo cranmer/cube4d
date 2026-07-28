@@ -40,10 +40,18 @@ for (const puzzle of manifest.puzzles) {
   staged++;
 }
 
-if (staged === 0) {
-  throw new Error("no puzzle assets found — run 'npm run assets' to generate them");
+const summary = `staged ${staged}/${manifest.puzzles.length} puzzle assets (${(
+  bytes / 1048576
+).toFixed(1)} MB)`;
+
+if (missing > 0 && !process.env.MC4D_ALLOW_PARTIAL_ASSETS) {
+  // This used to be a warning, and a build with 9 of 128 puzzles shipped to production because a
+  // warning printed into a CI log is not a safeguard. Every puzzle in the manifest is offered in
+  // the picker, so a missing one is a 404 the user meets by clicking a button that looks fine.
+  throw new Error(
+    `${summary}; ${missing} missing.\n` +
+      "Run 'npm run assets' to export the full catalog (needs a JDK 21), " +
+      'or set MC4D_ALLOW_PARTIAL_ASSETS=1 to build with only the committed fixtures.',
+  );
 }
-console.log(
-  `staged ${staged}/${manifest.puzzles.length} puzzle assets (${(bytes / 1048576).toFixed(1)} MB)` +
-    (missing ? `; ${missing} not built locally, run 'npm run assets' for the full catalog` : ''),
-);
+console.log(summary + (missing ? `; ${missing} missing (partial build allowed)` : ''));
