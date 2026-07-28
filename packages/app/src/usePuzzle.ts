@@ -61,6 +61,8 @@ export interface PuzzleSession {
   readonly canUndo: boolean;
   readonly canRedo: boolean;
   readonly slicemask: number;
+  /** Number of layers this puzzle has, and so how many slice toggles to offer. */
+  readonly sliceCount: number;
   readonly busy: boolean;
 }
 
@@ -73,6 +75,7 @@ export interface PuzzleActions {
   redo(): void;
   scramble(): void;
   reset(): void;
+  toggleSlice(index: number): void;
 }
 
 export function usePuzzleSession(
@@ -83,7 +86,11 @@ export function usePuzzleSession(
   const historyRef = useRef<History>(emptyHistory);
   const animationRef = useRef<Animation | null>(null);
   const queueRef = useRef<{ move: Move; record: boolean }[]>([]);
-  const slicemaskRef = useRef(0);
+  // Two sources for which layers turn: number keys, held momentarily, and on-screen toggles that
+  // stay put. They union, and an empty selection means the outermost layer.
+  const keyMaskRef = useRef(0);
+  const chipMaskRef = useRef(0);
+  const effectiveMask = () => keyMaskRef.current | chipMaskRef.current || 1;
 
   const [twistCount, setTwistCount] = useState(0);
   const [solved, setSolved] = useState(true);
@@ -92,6 +99,22 @@ export function usePuzzleSession(
   const [redoable, setRedoable] = useState(false);
   const [slicemask, setSlicemask] = useState(0);
   const [busy, setBusy] = useState(false);
+
+  /**
+   * How many layers this puzzle has, which is how many toggles to show.
+   *
+   * Taken from the geometry rather than hardcoded, so a 2⁴ offers two and a 4⁴ offers four without
+   * anything here needing to change.
+   */
+  const sliceCount = geometry
+    ? (() => {
+        let most = 1;
+        for (let g = 0; g < geometry.nGrips; ++g) {
+          most = Math.max(most, numSlicesForGrip(geometry, g));
+        }
+        return most;
+      })()
+    : 0;
 
   // --- reset when a puzzle arrives
   useEffect(() => {
@@ -171,21 +194,21 @@ export function usePuzzleSession(
     const onKeyDown = (event: KeyboardEvent) => {
       const digit = Number(event.key);
       if (Number.isInteger(digit) && digit >= 1 && digit <= 9) {
-        slicemaskRef.current |= 1 << (digit - 1);
-        setSlicemask(slicemaskRef.current);
+        keyMaskRef.current |= 1 << (digit - 1);
+        setSlicemask(effectiveMask());
       }
     };
     const onKeyUp = (event: KeyboardEvent) => {
       const digit = Number(event.key);
       if (Number.isInteger(digit) && digit >= 1 && digit <= 9) {
-        slicemaskRef.current &= ~(1 << (digit - 1));
-        setSlicemask(slicemaskRef.current);
+        keyMaskRef.current &= ~(1 << (digit - 1));
+        setSlicemask(effectiveMask());
       }
     };
     // Releasing a key while the window is unfocused would otherwise leave it stuck down.
     const onBlur = () => {
-      slicemaskRef.current = 0;
-      setSlicemask(0);
+      keyMaskRef.current = 0;
+      setSlicemask(effectiveMask());
     };
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
@@ -226,7 +249,7 @@ export function usePuzzleSession(
       }
       const { gripIndex } = gripForPick(geometry, hit.sticker, hit.poly);
       // Only light up what could actually be twisted with the current slice selection.
-      if (gripIndex < 0 || !isValidTwist(geometry, gripIndex, slicemaskRef.current || 1)) {
+      if (gripIndex < 0 || !isValidTwist(geometry, gripIndex, effectiveMask())) {
         view.setHighlight(-1, -1);
         return;
       }
@@ -244,7 +267,7 @@ export function usePuzzleSession(
       if (!hit) return false;
 
       const { gripIndex } = gripForPick(geometry, hit.sticker, hit.poly);
-      const mask = slicemaskRef.current || 1;
+      const mask = effectiveMask();
       if (gripIndex < 0 || !isValidTwist(geometry, gripIndex, mask)) return false;
 
       // Left turns one way, right the other — the original's convention.
@@ -294,6 +317,11 @@ export function usePuzzleSession(
       refreshFlags();
     },
 
+    toggleSlice(index) {
+      chipMaskRef.current ^= 1 << index;
+      setSlicemask(effectiveMask());
+    },
+
     reset() {
       const view = renderer();
       if (!geometry || !view) return;
@@ -319,6 +347,7 @@ export function usePuzzleSession(
       canUndo: undoable,
       canRedo: redoable,
       slicemask,
+      sliceCount,
       busy,
     },
     actions,

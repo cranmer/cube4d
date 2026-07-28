@@ -102,12 +102,10 @@ export function App() {
           .
         </p>
 
+        {/* Navigation only. Scramble and reset discard a solve, so they live at the far end of
+            the panel rather than a few pixels from Undo. */}
         <div className="group">
-          <h2>Play</h2>
-          <div className="buttons">
-            <button onClick={() => actions.scramble()}>Scramble</button>
-            <button onClick={() => actions.reset()}>Reset</button>
-          </div>
+          <h2>Move</h2>
           <div className="buttons">
             <button disabled={!session.canUndo} onClick={() => actions.undo()}>
               Undo
@@ -116,7 +114,45 @@ export function App() {
               Redo
             </button>
           </div>
+          <div className="buttons">
+            <button
+              onClick={() => {
+                // Resets the camera, not the puzzle and not the palette.
+                const { paletteId, ...view } = DEFAULT_CONTROLS;
+                setControls(view);
+                puzzle.resetView();
+              }}
+              title="Return the camera to its starting orientation"
+            >
+              Reset view
+            </button>
+          </div>
         </div>
+
+        {session.sliceCount > 1 && (
+          <div className="group">
+            <h2>Layers</h2>
+            {/* One toggle per layer the puzzle actually has, so a 2⁴ offers two and a 4⁴ four.
+                These mirror the 1–9 keys, which still work — but the keys are held and invisible,
+                and these stay put and show their state. */}
+            <div className="chips">
+              {Array.from({ length: session.sliceCount }, (_, i) => (
+                <button
+                  key={i}
+                  className={session.slicemask & (1 << i) ? 'chip on' : 'chip'}
+                  onClick={() => actions.toggleSlice(i)}
+                  title={`Layer ${i + 1}, counting inward from the cell you click`}
+                >
+                  {i + 1}
+                </button>
+              ))}
+            </div>
+            <p className="hint">
+              Which layers turn, counting inward. Select several to turn them together; select all
+              to rotate the whole puzzle.
+            </p>
+          </div>
+        )}
 
         <div className="group">
           <h2>Controls</h2>
@@ -124,12 +160,9 @@ export function App() {
             <dt>Click a sticker</dt>
             <dd>Twist that piece. Right-click turns the other way.</dd>
             <dt>Hold 1–9</dt>
-            <dd>
-              Choose which layers turn, counting inward from the cell you click. Holding several
-              turns several at once; holding all of them rotates the whole puzzle.
-            </dd>
+            <dd>Choose which layers turn — the same as the Layers toggles above.</dd>
             <dt>Drag</dt>
-            <dd>Rotate in 3D — the familiar trackball.</dd>
+            <dd>Rotate in 3D.</dd>
             <dt>Shift + drag</dt>
             <dd>
               Rotate in 4D. This is the one with no 3D analogue: it turns cells through the fourth
@@ -137,7 +170,7 @@ export function App() {
             </dd>
             <dt>Right-drag</dt>
             <dd>Roll, and rotate in the ZW plane.</dd>
-            <dt>Scroll</dt>
+            <dt>Scroll, or pinch</dt>
             <dd>Zoom.</dd>
           </dl>
         </div>
@@ -194,16 +227,6 @@ export function App() {
             step={0.01}
             onChange={(eyeW) => setControls({ eyeW })}
           />
-          <button
-            onClick={() => {
-              // Keep the chosen palette; this resets the view, not every preference.
-              const { paletteId, ...view } = DEFAULT_CONTROLS;
-              setControls(view);
-              puzzle.resetView();
-            }}
-          >
-            Reset view
-          </button>
         </div>
 
         {puzzle.geometry && (
@@ -231,6 +254,16 @@ export function App() {
             inside another cube. Every one of those cells is a genuine cube; they only look
             distorted because they are further away in a direction you cannot point.
           </p>
+        </div>
+
+        {/* Last in the panel on purpose: both of these throw away whatever solve is in progress. */}
+        <div className="group">
+          <h2>Start over</h2>
+          <div className="buttons">
+            <button onClick={() => actions.scramble()}>Scramble</button>
+            <button onClick={() => actions.reset()}>Reset</button>
+          </div>
+          <p className="hint">Both discard the current solve.</p>
         </div>
       </aside>
     </div>

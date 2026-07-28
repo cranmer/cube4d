@@ -178,12 +178,30 @@ export function usePuzzleCanvas(assetUrl: string, handlers: CanvasHandlers): Puz
     let start = { x: 0, y: 0 };
     let last = { x: 0, y: 0 };
 
+    // Touch: track every finger so two of them can pinch. Rotation is suspended while pinching,
+    // otherwise the puzzle lurches as the fingers converge.
+    const active = new Map<number, { x: number; y: number }>();
+    let pinchDistance = 0;
+
+    const spread = () => {
+      const [a, b] = [...active.values()];
+      return Math.hypot(a.x - b.x, a.y - b.y);
+    };
+
     const local = (event: PointerEvent) => {
       const rect = canvas.getBoundingClientRect();
       return { x: event.clientX - rect.left, y: event.clientY - rect.top };
     };
 
     const onPointerDown = (event: PointerEvent) => {
+      active.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      if (active.size === 2) {
+        // A second finger cancels the tap and starts a pinch.
+        pressed = false;
+        moved = true;
+        pinchDistance = spread();
+        return;
+      }
       pressed = true;
       moved = false;
       rawButton = event.button;
@@ -195,6 +213,18 @@ export function usePuzzleCanvas(assetUrl: string, handlers: CanvasHandlers): Puz
     };
 
     const onPointerMove = (event: PointerEvent) => {
+      if (active.has(event.pointerId)) {
+        active.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      }
+      if (active.size >= 2) {
+        const distance = spread();
+        if (pinchDistance > 0 && distance > 0) {
+          const renderer = rendererRef.current;
+          if (renderer) renderer.setZoom(renderer.getZoom() * (distance / pinchDistance));
+        }
+        pinchDistance = distance;
+        return;
+      }
       if (!pressed) {
         const p = local(event);
         handlersRef.current.onHover(p.x, p.y);
@@ -221,12 +251,22 @@ export function usePuzzleCanvas(assetUrl: string, handlers: CanvasHandlers): Puz
     };
 
     const onPointerUp = (event: PointerEvent) => {
+      active.delete(event.pointerId);
+      if (active.size < 2) pinchDistance = 0;
       if (pressed && !moved) {
         const p = local(event);
         handlersRef.current.onTap(p.x, p.y, rawButton);
       }
       pressed = false;
-      canvas.releasePointerCapture(event.pointerId);
+      // Lifting one finger of a pinch leaves the other down; don't treat it as the start of a drag.
+      if (active.size === 1) {
+        const [remaining] = [...active.values()];
+        last = { x: remaining.x, y: remaining.y };
+        start = last;
+        pressed = true;
+        moved = true;
+      }
+      if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
     };
 
     const onPointerLeave = () => handlersRef.current.onLeave();

@@ -6,27 +6,13 @@ Known rough edges and deferred design work. Each is understood; none blocks the 
 
 ## Controls and layout
 
-### Separate destructive actions from navigation
+**Done.** Navigation (undo, redo, reset view) is now at the top; scramble and reset moved to the
+very end of the panel, since both discard a solve and sat one click from Undo; and layer selection
+became on-screen toggles, generated from the puzzle's own layer count so a 2⁴ gets two and a 4⁴
+gets four. The 1–9 keys still work and the toggles show their state, which fixes the
+discoverability problem at the same time.
 
-**Scramble** and **Reset** currently sit directly above **Undo** and **Redo** in one "Play" group.
-They are different kinds of action and should not be adjacent: undo and redo step through history
-and are always safe, while scramble and reset throw the current solve away. Putting them a click
-apart invites the mistake where someone reaching for Undo hits Reset and loses a long solve.
-
-Proposed: undo/redo and the twist counter as a navigation cluster near the puzzle; scramble and
-reset in a separate group, with reset confirming when a solve is in progress.
-
-### Reset view belongs at the top
-
-It sits at the bottom of the View group, below four sliders. It is the control people reach for
-when they have rotated themselves into confusion — exactly when they should not have to hunt for
-it. Move it to the top of that group, or beside the canvas.
-
-### The number keys are invisible
-
-Holding 1–9 to choose which layers turn is the least discoverable thing in the app. It is
-documented in a help list nobody reads, and there is no visual affordance until a key is already
-held. An on-screen slice selector fixes this for everyone, not only for touch — see below.
+Still open: reset could confirm when a long solve is in progress.
 
 ---
 
@@ -38,17 +24,14 @@ to face, and it needs answering on its own terms.
 
 | Desktop input | What it does | Touch has no… |
 |---|---|---|
-| Hold 1–9 | Choose which layers turn | keyboard |
+| ~~Hold 1–9~~ | Choose which layers turn | *solved: on-screen toggles* |
 | Right-click | Twist the other way | second button |
-| Shift + drag | Rotate in 4D rather than 3D | modifier key |
+| Shift + drag | Rotate in 4D rather than 3D | modifier key — *deliberately unaddressed* |
 | Hover | Highlight the piece under the cursor | cursor |
 
 ### Slice selection
 
-A row of toggle chips — `1 2 3` for a length-3 puzzle, as many as the puzzle has layers — that
-multi-select, mirroring what holding several number keys does. Generated from `numSlicesForGrip`
-so it is right for every puzzle in the catalog rather than hardcoded to three. Keyboard shortcuts
-keep working, and the chips make them discoverable by showing their state.
+**Done** — toggles generated from the puzzle's layer count, unioned with the number keys.
 
 ### Twist direction
 
@@ -63,17 +46,14 @@ right-click reverses.
 
 ### 4D rotation
 
-The hardest one, because it is the app's whole point. Options:
+**Decided: no gesture.** Two-finger drag was the obvious candidate, but it collides with pinch,
+and pinch is the natural gesture for zoom — which is now what it does. If 4D rotation is wanted on
+touch later it should be an explicit mode toggle rather than a hidden gesture, since a mode you can
+see beats one you have to be told about.
 
-1. **Two-finger drag** rotates in 4D while one finger rotates in 3D. Natural, needs no chrome, and
-   parallels the desktop modifier — but collides with pinch-to-zoom, so zoom would have to move to
-   a slider or be inferred only from a pure pinch.
-2. **A mode toggle** (3D ⇄ 4D) beside the view controls. Unambiguous, at the cost of a mode the
-   user must remember they are in.
-3. **Both** — the toggle as the discoverable path, the gesture as the fast one.
-
-Worth prototyping before choosing. Whatever it is, the UI should say which rotation you are about
-to perform, because "the rotation with no 3D analogue" is precisely what a newcomer cannot guess.
+Note the consequence: without it, a touch user cannot bring the hidden cell to the front. Reset view
+returns to a known orientation, so nothing is unrecoverable, but the fourth dimension is only
+directly explorable with a keyboard.
 
 ### Hover
 
