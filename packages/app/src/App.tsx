@@ -393,7 +393,7 @@ export function App() {
           <p className="hint">Which way a click turns. Right-click always turns the other way.</p>
         </Section>
 
-        <Section id="controls" title="Controls">
+        <Section id="controls" title="View controls">
           <dl className="help">
             <dt>Click a sticker</dt>
             <dd>Twist that piece. Right-click turns the other way.</dd>
@@ -415,7 +415,7 @@ export function App() {
           </dl>
         </Section>
 
-        <Section id="colours" title="Colours" badge={PALETTES.find((p) => p.id === controls.paletteId)?.name}>
+        <Section id="colours" title="Colors" badge={PALETTES.find((p) => p.id === controls.paletteId)?.name}>
           <div className="palettes">
             {PALETTES.map((palette) => (
               <button
@@ -468,7 +468,7 @@ export function App() {
         </Section>
 
         {puzzle.catalog && (
-          <Section id="puzzle" title="Puzzle" defaultOpen badge={puzzle.puzzleId}>
+          <Section id="puzzle" title="Puzzles" defaultOpen badge={puzzle.puzzleId}>
             <PuzzlePicker
               catalog={puzzle.catalog}
               currentId={puzzle.puzzleId}

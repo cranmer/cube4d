@@ -78,7 +78,7 @@ export const PALETTES: readonly Palette[] = [
   {
     id: 'vivid',
     name: 'Vivid',
-    note: 'Saturated, with lightness varied so neighbouring hues still separate.',
+    note: 'Saturated, with lightness varied so neighboring hues still separate.',
     // Hue alone is not enough for eight cells: the shading darkens whatever faces away, which
     // compresses hues together. So lightness varies within each pair as well.
     pairs: [
@@ -92,7 +92,7 @@ export const PALETTES: readonly Palette[] = [
   {
     id: 'distinct',
     name: 'Distinct',
-    note: 'Okabe–Ito — stays readable with any common colour vision.',
+    note: 'Okabe–Ito — stays readable with any common color vision.',
     // The Okabe–Ito qualitative palette has exactly eight entries, which is exactly what a
     // hypercube needs. Its black is swapped for white, since an unlit black cell is
     // indistinguishable from shadow. The pairings are the closest same-family groupings the
@@ -108,7 +108,7 @@ export const PALETTES: readonly Palette[] = [
   {
     id: 'classic',
     name: 'Classic',
-    note: "MagicCube4D's original colours, on its original sky.",
+    note: "MagicCube4D's original colors, on its original sky.",
     // Exactly the original's colours, grouped into the pairs the original actually places
     // opposite each other — verified against the geometry rather than assumed.
     pairs: [
