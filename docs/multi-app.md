@@ -242,7 +242,69 @@ possibly viewports from §4.3, depending on the design.
 It is scoped separately and specified separately, because unlike the others it is a design question
 before it is an engineering one.
 
-### 4.5 Landing page
+### 4.5 A 3D app — teaching the interface on a shape people already know
+
+The move set here is unlike a Rubik's cube's. There is no R, U or F; there are grips at cells,
+faces, edges and vertices, and which one a click means is inferred from how many colours the piece
+carries. That is learnable, but it has to be learned *and* the fourth dimension has to be learned at
+the same time. A 3D app would let someone learn the interface first, on a shape whose solved state
+they can already picture.
+
+**The engine turns out to be most of the way there, which was not the expectation.** Measured, not
+estimated — `{4,3} 3` built with the stock, unmodified engine:
+
+```
+{4,3} 3   nDims=3  polytope.dim=3  cubies=26  stickers=54
+{5,3} 3   nDims=3  polytope.dim=3  cubies=62  stickers=132     (a megaminx)
+```
+
+26 cubies and 54 stickers is exactly an ordinary Rubik's cube. Polytope construction, hyperplane
+slicing, cubie derivation and sticker generation are all genuinely dimension-generic and work in 3D
+today with no changes at all.
+
+**What is missing is one `if`.** At `PolytopePuzzleDescription.java:844`, grip generation is wrapped
+in `if(nDims == 4)`, above a comment in which the author starts to handle 3D, notices the cell/facet
+analogy does not transfer, and leaves a note saying so.
+
+The right analogue turns out to fit the existing code exactly. In 4D a twist rotates a *cell* about
+one of its sub-elements; in 3D it rotates the *whole polytope* about one of its sub-elements — and
+`calcRotationGroupOrder(p, cell3d, subCell, mat)` requires `cell3d.dim == 3`, which the whole 3D
+polytope satisfies. Called that way it returns:
+
+```
+{4,3} 3   vert(8)={order 3}   edge(12)={order 2}   face(6)={order 4}
+{5,3} 3   vert(20)={order 3}  edge(30)={order 2}   face(12)={order 5}
+```
+
+Those six face grips of order 4 are exactly R, L, U, D, F and B. The order-3 vertex and order-2 edge
+grips are the corner and edge twists that make the pedagogical point: the same lattice of grips the
+4D puzzle has, on a shape that needs no explaining.
+
+**Costs, by piece:**
+
+| Piece | Status |
+|---|---|
+| Polytope, slicing, cubies, stickers | ✅ works now, unchanged |
+| Grip generation for `nDims == 3` | ~60 lines in `tools/exporter`, *not* in the submodule — the machinery it calls is proven correct |
+| `.mc4dpz`, `puzzle-core`, `twist.ts` | ✅ already carry `nDims` and use it generically; no hardcoded 4 |
+| Renderer | ⚠️ the only genuinely 4D-specific piece — `vec4` throughout, `uRot4d`, the eye-on-W projection, and the front-cell cull that produces the cube-within-a-cube. A 3D variant skips the 4D→3D stage and the cull |
+| Legacy `.log` compatibility | **Not required** — no 3D logs exist |
+
+That last row is worth dwelling on. Everywhere else in this project, grip ordering is a wire format
+that every saved solve depends on. In 3D there are no saved solves, so the ordering is a free choice
+made for clarity rather than a constraint inherited from 2005.
+
+Two caveats. `grip2face` assumes each grip belongs to one face, and a slicemask means "layers
+measured from that face" — true for face grips, not for vertex or edge grips, so the honest first
+version is face grips only, which is the standard cube move set anyway. And `{3,3}` (tetrahedron)
+and `{3,4}` (octahedron) both fail inside the CSG for reasons unrelated to any of this — an
+orientation assertion and an unimplemented Schläfli case — so the 3D family is cubes and dodecahedra,
+not everything.
+
+**Risk is concentrated in the renderer, not the geometry**, which is the reverse of what one would
+fear from a codebase whose hard part has always been the geometry.
+
+### 4.6 Landing page
 
 Static HTML listing the apps with a screenshot and a sentence each. No framework; it exists to be
 instant and to make the choice legible. It is also the honest place to say what this project is,
@@ -263,8 +325,11 @@ Deliberately ordered so that each step is verifiable before the next begins.
    one front-end.
 4. **Viewports**, alongside whichever app motivates them.
 5. **The hypercube app**, once specified.
+6. **The 3D app**, whose only unknown is the renderer.
 
 Steps 1 and 2 are the ones with revert risk, and `v0.6.0` is the revert point.
+
+Steps 1, 2 and 3 are done.
 
 ---
 

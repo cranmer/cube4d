@@ -116,6 +116,7 @@ a solve without trusting the client. It costs nothing now and cannot be retrofit
 | **5** | Catalog + persistence | ✅ **done** — all 128 puzzles, save/load/share, autosave |
 | **6** | Several apps on one engine | next — see [`multi-app.md`](multi-app.md) |
 | **7** | A hypercube-specific app | not yet specified |
+| **8** | 3D puzzles on the same engine | scoped — see [`multi-app.md`](multi-app.md) §4.5 |
 
 **Phase 0 — Measure and freeze.** Build every catalog entry, record element counts and exact asset
 sizes, identify anything too large or broken to ship, and acquire a corpus of real `.log` files.
@@ -160,6 +161,15 @@ documented, and not worth the order-independent transparency it would take to fi
 **Phase 7 — A hypercube-specific app.** A layout designed around `{4,3,3}` rather than around the
 general catalog, still supporting any number of slices. Scoped separately because it is a design
 question before it is an engineering one.
+
+**Phase 8 — 3D puzzles.** An ordinary Rubik's cube and a megaminx on the same engine, so that a
+newcomer can learn this interface — grips at faces, edges and vertices, chosen by how many colours
+the clicked piece carries — on a shape whose solved state they can already picture, before adding a
+fourth dimension to the problem. Measured, not assumed: the geometry already builds correctly in 3D
+today, 26 cubies and 54 stickers for `{4,3} 3`, and the rotation-group machinery returns exactly the
+six order-4 face turns that are R, L, U, D, F and B. What is missing is grip *generation*, blocked by
+a single `if(nDims == 4)`, plus a 3D variant of the vertex shader. *Done when* a 3D cube is solvable
+in the browser and its twists satisfy the same property tests every 4D puzzle does.
 
 ## Testing
 
