@@ -40,6 +40,14 @@ import { PuzzleRenderer } from '@mc4d/render';
  */
 const QUARTER_TURN_MS = 190;
 
+/**
+ * Playback runs at half speed.
+ *
+ * Making a move yourself, you already know what you did; watching someone else's solve you are
+ * trying to read it, and the pace that feels responsive under your own hand is too quick to follow.
+ */
+const PLAYBACK_SLOWDOWN = 2;
+
 /** The original's easing: slow at both ends, quick through the middle. */
 const ease = (x: number) => (Math.sin((x - 0.5) * Math.PI) + 1) / 2;
 
@@ -198,7 +206,8 @@ export function usePuzzleSession(
         startedAt: performance.now(),
         // A 180° twist takes twice as long as a 90° one, so every move turns at the same rate.
         durationMs:
-          (QUARTER_TURN_MS * 4) / Math.max(2, geometry.gripSymmetryOrders[next.move.g]),
+          ((QUARTER_TURN_MS * 4) / Math.max(2, geometry.gripSymmetryOrders[next.move.g])) *
+          (playingRef.current ? PLAYBACK_SLOWDOWN : 1),
         record: next.record,
       };
       view.beginTwist(stickersInSlice(geometry, next.move.g, next.move.s));

@@ -326,13 +326,6 @@ export function App() {
             <button disabled={!session.canRedo} onClick={() => actions.redo()}>
               Redo
             </button>
-            <button
-              disabled={!session.canRedo && !session.playing}
-              onClick={() => actions.setPlaying(!session.playing)}
-              title="Step forward through the remaining moves"
-            >
-              {session.playing ? 'Stop' : 'Play'}
-            </button>
           </div>
           <div className="buttons">
             <button
@@ -502,6 +495,38 @@ export function App() {
             . Each loads at the position the solver faced — press Play to watch it come apart, or
             download the log to keep or to open in the original.
           </p>
+          {/* A transport for whatever solve is loaded. Step back and forward are undo and redo,
+              named for what you are doing here: reading someone else's moves rather than making
+              your own. */}
+          <div className="transport">
+            <button
+              className="step"
+              disabled={!session.canUndo}
+              onClick={() => actions.undo()}
+              aria-label="Step back one move"
+              title="Step back one move"
+            >
+              <StepIcon direction="back" />
+            </button>
+            <button
+              className="play"
+              disabled={!session.canRedo && !session.playing}
+              onClick={() => actions.setPlaying(!session.playing)}
+            >
+              {session.playing ? <StopIcon /> : <PlayIcon />}
+              <span>{session.playing ? 'Stop' : 'Play'}</span>
+            </button>
+            <button
+              className="step"
+              disabled={!session.canRedo}
+              onClick={() => actions.redo()}
+              aria-label="Step forward one move"
+              title="Step forward one move"
+            >
+              <StepIcon direction="forward" />
+            </button>
+          </div>
+
           <div className="examples">
             {EXAMPLES.map((example) => (
               <div key={example.file} className="example">
@@ -632,6 +657,40 @@ export function App() {
         </Section>
       </aside>
     </div>
+  );
+}
+
+/** Step icons: a triangle against a bar, the usual media shorthand for one frame at a time. */
+function StepIcon({ direction }: { direction: 'back' | 'forward' }) {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      width="13"
+      height="13"
+      fill="currentColor"
+      aria-hidden="true"
+      style={direction === 'back' ? { transform: 'scaleX(-1)' } : undefined}
+    >
+      <polygon points="4 3 11 8 4 13" />
+      <rect x="11.4" y="3" width="1.8" height="10" rx="0.7" />
+    </svg>
+  );
+}
+
+/** Play is a bare triangle — no bar, so it never reads as a step. */
+function PlayIcon() {
+  return (
+    <svg viewBox="0 0 16 16" width="13" height="13" fill="currentColor" aria-hidden="true">
+      <polygon points="4 2.5 13 8 4 13.5" />
+    </svg>
+  );
+}
+
+function StopIcon() {
+  return (
+    <svg viewBox="0 0 16 16" width="13" height="13" fill="currentColor" aria-hidden="true">
+      <rect x="3.5" y="3.5" width="9" height="9" rx="1.2" />
+    </svg>
   );
 }
 

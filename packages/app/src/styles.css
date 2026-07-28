@@ -322,3 +322,13 @@ button:disabled:hover { background: #21262d; }
 }
 .example-download:hover { color: var(--text); background: #21262d; }
 .hint a { color: #7cb0ff; }
+
+.transport { display: flex; gap: 6px; margin-top: 10px; }
+.transport button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+.transport .step { flex: none; width: 44px; padding: 7px 0; }
+.transport .play { flex: 1; padding: 7px 0; font-weight: 600; }
