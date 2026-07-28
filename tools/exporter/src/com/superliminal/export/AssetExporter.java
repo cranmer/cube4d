@@ -85,6 +85,8 @@ public class AssetExporter {
             String schlafli = entry[0];
             if(schlafli == null)
                 continue;
+            // The catalog's third column is a human name; several entries leave it blank.
+            String displayName = entry.length > 2 && entry[2] != null ? entry[2] : "";
             for(String lengthString : entry[1].split(",")) {
                 double length = Double.parseDouble(lengthString);
                 String id = schlafli + " " + trim(length);
@@ -101,7 +103,7 @@ public class AssetExporter {
                 byte[] gz = gzip(asset);
                 writeFile(new File(outDir, file + ".gz"), gz);
 
-                manifest.add(manifestEntry(p, schlafli, length, id, file, asset, gz));
+                manifest.add(manifestEntry(p, schlafli, length, id, displayName, file, asset, gz));
                 System.out.println(kb(asset.length) + " raw, " + kb(gz.length) + " gzipped");
                 built++;
 
@@ -369,10 +371,11 @@ public class AssetExporter {
     // ============================================================ plumbing
 
     private static String manifestEntry(PolytopePuzzleDescription p, String schlafli, double length,
-        String id, String file, byte[] raw, byte[] gz) throws Exception
+        String id, String displayName, String file, byte[] raw, byte[] gz) throws Exception
     {
         return "    {\"id\": \"" + id + "\""
             + ", \"schlafli\": \"" + schlafli + "\""
+            + ", \"name\": \"" + displayName + "\""
             + ", \"length\": " + trim(length)
             + ", \"path\": \"" + file + "\""
             + ", \"bytes\": " + raw.length

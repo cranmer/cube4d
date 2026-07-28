@@ -1,6 +1,9 @@
 import { useMemo, useRef } from 'react';
 
+import { DEFAULT_PUZZLE_ID, findEntry } from '@mc4d/puzzle-core';
 import { PALETTES, paletteSwatches } from '@mc4d/render';
+
+import { PuzzlePicker } from './PuzzlePicker.js';
 
 import { DEFAULT_CONTROLS, usePuzzleCanvas } from './usePuzzleCanvas.js';
 import { usePuzzleSession, type PuzzleActions } from './usePuzzle.js';
@@ -15,7 +18,7 @@ import { usePuzzleSession, type PuzzleActions } from './usePuzzle.js';
 const REPO_URL = 'https://github.com/cranmer/cube4d';
 
 export function App() {
-  const assetUrl = `${import.meta.env.BASE_URL}assets/4-3-3_3.mc4dpz.gz`;
+  const assetBase = `${import.meta.env.BASE_URL}assets/`;
 
   // The canvas and the session each need the other, so the handlers reach the session through a
   // ref that is filled in immediately below.
@@ -29,7 +32,11 @@ export function App() {
     [],
   );
 
-  const puzzle = usePuzzleCanvas(assetUrl, handlers);
+  const puzzle = usePuzzleCanvas(
+    assetBase,
+    { id: DEFAULT_PUZZLE_ID, path: '4-3-3_3.mc4dpz' },
+    handlers,
+  );
   const { session, actions } = usePuzzleSession(puzzle.getRenderer, puzzle.geometry);
   actionsRef.current = actions;
 
@@ -42,7 +49,11 @@ export function App() {
         <canvas ref={puzzle.canvasRef} />
         {(puzzle.loading || puzzle.error) && (
           <div className="overlay">
-            {puzzle.error ? <p className="error">{puzzle.error}</p> : <p>Loading the hypercube…</p>}
+            {puzzle.error ? (
+              <p className="error">{puzzle.error}</p>
+            ) : (
+              <p>Loading {puzzle.loadingId ?? 'the hypercube'}…</p>
+            )}
           </div>
         )}
         {session.solved && session.scrambled && (
@@ -52,7 +63,7 @@ export function App() {
           <span>
             <b>{session.twistCount}</b> twist{session.twistCount === 1 ? '' : 's'}
           </span>
-          {sliceLabel && <span className="slices">slice {sliceLabel}</span>}
+          {sliceLabel !== '1' && <span className="slices">layer {sliceLabel}</span>}
         </div>
       </div>
 
@@ -259,6 +270,18 @@ export function App() {
           />
         </div>
 
+        {puzzle.catalog && (
+          <div className="group">
+            <h2>Puzzle</h2>
+            <PuzzlePicker
+              catalog={puzzle.catalog}
+              currentId={puzzle.puzzleId}
+              loadingId={puzzle.loadingId}
+              onSelect={(entry) => puzzle.selectPuzzle(entry.id, entry.path)}
+            />
+          </div>
+        )}
+
         {puzzle.geometry && (
           <div className="group">
             <h2>This puzzle</h2>
@@ -267,11 +290,15 @@ export function App() {
               <br />
               <b>{puzzle.geometry.nFaces}</b> cells, <b>{puzzle.geometry.nCubies}</b> pieces,{' '}
               <b>{puzzle.geometry.nStickers}</b> stickers
-              <br />
-              <b>
-                1.76 × 10<sup>120</sup>
-              </b>{' '}
-              reachable states
+              {puzzle.puzzleId === DEFAULT_PUZZLE_ID && (
+                <>
+                  <br />
+                  <b>
+                    1.76 × 10<sup>120</sup>
+                  </b>{' '}
+                  reachable states
+                </>
+              )}
             </p>
           </div>
         )}

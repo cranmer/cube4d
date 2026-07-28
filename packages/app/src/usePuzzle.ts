@@ -92,11 +92,14 @@ export function usePuzzleSession(
   // Two sources for which layers turn: number keys, held momentarily, and on-screen toggles that
   // stay put. They union, and an empty selection means the outermost layer.
   const keyMaskRef = useRef(0);
-  const chipMaskRef = useRef(0);
+  // Layer 1 to begin with, and never empty: deselecting the last layer snaps back to it, so the
+  // toggles always show exactly what a click will turn rather than an implied default.
+  const chipMaskRef = useRef(1);
   // Which way a plain tap turns. Right-click is the desktop way to reverse a twist, and touch has
   // no second button, so the direction has to be selectable.
   const reversedRef = useRef(false);
   const effectiveMask = () => keyMaskRef.current | chipMaskRef.current || 1;
+  const syncMask = () => setSlicemask(effectiveMask());
 
   const [twistCount, setTwistCount] = useState(0);
   const [solved, setSolved] = useState(true);
@@ -130,6 +133,11 @@ export function usePuzzleSession(
     historyRef.current = emptyHistory;
     animationRef.current = null;
     queueRef.current = [];
+    // A layer selection does not survive a puzzle change: layer 3 means nothing on a 2-layer
+    // puzzle, and carrying it over would silently disable every click.
+    chipMaskRef.current = 1;
+    keyMaskRef.current = 0;
+    setSlicemask(1);
     renderer()?.setState(stateRef.current);
     setTwistCount(0);
     setSolved(true);
@@ -202,20 +210,20 @@ export function usePuzzleSession(
       const digit = Number(event.key);
       if (Number.isInteger(digit) && digit >= 1 && digit <= 9) {
         keyMaskRef.current |= 1 << (digit - 1);
-        setSlicemask(effectiveMask());
+        syncMask();
       }
     };
     const onKeyUp = (event: KeyboardEvent) => {
       const digit = Number(event.key);
       if (Number.isInteger(digit) && digit >= 1 && digit <= 9) {
         keyMaskRef.current &= ~(1 << (digit - 1));
-        setSlicemask(effectiveMask());
+        syncMask();
       }
     };
     // Releasing a key while the window is unfocused would otherwise leave it stuck down.
     const onBlur = () => {
       keyMaskRef.current = 0;
-      setSlicemask(effectiveMask());
+      syncMask();
     };
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
@@ -328,8 +336,9 @@ export function usePuzzleSession(
     },
 
     toggleSlice(index) {
-      chipMaskRef.current ^= 1 << index;
-      setSlicemask(effectiveMask());
+      const next = chipMaskRef.current ^ (1 << index);
+      chipMaskRef.current = next === 0 ? 1 : next;
+      syncMask();
     },
 
     setReversed(next) {

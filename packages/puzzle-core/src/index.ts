@@ -58,3 +58,12 @@ export {
   rotateTowards,
   stopSpinning,
 } from './rotation.js';
+
+export type { Catalog, CatalogEntry, CatalogFamily } from './catalog.js';
+export {
+  DEFAULT_PUZZLE_ID,
+  describeShape,
+  findEntry,
+  formatBytes,
+  groupByFamily,
+} from './catalog.js';

@@ -18,6 +18,7 @@ import {
 import { DEFAULT_PALETTE_ID, paletteById, PuzzleRenderer } from '@mc4d/render';
 
 import { loadPuzzle } from './usePuzzle.js';
+import type { Catalog } from '@mc4d/puzzle-core';
 
 export interface ViewControls {
   faceShrink: number;
@@ -50,6 +51,11 @@ export interface PuzzleCanvas {
   readonly geometry: PuzzleGeometry | null;
   readonly error: string | null;
   readonly loading: boolean;
+  /** Id of the puzzle currently being fetched, or null. */
+  readonly loadingId: string | null;
+  readonly catalog: Catalog | null;
+  readonly puzzleId: string;
+  selectPuzzle(id: string, path: string): void;
   readonly controls: ViewControls;
   setControls(controls: Partial<ViewControls>): void;
   resetView(): void;
@@ -75,7 +81,19 @@ function storePalette(id: string): void {
   }
 }
 
-export function usePuzzleCanvas(assetUrl: string, handlers: CanvasHandlers): PuzzleCanvas {
+/**
+ * Decoded geometry, kept outside React.
+ *
+ * These are megabytes of typed arrays; putting them in component state would mean React comparing
+ * and retaining them on every render. A module-level cache also means revisiting a puzzle is free.
+ */
+const geometryCache = new Map<string, PuzzleGeometry>();
+
+export function usePuzzleCanvas(
+  assetBase: string,
+  initial: { id: string; path: string },
+  handlers: CanvasHandlers,
+): PuzzleCanvas {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<PuzzleRenderer | null>(null);
   const rotationRef = useRef<RotationState>(createRotation());
@@ -86,32 +104,64 @@ export function usePuzzleCanvas(assetUrl: string, handlers: CanvasHandlers): Puz
   const [geometry, setGeometry] = useState<PuzzleGeometry | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadingId, setLoadingId] = useState<string | null>(null);
+  const [catalog, setCatalog] = useState<Catalog | null>(null);
+  const [target, setTarget] = useState(initial);
   const [controls, setControlsState] = useState<ViewControls>(() => ({
     ...DEFAULT_CONTROLS,
     // The palette is a taste and an accessibility choice, so it should survive a reload.
     paletteId: readStoredPalette() ?? DEFAULT_CONTROLS.paletteId,
   }));
 
+  // --- the catalog: a small index, fetched once
   useEffect(() => {
     let cancelled = false;
+    fetch(`${assetBase}manifest.json`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`manifest ${r.status}`))))
+      .then((c: Catalog) => {
+        if (!cancelled) setCatalog(c);
+      })
+      .catch(() => {
+        // The catalog is a convenience; without it the app still plays whatever loaded.
+        if (!cancelled) setCatalog(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [assetBase]);
+
+  // --- the puzzle itself, fetched on demand
+  useEffect(() => {
+    let cancelled = false;
+    const cached = geometryCache.get(target.id);
+    if (cached) {
+      setGeometry(cached);
+      setLoading(false);
+      setLoadingId(null);
+      return;
+    }
     setLoading(true);
-    loadPuzzle(assetUrl)
+    setLoadingId(target.id);
+    loadPuzzle(`${assetBase}${target.path}.gz`)
       .then((geo) => {
+        geometryCache.set(target.id, geo);
         if (!cancelled) {
           setGeometry(geo);
           setLoading(false);
+          setLoadingId(null);
         }
       })
       .catch((e: unknown) => {
         if (!cancelled) {
           setError(e instanceof Error ? e.message : String(e));
           setLoading(false);
+          setLoadingId(null);
         }
       });
     return () => {
       cancelled = true;
     };
-  }, [assetUrl]);
+  }, [assetBase, target]);
 
   useEffect(() => {
     if (!canvasRef.current || !geometry) return;
@@ -319,5 +369,23 @@ export function usePuzzleCanvas(assetUrl: string, handlers: CanvasHandlers): Puz
 
   const getRenderer = useCallback(() => rendererRef.current, []);
 
-  return { canvasRef, geometry, error, loading, controls, setControls, resetView, getRenderer };
+  const selectPuzzle = useCallback((id: string, path: string) => {
+    setError(null);
+    setTarget({ id, path });
+  }, []);
+
+  return {
+    canvasRef,
+    geometry,
+    error,
+    loading,
+    loadingId,
+    catalog,
+    puzzleId: target.id,
+    selectPuzzle,
+    controls,
+    setControls,
+    resetView,
+    getRenderer,
+  };
 }
