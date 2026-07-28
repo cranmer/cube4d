@@ -17,6 +17,7 @@ import {
 } from '@mc4d/puzzle-core';
 import { DEFAULT_PALETTE_ID, paletteById, PuzzleRenderer } from '@mc4d/render';
 
+import { sharedKey } from './storage.js';
 import { loadPuzzle } from './usePuzzle.js';
 import type { Catalog } from '@mc4d/puzzle-core';
 
@@ -65,7 +66,8 @@ export interface PuzzleCanvas {
   setRotation(mat4d: readonly number[]): void;
 }
 
-const PALETTE_KEY = 'mc4d.palette';
+// Shared across apps: partly a taste, partly an accessibility need, and asking twice is a defect.
+const PALETTE_KEY = sharedKey('palette');
 
 function readStoredPalette(): string | null {
   try {

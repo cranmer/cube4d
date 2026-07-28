@@ -1,5 +1,7 @@
 import { useCallback, useState, type ReactNode } from 'react';
 
+import { appKey } from './storage.js';
+
 /**
  * A collapsible panel section.
  *
@@ -8,11 +10,9 @@ import { useCallback, useState, type ReactNode } from 'react';
  * working preference rather than a per-visit decision.
  */
 
-const KEY = 'mc4d.sections';
-
 function readState(): Record<string, boolean> {
   try {
-    return JSON.parse(globalThis.localStorage?.getItem(KEY) ?? '{}') as Record<string, boolean>;
+    return JSON.parse(globalThis.localStorage?.getItem(appKey('sections')) ?? '{}') as Record<string, boolean>;
   } catch {
     return {};
   }
@@ -20,7 +20,7 @@ function readState(): Record<string, boolean> {
 
 function writeState(state: Record<string, boolean>): void {
   try {
-    globalThis.localStorage?.setItem(KEY, JSON.stringify(state));
+    globalThis.localStorage?.setItem(appKey('sections'), JSON.stringify(state));
   } catch {
     /* a forgotten layout is not worth surfacing */
   }

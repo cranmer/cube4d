@@ -33,6 +33,8 @@ import {
 } from '@mc4d/puzzle-core';
 import { PuzzleRenderer } from '@mc4d/render';
 
+import { sharedKey } from './storage.js';
+
 /**
  * How long a quarter turn takes.
  *
@@ -60,7 +62,8 @@ const TELEGRAPH_RATIO = 2;
 
 /** Bounds on the playback speed slider: four times slower through four times faster. */
 export const PLAYBACK_SPEED_RANGE = { min: 0.25, max: 4 } as const;
-const SPEED_KEY = 'mc4d.playbackSpeed';
+// Shared across apps: a preference about pace, not about layout.
+const SPEED_KEY = sharedKey('playbackSpeed');
 
 /** The original's easing: slow at both ends, quick through the middle. */
 const ease = (x: number) => (Math.sin((x - 0.5) * Math.PI) + 1) / 2;

@@ -10,6 +10,7 @@
  */
 
 export { Autosave, type AutosaveHandlers } from './autosave.js';
+export { appKey, claimLegacyKey, setAppId, sharedKey } from './storage.js';
 export { EXAMPLES, type Example } from './examples.js';
 export { PuzzlePicker } from './PuzzlePicker.js';
 export { Section } from './Section.js';

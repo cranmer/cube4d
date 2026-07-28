@@ -7,6 +7,9 @@
  * same save document a file gets, and moves dominate it at roughly twelve characters each, so even
  * a 5,765-twist blindfolded solve lands around 70 KB against a ~5 MB quota.
  *
+ * The key is namespaced per app, since apps sharing an origin share storage but not sessions —
+ * see storage.ts.
+ *
  * Two things localStorage demands care about, and both are handled here:
  *
  *   - it is **synchronous**, so writing on every twist would stutter the animation. Writes are
@@ -16,8 +19,8 @@
  */
 
 import type { SaveDoc } from '@mc4d/legacy-format';
+import { appKey } from './storage.js';
 
-const KEY = 'mc4d.session';
 const WRITE_DELAY_MS = 800;
 
 export interface AutosaveHandlers {
@@ -60,7 +63,7 @@ export class Autosave {
     if (!doc || this.disabled) return;
     this.pending = null;
     try {
-      globalThis.localStorage?.setItem(KEY, JSON.stringify(doc));
+      globalThis.localStorage?.setItem(appKey('session'), JSON.stringify(doc));
     } catch (e) {
       this.disabled = true;
       const quota = e instanceof DOMException && /quota/i.test(e.name);
@@ -75,7 +78,7 @@ export class Autosave {
   /** The last autosaved session, or null. Malformed data is discarded rather than thrown. */
   load(): SaveDoc | null {
     try {
-      const text = globalThis.localStorage?.getItem(KEY);
+      const text = globalThis.localStorage?.getItem(appKey('session'));
       if (!text) return null;
       const doc = JSON.parse(text) as SaveDoc;
       return doc?.format === 'mc4d-save' ? doc : null;
@@ -89,7 +92,7 @@ export class Autosave {
     if (this.timer) clearTimeout(this.timer);
     this.timer = null;
     try {
-      globalThis.localStorage?.removeItem(KEY);
+      globalThis.localStorage?.removeItem(appKey('session'));
     } catch {
       /* nothing useful to do */
     }
