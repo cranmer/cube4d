@@ -189,7 +189,7 @@ export function App() {
         const staged = { ...snapshot, history: { ...snapshot.history, index: boundary?.at ?? 0 } };
         if (entry.id === puzzle.puzzleId) {
           actions.restore(staged);
-          say(`${example.solver}: ${snapshot.history.moves.length - (boundary?.at ?? 0)} moves. Press Play.`);
+          say(`${example.solver}, ${example.twists.toLocaleString()} twists. Press Play.`);
         } else {
           setPendingRestore(staged);
           puzzle.selectPuzzle(entry.id, entry.path);
@@ -532,7 +532,10 @@ export function App() {
               <div key={example.file} className="example">
                 <button className="example-load" onClick={() => void loadExample(example)}>
                   <span className="who">{example.solver}</span>
-                  <span className="what">{example.note}</span>
+                  <span className="what">
+                    {example.puzzle} · {example.twists.toLocaleString()} twists
+                    {example.note ? ` · ${example.note}` : ''}
+                  </span>
                 </button>
                 {/* The file itself, so it can be kept or opened in the original MagicCube4D.
                     An anchor rather than a nested button, which would be invalid inside one. */}

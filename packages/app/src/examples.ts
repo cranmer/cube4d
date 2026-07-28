@@ -15,7 +15,21 @@ export interface Example {
   readonly file: string;
   readonly puzzleId: string;
   readonly solver: string;
-  readonly note: string;
+  /** How the community names the puzzle: 2⁴, 3⁴, 5⁴. */
+  readonly puzzle: string;
+  /**
+   * Twists in the solution, counted the way the app counts them — moves after the scramble
+   * boundary, excluding whole-puzzle rotations.
+   *
+   * Counted rather than read from the file header, because two of these headers disagree with
+   * their own contents. Both were written by solver scripts rather than by MagicCube4D:
+   * Anderson's declares 0 for what its filename calls a 24-twist solve, and Andrew Luna's declares
+   * 135 where the moves come to 147. Using our own count keeps the list consistent with the twist
+   * counter you watch while the solve plays.
+   */
+  readonly twists: number;
+  /** What is notable about it, if anything. */
+  readonly note?: string;
 }
 
 export const EXAMPLES: readonly Example[] = [
@@ -23,48 +37,62 @@ export const EXAMPLES: readonly Example[] = [
     file: 'charles-3x3x3x3-191.log',
     puzzleId: '{4,3,3} 3',
     solver: 'Charles Doan',
-    note: 'Shortest known 3⁴ solution — 191 twists',
-  },
-  {
-    file: 'sebastian-3x3x3x3-bld.log',
-    puzzleId: '{4,3,3} 3',
-    solver: 'Sebastian',
-    note: '3⁴ solved blindfolded, in 5,765 twists',
+    puzzle: '3⁴',
+    twists: 191,
+    note: 'shortest known',
   },
   {
     file: 'andrew-luna_3x3x3x3-comp-assist.log',
     puzzleId: '{4,3,3} 3',
     solver: 'Andrew Luna',
-    note: '3⁴, computer-assisted',
+    puzzle: '3⁴',
+    twists: 147,
+    note: 'computer-assisted',
+  },
+  {
+    file: 'sebastian-3x3x3x3-bld.log',
+    puzzleId: '{4,3,3} 3',
+    solver: 'Sebastian',
+    puzzle: '3⁴',
+    twists: 5765,
+    note: 'blindfolded',
   },
   {
     file: 'andrey-5x5x5x5-1981.log',
     puzzleId: '{4,3,3} 5',
     solver: 'Andrey Astrelin',
-    note: '5⁴ in 1,981 twists',
-  },
-  {
-    file: 'daniel-2x2x2x2-46.log',
-    puzzleId: '{4,3,3} 2',
-    solver: 'Daniel',
-    note: '2⁴ in 46 twists',
+    puzzle: '5⁴',
+    twists: 1981,
   },
   {
     file: 'anderson-2x2x2x2-computer-24.log',
     puzzleId: '{4,3,3} 2',
     solver: 'Anderson',
-    note: '2⁴ in 24 twists, computer-assisted',
+    puzzle: '2⁴',
+    twists: 24,
+    note: 'computer-assisted',
   },
   {
-    file: 'liu-2x2x2x2-bld.log',
+    file: 'daniel-2x2x2x2-46.log',
     puzzleId: '{4,3,3} 2',
-    solver: 'Liu',
-    note: '2⁴ blindfolded',
+    solver: 'Daniel',
+    puzzle: '2⁴',
+    twists: 46,
   },
   {
     file: 'matt_2x2x2x2_blind.log',
     puzzleId: '{4,3,3} 2',
     solver: 'Matt',
-    note: '2⁴ blindfolded',
+    puzzle: '2⁴',
+    twists: 256,
+    note: 'blindfolded',
+  },
+  {
+    file: 'liu-2x2x2x2-bld.log',
+    puzzleId: '{4,3,3} 2',
+    solver: 'Liu',
+    puzzle: '2⁴',
+    twists: 336,
+    note: 'blindfolded',
   },
 ];
