@@ -312,6 +312,10 @@ export function App() {
           , by{' '}
           <a href="https://theoryandpractice.org/" target="_blank" rel="noopener noreferrer">
             Kyle Cranmer
+          </a>{' '}
+          and{' '}
+          <a href="https://claude.ai/" target="_blank" rel="noopener noreferrer">
+            Claude
           </a>
           .
         </p>
