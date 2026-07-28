@@ -601,15 +601,83 @@ never disagree mid-turn.
 
 ---
 
+## 2026-07-28 — Phase 5: everything else, and watching a record fall apart
+
+Phase 5 was the unglamorous one — the picker over all 128 puzzles, lazy loading, save, load,
+autosave, permalinks — and then it turned into the most convincing phase of the project.
+
+**Persistence with no server.** Autosave had to go somewhere. Cookies are the wrong tool for this
+(4 KB, and sent on every request to a server that does not exist); IndexedDB buys far more room
+than is needed and makes every read async. localStorage fits: a save is dominated by its moves at
+roughly twelve characters each, so even a 5,765-twist blindfolded solve lands near 70 KB against a
+~5 MB quota. The two things it demands care about are that it is synchronous — so writes are
+debounced, with a flush on `visibilitychange`, because `beforeunload` is unreliable on mobile — and
+that it can simply refuse, so a rejection is reported once rather than thrown on every twist.
+
+**Then the Hall of Fame.** The plan always said a real community `.log` should replay to solved.
+What I had not appreciated was how strong that test is. A `.log` records each move as a bare index
+into a generated grip array — no symbolic notation, nothing self-describing, no way to re-derive
+the intent. If the exported geometry enumerated grips in even a slightly different order, these
+files would replay into nonsense. All eight version-3 solves on the Hall of Fame now replay to
+solved, and the twist counters match the credited numbers: Charles Doan's 191, Daniel's 46,
+Anderson's 24.
+
+Two discoveries along the way. Roughly half the publicly linked Hall of Fame logs are **format
+version 1**, which the current MagicCube4D cannot open either — so they are documented rather than
+shipped. And two of the files were plainly written by solver scripts rather than by MagicCube4D:
+non-canonical spacing, and headers that disagree with their own contents (Anderson's declares zero
+twists for what its own filename calls a 24-twist solve). The app counts moves itself rather than
+trusting the header, which keeps the listed number and the on-screen counter honest with each other.
+
+### Telegraphing a move
+
+Watching a record replay turned out to be unsatisfying in a way that took a while to name: you can
+see *that* something turned, but not *why that*. The moves arrive already decided.
+
+The first attempt lit up every sticker in the turning slice. That was wrong, and the feedback was
+immediate and correct — it shows what moves, when the interesting thing is what a player would have
+*clicked*. Which is a harder question, because the log stores only the grip and the click-to-grip
+resolution is a filtered nearest-centre search with no closed-form inverse. So it is inverted by
+brute force: ask every sticker where it would send you, keep the first that answers with the grip
+in question, cache the map per puzzle. Now a replay points at the sticker, using exactly the
+highlight that hovering it would produce, and then performs the turn.
+
+The timing wanted tuning too. Half the move spent pointing read as a flicker — long enough to see a
+change, not long enough to find it. It is now twice the turn duration, and since that makes the
+default slower, playback speed became a control: a logarithmic slider over 0.25x–4x, so 1x sits in
+the middle and the extremes are symmetric rather than bunched.
+
+### Colour, and being wrong about it in public
+
+The palette went through four rounds, all of them driven by looking at it rather than reasoning
+about it. The Okabe–Ito colour-blind-safe set was the obvious starting point and was measurably
+correct and visibly murky. Two rounds of "this is too dark" turned out to have a real cause, and
+not the one I assumed: a custom `ShaderMaterial` in Three.js gets no output colour-space conversion,
+so every colour was being written as if linear values were sRGB. Adding the conversion — five lines
+— brightened everything at once and, incidentally, meant the original palette had never been seen
+at its best either.
+
+The last round was not a bug: three palettes now ship, each built as four *opposite-face pairs* in a
+fixed role order, so switching between them keeps the same face the same hue family. That preserves
+the thing a cuber's muscle memory actually depends on — that white is across from yellow — while
+letting the specific colours change.
+
+---
+
 ## Next
 
-**Phase 5: the rest of the catalog, and persistence.** A puzzle picker over all 128 entries with
-lazy loading, JSON save/load, drag-and-drop import of legacy `.log` files, autosave, and shareable
-permalinks.
+**Phase 6: polish and outreach.** Mobile layout is the substantial piece: under 720px the panel
+stacks below the canvas and eats half the screen, when it wants the canvas full-bleed with layers,
+direction and undo pinned within thumb reach. Then the opacity discontinuity between 100% and 99%,
+the 622 KB bundle (nearly all Three.js, of which the renderer touches a fraction), and a guided
+"what is 4D" tour for people arriving without a hypercube already in their head.
 
-Phase 6 has grown a second strand worth naming now: **touch**. Three of the app's core inputs —
-the number keys, right-click to reverse a twist, shift-drag to rotate in 4D — simply have no touch
-equivalent, and the original never had to answer that because it was a desktop Java application
-from an era before phones. The options are worked through in
-[`polish-backlog.md`](polish-backlog.md); the 4D rotation gesture is the one that deserves a
-prototype rather than a guess.
+On the engineering side, `tools/screenshot/` has now caught four bugs that the 291 unit tests could
+not, and it is still driven by hand. It should become a committed baseline suite, which is the one
+piece of the plan's testing section still outstanding.
+
+Touch is mostly answered: layer toggles, a twist-direction toggle, and pinch-to-zoom now cover
+three of the four missing inputs. The fourth — 4D rotation — is deliberately unresolved. Two-finger
+drag collides with pinch, and pinch is the natural zoom gesture, so if 4D rotation arrives on touch
+it should be a visible mode toggle rather than a hidden gesture. The consequence is worth stating
+plainly: without a keyboard you cannot currently bring the hidden cell to the front.
