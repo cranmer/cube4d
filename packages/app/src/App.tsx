@@ -19,7 +19,7 @@ import {
 } from './persist.js';
 
 import { DEFAULT_CONTROLS, usePuzzleCanvas } from './usePuzzleCanvas.js';
-import { usePuzzleSession, type PuzzleActions } from './usePuzzle.js';
+import { PLAYBACK_SPEED_RANGE, usePuzzleSession, type PuzzleActions } from './usePuzzle.js';
 
 /**
  * Phase 4: the puzzle is playable.
@@ -536,6 +536,18 @@ export function App() {
             </button>
           </div>
 
+          {/* Logarithmic, so 1× sits in the middle and the two extremes are symmetric — a linear
+              track would put the default a fifth of the way along. */}
+          <Slider
+            label="Playback speed"
+            value={Math.log2(session.playbackSpeed)}
+            min={Math.log2(PLAYBACK_SPEED_RANGE.min)}
+            max={Math.log2(PLAYBACK_SPEED_RANGE.max)}
+            step={0.25}
+            format={(v) => `${formatSpeed(2 ** v)}×`}
+            onChange={(v) => actions.setPlaybackSpeed(2 ** v)}
+          />
+
           <div className="examples">
             {EXAMPLES.map((example) => (
               <div key={example.file} className="example">
@@ -734,6 +746,11 @@ function TurnIcon({ clockwise }: { clockwise: boolean }) {
   );
 }
 
+/** "1×", "0.5×", "2.8×" — trailing zeros dropped, since "1.00×" reads as precision that is absent. */
+function formatSpeed(speed: number): string {
+  return speed >= 1 ? String(Math.round(speed * 10) / 10) : String(Math.round(speed * 100) / 100);
+}
+
 /** "1", "1+2", … for the slice indicator. */
 function describeSlices(mask: number): string {
   if (mask === 0) return '';
@@ -748,13 +765,15 @@ function Slider(props: {
   min: number;
   max: number;
   step?: number;
+  /** How to render the value. Defaults to two decimals. */
+  format?: (value: number) => string;
   onChange: (value: number) => void;
 }) {
   return (
     <label className="slider">
       <span className="row">
         <span>{props.label}</span>
-        <span>{props.value.toFixed(2)}</span>
+        <span>{props.format ? props.format(props.value) : props.value.toFixed(2)}</span>
       </span>
       <input
         type="range"

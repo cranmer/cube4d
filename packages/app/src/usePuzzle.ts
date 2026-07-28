@@ -46,10 +46,21 @@ const QUARTER_TURN_MS = 190;
  *
  * Making a move yourself, you already know what you did; watching someone else's solve you are
  * trying to read it, and the pace that feels responsive under your own hand is far too quick to
- * follow. A quarter turn takes about three quarters of a second here, which is slow enough to see
- * which layer moved and which way.
+ * follow.
  */
 const PLAYBACK_SLOWDOWN = 4;
+
+/**
+ * How long the piece is lit, relative to how long the turn takes.
+ *
+ * Reading a move is two jobs and they are not equally hard: finding the highlighted piece among a
+ * hundred others takes longer than watching it move once you have. So the pause is twice the turn.
+ */
+const TELEGRAPH_RATIO = 2;
+
+/** Bounds on the playback speed slider: four times slower through four times faster. */
+export const PLAYBACK_SPEED_RANGE = { min: 0.25, max: 4 } as const;
+const SPEED_KEY = 'mc4d.playbackSpeed';
 
 /** The original's easing: slow at both ends, quick through the middle. */
 const ease = (x: number) => (Math.sin((x - 0.5) * Math.PI) + 1) / 2;
@@ -84,6 +95,8 @@ export interface PuzzleSession {
   readonly revision: number;
   /** True while stepping automatically through the remaining moves. */
   readonly playing: boolean;
+  /** 1 is the default pace; 4 is four times faster, 0.25 four times slower. */
+  readonly playbackSpeed: number;
   /** True when a plain tap twists the reverse way — the equivalent of holding right-click. */
   readonly reversed: boolean;
   readonly busy: boolean;
@@ -112,12 +125,32 @@ export interface PuzzleActions {
   setReversed(reversed: boolean): void;
   /** Play the redo tail forward, or stop. */
   setPlaying(playing: boolean): void;
+  setPlaybackSpeed(speed: number): void;
   /** Jump straight to a position without animating, for scrubbing a loaded solve. */
   seek(index: number): void;
   /** Everything a save file needs. */
   snapshot(): SessionState;
   /** Replay a loaded move list onto a solved puzzle, without animating. */
   restore(state: SessionState): void;
+}
+
+function readStoredSpeed(): number {
+  try {
+    const stored = Number(globalThis.localStorage?.getItem(SPEED_KEY));
+    return Number.isFinite(stored) && stored > 0
+      ? Math.max(PLAYBACK_SPEED_RANGE.min, Math.min(PLAYBACK_SPEED_RANGE.max, stored))
+      : 1;
+  } catch {
+    return 1;
+  }
+}
+
+function storeSpeed(speed: number): void {
+  try {
+    globalThis.localStorage?.setItem(SPEED_KEY, String(speed));
+  } catch {
+    /* a forgotten preference is not worth surfacing */
+  }
 }
 
 export function usePuzzleSession(
@@ -151,6 +184,8 @@ export function usePuzzleSession(
   const [revision, setRevision] = useState(0);
   const [playing, setPlayingState] = useState(false);
   const playingRef = useRef(false);
+  const [playbackSpeed, setPlaybackSpeedState] = useState(() => readStoredSpeed());
+  const speedRef = useRef(playbackSpeed);
   const [busy, setBusy] = useState(false);
 
   /**
@@ -211,23 +246,22 @@ export function usePuzzleSession(
       const view = renderer();
       if (!next || !view) return;
       // A 180° twist takes twice as long as a 90° one, so every move turns at the same rate.
-      const total =
-        ((QUARTER_TURN_MS * 4) / Math.max(2, geometry.gripSymmetryOrders[next.move.g])) *
-        (playingRef.current ? PLAYBACK_SLOWDOWN : 1);
-      // Half showing which piece is about to move, half moving it. The move takes no longer than
-      // it would have; it is just readable. Only the slowdown is reserved for playback, so
-      // stepping stays brisk while watching stays legible.
-      const telegraphMs = next.telegraph ? total / 2 : 0;
+      const base =
+        (QUARTER_TURN_MS * 4) / Math.max(2, geometry.gripSymmetryOrders[next.move.g]);
+      // The slowdown is reserved for playback, so stepping stays brisk while watching stays
+      // legible. The speed slider scales both, and both phases, so their proportion never shifts.
+      const speed = playingRef.current ? speedRef.current : 1;
+      const turnMs = ((base * (playingRef.current ? PLAYBACK_SLOWDOWN : 1)) / 2) / speed;
       animationRef.current = {
         move: next.move,
         startedAt: performance.now(),
-        telegraphMs,
-        durationMs: total - telegraphMs,
+        telegraphMs: next.telegraph ? turnMs * TELEGRAPH_RATIO : 0,
+        durationMs: turnMs,
         record: next.record,
       };
       view.beginTwist(stickersInSlice(geometry, next.move.g, next.move.s));
       view.setTwistMatrix(twistMatrix(geometry, next.move.g, next.move.d, 0));
-      if (telegraphMs > 0) {
+      if (next.telegraph) {
         // Point at the sticker a player would have clicked for this move, highlighted exactly as
         // hovering it would be. A log records only the grip, so the sticker has to be recovered.
         const sticker = stickerForGrip(geometry, next.move.g);
@@ -480,6 +514,13 @@ export function usePuzzleSession(
       setPlayingState(next);
     },
 
+    setPlaybackSpeed(next) {
+      const clamped = Math.max(PLAYBACK_SPEED_RANGE.min, Math.min(PLAYBACK_SPEED_RANGE.max, next));
+      speedRef.current = clamped;
+      setPlaybackSpeedState(clamped);
+      storeSpeed(clamped);
+    },
+
     seek(index) {
       const view = renderer();
       if (!geometry || !view) return;
@@ -526,6 +567,7 @@ export function usePuzzleSession(
       sliceCount,
       revision,
       playing,
+      playbackSpeed,
       reversed,
       busy,
     },
