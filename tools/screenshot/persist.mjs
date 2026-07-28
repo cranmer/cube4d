@@ -15,6 +15,17 @@ await page.goto('http://localhost:4173/', { waitUntil: 'networkidle' });
 await page.waitForTimeout(2500);
 const box = await page.locator('canvas').boundingBox();
 const settle = async () => { for (let i=0;i<120;i++){ if (await page.evaluate(()=>window.__mc4d.pending()===0)) return; await page.waitForTimeout(60);} };
+// Section state persists, so clicking blindly toggles rather than opens. Match on the heading
+// exactly: a substring match on "Solve" also hits the Start over group, whose hint mentions
+// discarding the current solve.
+const ensureOpen = async (title) => {
+  const heading = page.locator('.group-head h2', { hasText: new RegExp(`^${title}$`, 'i') });
+  const group = page.locator('.group').filter({ has: heading });
+  if (!(await group.evaluate((el) => el.classList.contains('open')))) {
+    await group.locator('.group-head').click();
+    await page.waitForTimeout(300);
+  }
+};
 const out = {};
 
 // Make some moves.
@@ -29,6 +40,9 @@ const targets = await page.evaluate(({w,h}) => {
 for (const t of targets.slice(0, 6)) { await page.mouse.click(box.x+t.x, box.y+t.y); await settle(); }
 out.twists = await page.locator('.hud b').innerText();
 out.stateAfterMoves = await page.evaluate(()=>window.__mc4d.stateHash());
+
+// Save and load live in a collapsed section by default; open it first.
+await ensureOpen('Solve');
 
 // Export a .log and check the original's loader would accept its header.
 const logDownload = page.waitForEvent('download');
@@ -69,6 +83,7 @@ await shared.close();
 // Now drop the exported .log back in.
 await page.getByRole('button', { name: 'Reset', exact: true }).click();
 await settle();
+await ensureOpen('Solve');
 await page.setInputFiles('.filebutton input', logPath);
 await page.waitForTimeout(1500);
 await settle();

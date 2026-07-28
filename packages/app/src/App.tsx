@@ -4,6 +4,8 @@ import { DEFAULT_PUZZLE_ID, findEntry } from '@mc4d/puzzle-core';
 import { PALETTES, paletteSwatches } from '@mc4d/render';
 
 import { PuzzlePicker } from './PuzzlePicker.js';
+import { Section } from './Section.js';
+import { Autosave } from './autosave.js';
 import {
   decodePermalink,
   download,
@@ -63,6 +65,9 @@ export function App() {
     setTimeout(() => setNotice((current) => (current === message ? null : current)), 4000);
   }, []);
 
+  // One instance for the life of the page: it owns a debounce timer and page-lifecycle listeners.
+  const autosave = useMemo(() => new Autosave({ onUnavailable: say }), [say]);
+
   // --- opening a permalink
   const [hash, setHash] = useState(() => globalThis.location?.hash ?? '');
   useEffect(() => {
@@ -107,6 +112,27 @@ export function App() {
 
   const currentEntry = puzzle.catalog ? findEntry(puzzle.catalog, puzzle.puzzleId) : undefined;
 
+  // --- pick up where the last visit left off
+  const [autosaveChecked, setAutosaveChecked] = useState(false);
+  useEffect(() => {
+    if (autosaveChecked || !puzzle.catalog) return;
+    setAutosaveChecked(true);
+    // A link is an explicit request for a particular position and outranks whatever was left open.
+    if (decodePermalink(globalThis.location?.hash ?? '')) return;
+
+    const doc = autosave.load();
+    if (!doc || doc.moves.length === 0) return;
+    const entry = findEntry(puzzle.catalog, doc.puzzle.id);
+    if (!entry) return;
+
+    const snapshot = fromSaveDoc(doc);
+    if (entry.id === puzzle.puzzleId) actions.restore(snapshot);
+    else {
+      setPendingRestore(snapshot);
+      puzzle.selectPuzzle(entry.id, entry.path);
+    }
+  }, [autosaveChecked, puzzle.catalog]);
+
   const buildDoc = useCallback(() => {
     const state = actions.snapshot();
     return toSaveDoc(
@@ -123,6 +149,16 @@ export function App() {
       puzzle.geometry,
     );
   }, [actions, currentEntry, puzzle.catalog, puzzle.geometry, puzzle.puzzleId]);
+
+  // --- keep the autosave current
+  useEffect(() => {
+    if (!puzzle.geometry || !autosaveChecked) return;
+    const doc = buildDoc();
+    // An empty history means a fresh or reset puzzle, and there is nothing worth restoring — so
+    // clear rather than store, otherwise Reset would be undone by the next reload.
+    if (doc.moves.length === 0) autosave.clear();
+    else autosave.schedule(doc);
+  }, [session.revision, puzzle.geometry, autosaveChecked, autosave, buildDoc]);
 
   const openFile = useCallback(
     async (file: File) => {
@@ -237,8 +273,7 @@ export function App() {
 
         {/* Navigation only. Scramble and reset discard a solve, so they live at the far end of
             the panel rather than a few pixels from Undo. */}
-        <div className="group">
-          <h2>Move</h2>
+        <Section id="move" title="Move" defaultOpen>
           <div className="buttons">
             <button disabled={!session.canUndo} onClick={() => actions.undo()}>
               Undo
@@ -260,11 +295,10 @@ export function App() {
               Reset view
             </button>
           </div>
-        </div>
+        </Section>
 
         {session.sliceCount > 1 && (
-          <div className="group">
-            <h2>Layers</h2>
+          <Section id="layers" title="Layers" defaultOpen badge={sliceLabel}>
             {/* One toggle per layer the puzzle actually has, so a 2⁴ offers two and a 4⁴ four.
                 These mirror the 1–9 keys, which still work — but the keys are held and invisible,
                 and these stay put and show their state. */}
@@ -284,11 +318,10 @@ export function App() {
               Which layers turn, counting inward. Select several to turn them together; select all
               to rotate the whole puzzle.
             </p>
-          </div>
+          </Section>
         )}
 
-        <div className="group">
-          <h2>Direction</h2>
+        <Section id="direction" title="Direction" defaultOpen badge={session.reversed ? 'clockwise' : 'counter'}>
           {/* Right-click reverses a twist on a desktop; touch has no second button, so the
               direction needs to be selectable. Right-click still means "the other way" whichever
               of these is chosen. */}
@@ -313,10 +346,9 @@ export function App() {
             </button>
           </div>
           <p className="hint">Which way a click turns. Right-click always turns the other way.</p>
-        </div>
+        </Section>
 
-        <div className="group">
-          <h2>Controls</h2>
+        <Section id="controls" title="Controls">
           <dl className="help">
             <dt>Click a sticker</dt>
             <dd>Twist that piece. Right-click turns the other way.</dd>
@@ -336,10 +368,9 @@ export function App() {
             <dt>Scroll, or pinch</dt>
             <dd>Zoom.</dd>
           </dl>
-        </div>
+        </Section>
 
-        <div className="group">
-          <h2>Colours</h2>
+        <Section id="colours" title="Colours" badge={PALETTES.find((p) => p.id === controls.paletteId)?.name}>
           <div className="palettes">
             {PALETTES.map((palette) => (
               <button
@@ -357,10 +388,9 @@ export function App() {
               </button>
             ))}
           </div>
-        </div>
+        </Section>
 
-        <div className="group">
-          <h2>View</h2>
+        <Section id="view" title="View">
           <Slider
             label="Face shrink"
             value={controls.faceShrink}
@@ -390,23 +420,21 @@ export function App() {
             step={0.01}
             onChange={(eyeW) => setControls({ eyeW })}
           />
-        </div>
+        </Section>
 
         {puzzle.catalog && (
-          <div className="group">
-            <h2>Puzzle</h2>
+          <Section id="puzzle" title="Puzzle" defaultOpen badge={puzzle.puzzleId}>
             <PuzzlePicker
               catalog={puzzle.catalog}
               currentId={puzzle.puzzleId}
               loadingId={puzzle.loadingId}
               onSelect={(entry) => puzzle.selectPuzzle(entry.id, entry.path)}
             />
-          </div>
+          </Section>
         )}
 
         {puzzle.geometry && (
-          <div className="group">
-            <h2>This puzzle</h2>
+          <Section id="facts" title="This puzzle">
             <p className="facts">
               <b>{puzzle.geometry.schlafli}</b> at length <b>{puzzle.geometry.edgeLength}</b>
               <br />
@@ -422,21 +450,19 @@ export function App() {
                 </>
               )}
             </p>
-          </div>
+          </Section>
         )}
 
-        <div className="group">
-          <h2>Why it looks like that</h2>
+        <Section id="why" title="Why it looks like that">
           <p className="facts">
             You are seeing a 4D object projected into 3D, then onto your screen. The nearest cell is
             hidden so you can see through it into the interior — which is why a cube appears to sit
             inside another cube. Every one of those cells is a genuine cube; they only look
             distorted because they are further away in a direction you cannot point.
           </p>
-        </div>
+        </Section>
 
-        <div className="group">
-          <h2>Solve</h2>
+        <Section id="solve" title="Solve">
           <div className="buttons">
             <button
               onClick={() => download(suggestFilename(puzzle.puzzleId, 'json'), JSON.stringify(buildDoc(), null, 2), 'application/json')}
@@ -488,17 +514,16 @@ export function App() {
             Or drop a <code>.json</code> or <code>.log</code> file anywhere on the page. Exported
             logs open in the original MagicCube4D.
           </p>
-        </div>
+        </Section>
 
         {/* Last in the panel on purpose: both of these throw away whatever solve is in progress. */}
-        <div className="group">
-          <h2>Start over</h2>
+        <Section id="startover" title="Start over" defaultOpen>
           <div className="buttons">
             <button onClick={() => actions.scramble()}>Scramble</button>
             <button onClick={() => actions.reset()}>Reset</button>
           </div>
           <p className="hint">Both discard the current solve.</p>
-        </div>
+        </Section>
       </aside>
     </div>
   );

@@ -63,6 +63,8 @@ export interface PuzzleSession {
   readonly slicemask: number;
   /** Number of layers this puzzle has, and so how many slice toggles to offer. */
   readonly sliceCount: number;
+  /** Increments on every change to the move list. Autosave watches this. */
+  readonly revision: number;
   /** True when a plain tap twists the reverse way — the equivalent of holding right-click. */
   readonly reversed: boolean;
   readonly busy: boolean;
@@ -123,6 +125,7 @@ export function usePuzzleSession(
   const [redoable, setRedoable] = useState(false);
   const [slicemask, setSlicemask] = useState(0);
   const [reversed, setReversedState] = useState(false);
+  const [revision, setRevision] = useState(0);
   const [busy, setBusy] = useState(false);
 
   /**
@@ -163,6 +166,7 @@ export function usePuzzleSession(
 
   const refreshFlags = useCallback(() => {
     if (!geometry) return;
+    setRevision((n) => n + 1);
     const history = historyRef.current;
     setUndoable(canUndo(history));
     setRedoable(canRedo(history));
@@ -423,6 +427,7 @@ export function usePuzzleSession(
       canRedo: redoable,
       slicemask,
       sliceCount,
+      revision,
       reversed,
       busy,
     },

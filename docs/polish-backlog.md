@@ -63,10 +63,13 @@ behaviour.
 
 ### Layout
 
-The two-column grid collapses to a stacked layout under 720px, but the panel then eats nearly half
-the screen. A mobile layout probably wants the canvas full-bleed with controls in a collapsible
-sheet, and the play controls — slice chips, direction, undo — pinned within thumb reach rather than
-in a scrolling panel.
+Panel sections now collapse, and their state is remembered, which shortens the panel considerably —
+by default only Move, Layers, Direction, Puzzle and Start over are open. Collapsed sections show a
+badge with their current value, so folding one away loses no information.
+
+Still open for mobile: under 720px the panel stacks below the canvas and eats nearly half the
+screen. It probably wants the canvas full-bleed with the play controls — layers, direction, undo —
+pinned within thumb reach rather than in a scrolling panel.
 
 ---
 
