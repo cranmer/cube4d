@@ -20,8 +20,9 @@ If you want the conclusions rather than the story:
 
 ## Status
 
-**Phases 0–5 of 6 complete.** All 128 puzzles are playable in a browser, solves persist and can be
-saved, shared or exported, and the real Hall-of-Fame records replay on demand.
+**Phases 0–6 of 8 complete.** All 128 puzzles are playable in a browser, solves persist and can be
+saved, shared or exported, the real Hall-of-Fame records replay on demand, and the front-end has been
+split so that alternative layouts are separate apps rather than more controls in one panel.
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -31,12 +32,14 @@ saved, shared or exported, and the real Hall-of-Fame records replay on demand.
 | 3 | Renderer, static (first shareable artifact) | ✅ complete |
 | 4 | Interaction — twisting, undo, scramble | ✅ complete |
 | 5 | Catalog + persistence | ✅ complete |
-| 6 | Polish, touch & outreach | next |
+| 6 | Several apps on one engine | ✅ complete |
+| 7 | A hypercube-specific app | next |
+| 8 | 3D puzzles on the same engine | scoped |
 
 What exists today: all 128 puzzles export to binary assets; `@mc4d/puzzle-core` decodes, twists,
 scrambles and tracks history; `@mc4d/legacy-format` reads and writes `.log` files, with an
 `mc4d-convert` CLI; and `@mc4d/render` puts the whole 4D→3D projection into a vertex shader.
-255 tests, plus a headless browser that scrambles and solves the puzzle end to end.
+316 tests, plus a headless browser that scrambles and solves the puzzle end to end.
 
 **Playable at <https://theoryandpractice.org/cube4d/>.**
 
@@ -664,20 +667,110 @@ letting the specific colours change.
 
 ---
 
+## 2026-07-28 — Phase 6: several apps, one engine
+
+The trigger was a good question: if the interface wants variations — buttons for canonical views
+instead of free dragging, more than one viewport, eventually a layout built around the hypercube
+specifically — do those have to become more controls in the same panel?
+
+They should not, and it turned out most of the separation was already there. Of the front-end, three
+quarters had no opinion about layout, for reasons that had nothing to do with foresight: the
+renderer never knew about React, because WebGL state and reconciliation are a bad pairing, and
+session logic went into a hook rather than a component. `App.tsx` was the only file that knew where a
+button goes. So the restructuring was mostly moving files: everything layout-free into
+`@mc4d/shell`, `App.tsx` into `apps/web/src/classic`, and the build into Vite's multi-page mode
+behind a landing page. Shared dependencies are emitted once, so a second front-end costs its own
+layout and nothing more.
+
+Two things needed actual thought. Apps on one origin share localStorage, so `mc4d.session` would
+have meant a second app silently overwriting the first one's solve; keys now split by whether they
+describe the app (session, which sections are open) or the person (palette, playback speed), and the
+classic app claims the old unnamespaced keys on startup rather than stranding anyone mid-solve. And
+permalinks had been shared against the root URL, which is now the landing page — so the landing page
+forwards any fragment to `/classic/` before it paints.
+
+### The feature that was supposed to be easy
+
+Named viewpoints looked like an afternoon. A free 4D trackball is honest but easy to get lost in —
+no horizon, no gravity — so nine named orientations give you somewhere to stand: the default oblique
+view plus one per signed axis, each bringing that direction to the centre of the picture. The
+matrices are signed permutations. The animation was supposed to be free, because `rotation.ts`
+already had an incremental slerp.
+
+It was not free, and it produced the most interesting bug of the project so far.
+
+**First attempt: blend the two matrices and re-orthonormalise.** This is the obvious thing, and it
+silently does nothing. Gram-Schmidt fixes each row's *length* and never its sign, so a row that has
+to reverse shrinks toward zero and is renormalised straight back where it started. The view sticks —
+not visibly broken, just inert.
+
+**Second attempt: step along the antisymmetric part of the relative rotation.** This is exactly what
+the drag integrator does, it is the right tool for small increments, and it is well founded: the
+antisymmetric part is a first-order matrix logarithm. It recovers `sin θ` times each plane's
+generator. And `sin θ` is zero at θ = π just as surely as at θ = 0.
+
+I had written off half-turns as "measure-zero — any drag perturbs out of it". That was wrong in the
+most embarrassing available way: **six of the eight axis-aligned viewpoints differ from the default
+by a rotation containing a half-turn.** It was not the corner case, it was the feature.
+
+Both bugs were caught by a test asserting the glide converges, not by looking at the screen. The
+second one would have shipped otherwise — it *did* converge, eventually, by stalling for two hundred
+frames and then hitting a degeneracy guard that snapped it to the target.
+
+**What works is a fact peculiar to four dimensions.** Identify R⁴ with the quaternions, and every 4D
+rotation is `v ↦ L·v·R` for a pair of unit quaternions — with only the pair's overall sign ambiguous.
+So interpolating a 4D rotation is just slerping two quaternions: exact at both ends, constant angular
+speed between, no singularity anywhere. There is no analogue in five dimensions; this is a gift SO(4)
+happens to hand you.
+
+`so4.ts` factors a rotation into its pair by peeling off one factor at a time — the image of 1 is the
+product `L·R`, multiplying it out leaves `v ↦ L·v·conj(L)`, which is an ordinary 3D rotation, and its
+quaternion is `L` — rather than by the usual associate-matrix construction. Same answer, no tabulated
+sign conventions to get wrong. About 100 lines and 13 tests, including round-trips over 200
+pseudo-random rotations and the specific half-turn that defeated both earlier attempts.
+
+One thing had to be unlearned along the way: a slerp that helpfully flips its argument to take the
+shorter arc is *wrong* here. Only the pair's overall sign may change, so the two factors have to move
+together; letting each choose independently produces the negation of the rotation you asked for, and
+the endpoint test caught it immediately.
+
+### Asking the engine about three dimensions
+
+A second question, also good: the grips here — cells, faces, edges, vertices, chosen by how many
+colours the clicked piece carries — are nothing like R, U and F. Could someone learn this interface
+on an ordinary Rubik's cube first, before adding a dimension?
+
+Rather than estimate, I asked the engine. `{4,3} 3` builds with the **stock, unmodified** code: 26
+cubies, 54 stickers, `nDims=3`. `{5,3} 3` gives a megaminx at 62 and 132. All of the polytope
+construction, hyperplane slicing and sticker derivation is genuinely dimension-generic and has been
+working in 3D the whole time.
+
+What is missing is one `if`. Grip generation is wrapped in `if(nDims == 4)`, above a comment where
+the author begins to handle 3D, notices that the cell/facet analogy does not transfer, and says so.
+The right analogue fits the existing code exactly: in 4D a twist rotates a *cell* about one of its
+sub-elements, and in 3D it rotates the *whole polytope* about one of its sub-elements — which
+satisfies `calcRotationGroupOrder`'s `cell3d.dim == 3` precondition. Called that way it returns six
+face grips of order 4 for the cube. Those are R, L, U, D, F and B.
+
+And for once there is no compatibility constraint. Everywhere else in this project grip ordering is a
+wire format that every saved solve depends on; there are no 3D logs, so it is a free choice. Costed
+as Phase 8 in [`multi-app.md`](multi-app.md); the risk lives in the renderer, which is the only
+genuinely 4D-specific code, and not in the geometry.
+
+---
+
 ## Next
 
-**Phase 6: polish and outreach.** Mobile layout is the substantial piece: under 720px the panel
-stacks below the canvas and eats half the screen, when it wants the canvas full-bleed with layers,
-direction and undo pinned within thumb reach. Then the opacity discontinuity between 100% and 99%,
-the 622 KB bundle (nearly all Three.js, of which the renderer touches a fraction), and a guided
-"what is 4D" tour for people arriving without a hypercube already in their head.
+**Phase 7: a hypercube-specific app.** A layout built around `{4,3,3}` rather than around a catalog
+of 128 puzzles — the first front-end that will use the multi-viewport support, and a design question
+before it is an engineering one.
 
-On the engineering side, `tools/screenshot/` has now caught four bugs that the 291 unit tests could
-not, and it is still driven by hand. It should become a committed baseline suite, which is the one
-piece of the plan's testing section still outstanding.
+Still open from earlier phases: the 622 KB bundle, now more visible as a shared chunk and so more
+worth trimming; a guided "what is 4D" tour for people arriving without a hypercube already in their
+head; and promoting `tools/screenshot/` from hand-driven scripts to a committed baseline suite, which
+matters more now that a refactor in `@mc4d/shell` can break an app nobody was looking at.
 
-Touch is mostly answered: layer toggles, a twist-direction toggle, and pinch-to-zoom now cover
-three of the four missing inputs. The fourth — 4D rotation — is deliberately unresolved. Two-finger
-drag collides with pinch, and pinch is the natural zoom gesture, so if 4D rotation arrives on touch
-it should be a visible mode toggle rather than a hidden gesture. The consequence is worth stating
-plainly: without a keyboard you cannot currently bring the hidden cell to the front.
+Two Phase 6 candidates were dropped deliberately. A dedicated mobile layout is no longer motivated —
+the collapsible panel and the touch toggles made the existing responsive layout good enough in
+practice. The opacity discontinuity at 100% is understood, documented, and not worth the
+order-independent transparency it would take to fix properly.
