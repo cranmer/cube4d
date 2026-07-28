@@ -415,6 +415,15 @@ export function App() {
           </dl>
         </Section>
 
+        <Section id="why" title="Why it looks like that">
+          <p className="facts">
+            You are seeing a 4D object projected into 3D, then onto your screen. The nearest cell is
+            hidden so you can see through it into the interior — which is why a cube appears to sit
+            inside another cube. Every one of those cells is a genuine cube; they only look
+            distorted because they are further away in a direction you cannot point.
+          </p>
+        </Section>
+
         <Section id="view" title="View controls">
           <h3 className="subhead">Colors</h3>
           <div className="palettes">
@@ -587,16 +596,7 @@ export function App() {
           </Section>
         )}
 
-        <Section id="why" title="Why it looks like that">
-          <p className="facts">
-            You are seeing a 4D object projected into 3D, then onto your screen. The nearest cell is
-            hidden so you can see through it into the interior — which is why a cube appears to sit
-            inside another cube. Every one of those cells is a genuine cube; they only look
-            distorted because they are further away in a direction you cannot point.
-          </p>
-        </Section>
-
-        <Section id="solve" title="Solve">
+        <Section id="solve" title="Import / Export">
           <div className="buttons">
             <button
               onClick={() => download(suggestFilename(puzzle.puzzleId, 'json'), JSON.stringify(buildDoc(), null, 2), 'application/json')}

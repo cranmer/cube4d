@@ -127,7 +127,7 @@ export function usePuzzleSession(
   const stateRef = useRef<Int32Array | null>(null);
   const historyRef = useRef<History>(emptyHistory);
   const animationRef = useRef<Animation | null>(null);
-  const queueRef = useRef<{ move: Move; record: boolean }[]>([]);
+  const queueRef = useRef<{ move: Move; record: boolean; telegraph: boolean }[]>([]);
   // Two sources for which layers turn: number keys, held momentarily, and on-screen toggles that
   // stay put. They union, and an empty selection means the outermost layer.
   const keyMaskRef = useRef(0);
@@ -214,9 +214,10 @@ export function usePuzzleSession(
       const total =
         ((QUARTER_TURN_MS * 4) / Math.max(2, geometry.gripSymmetryOrders[next.move.g])) *
         (playingRef.current ? PLAYBACK_SLOWDOWN : 1);
-      // During playback the time is split evenly: half showing which layer is about to turn, half
-      // turning it. The move takes no longer than before, it is just readable now.
-      const telegraphMs = playingRef.current ? total / 2 : 0;
+      // Half showing which piece is about to move, half moving it. The move takes no longer than
+      // it would have; it is just readable. Only the slowdown is reserved for playback, so
+      // stepping stays brisk while watching stays legible.
+      const telegraphMs = next.telegraph ? total / 2 : 0;
       animationRef.current = {
         move: next.move,
         startedAt: performance.now(),
@@ -273,7 +274,7 @@ export function usePuzzleSession(
         const stepped = redo(historyRef.current);
         if (stepped) {
           historyRef.current = stepped.history;
-          queueRef.current.push({ move: stepped.move, record: false });
+          queueRef.current.push({ move: stepped.move, record: false, telegraph: true });
           startNext();
         } else {
           playingRef.current = false;
@@ -318,8 +319,15 @@ export function usePuzzleSession(
     };
   }, []);
 
-  const enqueue = useCallback((move: Move, record: boolean) => {
-    queueRef.current.push({ move, record });
+  /**
+   * Queue a move.
+   *
+   * `telegraph` is the answer to "does the viewer already know what is about to happen?" — false
+   * for a move you just clicked, true for undo, redo and playback, where the piece is worth
+   * pointing at before it moves.
+   */
+  const enqueue = useCallback((move: Move, record: boolean, telegraph = true) => {
+    queueRef.current.push({ move, record, telegraph });
   }, []);
 
   // Expose the true puzzle state for automated testing. The UI deliberately hides "solved" until
@@ -376,7 +384,8 @@ export function usePuzzleSession(
       playingRef.current = false;
       setPlayingState(false);
       historyRef.current = pushMove(historyRef.current, move);
-      enqueue(move, true);
+      // No telegraph: you just clicked this piece, so pointing at it would only add lag.
+      enqueue(move, true, false);
       setRedoable(false);
       return true;
     },

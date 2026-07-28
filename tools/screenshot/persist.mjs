@@ -42,7 +42,7 @@ out.twists = await page.locator('.hud b').innerText();
 out.stateAfterMoves = await page.evaluate(()=>window.__mc4d.stateHash());
 
 // Save and load live in a collapsed section by default; open it first.
-await ensureOpen('Solve');
+await ensureOpen('Import \/ Export');
 
 // Export a .log and check the original's loader would accept its header.
 const logDownload = page.waitForEvent('download');
@@ -83,7 +83,7 @@ await shared.close();
 // Now drop the exported .log back in.
 await page.getByRole('button', { name: 'Reset', exact: true }).click();
 await settle();
-await ensureOpen('Solve');
+await ensureOpen('Import \/ Export');
 await page.setInputFiles('.filebutton input', logPath);
 await page.waitForTimeout(1500);
 await settle();
