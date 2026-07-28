@@ -415,7 +415,8 @@ export function App() {
           </dl>
         </Section>
 
-        <Section id="colours" title="Colors" badge={PALETTES.find((p) => p.id === controls.paletteId)?.name}>
+        <Section id="view" title="View controls">
+          <h3 className="subhead">Colors</h3>
           <div className="palettes">
             {PALETTES.map((palette) => (
               <button
@@ -433,9 +434,8 @@ export function App() {
               </button>
             ))}
           </div>
-        </Section>
 
-        <Section id="view" title="View controls">
+          <h3 className="subhead">Shape and projection</h3>
           <Slider
             label="Face shrink"
             value={controls.faceShrink}

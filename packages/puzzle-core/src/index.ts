@@ -22,6 +22,7 @@ export {
   numColorsForCubie,
   polygonCenter,
   standardStickerVerts,
+  stickerForGrip,
   stickerPickCenter,
 } from './grips.js';
 

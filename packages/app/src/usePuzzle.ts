@@ -18,6 +18,7 @@ import {
   isSolved,
   isValidTwist,
   numSlicesForGrip,
+  stickerForGrip,
   pushMark,
   pushMove,
   redo,
@@ -225,7 +226,12 @@ export function usePuzzleSession(
       };
       view.beginTwist(stickersInSlice(geometry, next.move.g, next.move.s));
       view.setTwistMatrix(twistMatrix(geometry, next.move.g, next.move.d, 0));
-      view.setTelegraph(telegraphMs > 0);
+      if (telegraphMs > 0) {
+        // Point at the sticker a player would have clicked for this move, highlighted exactly as
+        // hovering it would be. A log records only the grip, so the sticker has to be recovered.
+        const sticker = stickerForGrip(geometry, next.move.g);
+        view.setHighlight(-1, sticker >= 0 ? geometry.sticker2cubie[sticker] : -1);
+      }
       setBusy(true);
     };
 
@@ -240,7 +246,7 @@ export function usePuzzleSession(
           return;
         }
         if (animation.telegraphMs > 0) {
-          view.setTelegraph(false);
+          view.setHighlight(-1, -1);
           animation.telegraphMs = 0;
           animation.startedAt = performance.now();
         }

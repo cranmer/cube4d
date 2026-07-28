@@ -9,7 +9,13 @@
 import { describe, expect, it } from 'vitest';
 
 import { GOLDEN_PUZZLES, loadGeometry } from './fixtures.js';
-import { gripForPick, numColorsForCubie, polygonCenter, stickerPickCenter } from '../src/grips.js';
+import {
+  gripForPick,
+  numColorsForCubie,
+  polygonCenter,
+  stickerForGrip,
+  stickerPickCenter,
+} from '../src/grips.js';
 import { isValidTwist } from '../src/twist.js';
 
 describe.each(GOLDEN_PUZZLES)('$id — grip resolution', ({ file }) => {
@@ -138,6 +144,43 @@ describe('{4,3,3} 2 — the 2×2×2 cell special case', () => {
       grips.add(gripForPick(geo, 0, p).gripIndex);
     }
     expect(grips.size).toBeGreaterThan(1);
+  });
+});
+
+describe.each(GOLDEN_PUZZLES)('$id — naming a sticker for a grip', ({ file }) => {
+  const geo = loadGeometry(file);
+
+  it('round-trips: the sticker it names resolves back to that grip', () => {
+    // A .log records only the grip, so replaying one has to recover something to point at. The
+    // inversion is only useful if it is exact — a sticker that resolves elsewhere would highlight
+    // a piece unrelated to the move about to happen.
+    let checked = 0;
+    for (let g = 0; g < geo.nGrips; ++g) {
+      const sticker = stickerForGrip(geo, g);
+      if (sticker < 0) continue;
+      let matched = false;
+      for (let p = 0; p < geo.stickerPolyCount[sticker] && !matched; ++p) {
+        matched = gripForPick(geo, sticker, p).gripIndex === g;
+      }
+      expect(matched, `grip ${g} named sticker ${sticker}, which resolves elsewhere`).toBe(true);
+      checked++;
+    }
+    expect(checked).toBeGreaterThan(0);
+  });
+
+  it('names a sticker for every grip a click can reach', () => {
+    // Every grip some sticker resolves to must be invertible, or a replay would have moves it
+    // cannot illustrate.
+    const reachable = new Set<number>();
+    for (let s = 0; s < geo.nStickers; ++s) {
+      for (let p = 0; p < geo.stickerPolyCount[s]; ++p) {
+        const { gripIndex } = gripForPick(geo, s, p);
+        if (gripIndex >= 0) reachable.add(gripIndex);
+      }
+    }
+    for (const g of reachable) {
+      expect(stickerForGrip(geo, g), `grip ${g} is reachable but unnamed`).toBeGreaterThanOrEqual(0);
+    }
   });
 });
 

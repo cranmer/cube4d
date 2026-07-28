@@ -133,7 +133,6 @@ export class PuzzleRenderer {
         uTwisting: { value: 0 },
         uHighlightSticker: { value: -1 },
         uHighlightCubie: { value: -1 },
-        uTelegraph: { value: 0 },
       },
     });
     this.applyOpacity();
@@ -163,23 +162,11 @@ export class PuzzleRenderer {
     (this.material.uniforms.uTwistMat.value as THREE.Matrix4).fromArray(Array.from(matrix));
   }
 
-  /**
-   * Light the layer that is about to turn, without turning it.
-   *
-   * Uses the same per-sticker flag the twist does, so there is nothing extra to compute or upload.
-   */
-  setTelegraph(on: boolean): void {
-    if (this.material) this.material.uniforms.uTelegraph.value = on ? 1 : 0;
-  }
-
   /** Clear the animation. Call once the move has been applied to the puzzle state. */
   endTwist(): void {
     if (!this.buffers) return;
     setTwistingSlice(this.buffers, null);
-    if (this.material) {
-      this.material.uniforms.uTwisting.value = 0;
-      this.material.uniforms.uTelegraph.value = 0;
-    }
+    if (this.material) this.material.uniforms.uTwisting.value = 0;
   }
 
   /** Light up the sticker or piece under the cursor. Pass -1 for neither. */

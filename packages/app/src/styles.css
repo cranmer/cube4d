@@ -332,3 +332,14 @@ button:disabled:hover { background: #21262d; }
 }
 .transport .step { flex: none; width: 44px; padding: 7px 0; }
 .transport .play { flex: 1; padding: 7px 0; font-weight: 600; }
+
+.subhead {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: #6e7a8c;
+  font-weight: 600;
+  margin: 2px 0 8px;
+}
+.subhead + * { margin-top: 0; }
+.palettes + .subhead { margin-top: 16px; }

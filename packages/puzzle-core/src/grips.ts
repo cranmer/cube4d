@@ -214,3 +214,32 @@ export function gripForPick(geo: PuzzleGeometry, stickerIndex: number, polyIndex
 
   return { stickerIndex, polyIndex, faceIndex, gripIndex: best, is2x2x2Cell: twoByTwo };
 }
+
+const representativeCache = new WeakMap<PuzzleGeometry, Map<number, number>>();
+
+/**
+ * A sticker you could click to perform a given twist — the inverse of `gripForPick`.
+ *
+ * A `.log` records only the grip index, so replaying a solve knows *what* turned but not what the
+ * solver clicked to turn it. Recovering a sticker lets a replay point at the same thing a player
+ * would have, which is the difference between watching a move happen and understanding it.
+ *
+ * There is no closed form, since resolution is a nearest-grip search with filters — so this
+ * inverts it by brute force, asking every sticker where it would send you and keeping the first
+ * that answers with this grip. Built once per puzzle, on demand, and cached.
+ */
+export function stickerForGrip(geo: PuzzleGeometry, gripIndex: number): number {
+  let map = representativeCache.get(geo);
+  if (!map) {
+    map = new Map<number, number>();
+    for (let s = 0; s < geo.nStickers; ++s) {
+      // Polygon matters only on 2×2×2 cells, where each face of a sticker offers a different axis.
+      for (let p = 0; p < geo.stickerPolyCount[s]; ++p) {
+        const { gripIndex: g } = gripForPick(geo, s, p);
+        if (g >= 0 && !map.has(g)) map.set(g, s);
+      }
+    }
+    representativeCache.set(geo, map);
+  }
+  return map.get(gripIndex) ?? -1;
+}
