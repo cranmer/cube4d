@@ -67,15 +67,21 @@ Panel sections now collapse, and their state is remembered, which shortens the p
 by default only Move, Layers, Direction, Puzzle and Start over are open. Collapsed sections show a
 badge with their current value, so folding one away loses no information.
 
-Still open for mobile: under 720px the panel stacks below the canvas and eats nearly half the
-screen. It probably wants the canvas full-bleed with the play controls — layers, direction, undo —
-pinned within thumb reach rather than in a scrolling panel.
+**A dedicated mobile layout is no longer planned.** Under 720px the panel still stacks below the
+canvas and takes a large share of the screen, but with sections collapsed by default and the layer
+and direction toggles to hand, the result is good enough in practice that a separate shell is not
+motivated. If that changes, note that it would now be a *separate app* rather than a media query —
+see [`multi-app.md`](multi-app.md).
 
 ---
 
 ## Rendering
 
 ### Opacity jumps between 100% and 99%
+
+**Deferred, deliberately.** The behaviour is understood and the workaround — leave the slider at 1.0
+— is free. Fixing it properly means order-independent transparency, which is a rendering project of
+its own for a cosmetic gain.
 
 The transition is discontinuous rather than gradual. At full opacity the material writes depth; at
 anything below it stops, so a single step off 1.0 flips the whole puzzle from solid to see-through

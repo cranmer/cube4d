@@ -114,7 +114,8 @@ a solve without trusting the client. It costs nothing now and cannot be retrofit
 | **3** | Renderer, static | ✅ **done** — renders and rotates in a browser |
 | **4** | Interaction | ✅ **done** — scramble and solve in the browser |
 | **5** | Catalog + persistence | ✅ **done** — all 128 puzzles, save/load/share, autosave |
-| **6** | Polish, touch & outreach | next |
+| **6** | Several apps on one engine | next — see [`multi-app.md`](multi-app.md) |
+| **7** | A hypercube-specific app | not yet specified |
 
 **Phase 0 — Measure and freeze.** Build every catalog entry, record element counts and exact asset
 sizes, identify anything too large or broken to ship, and acquire a corpus of real `.log` files.
@@ -140,8 +141,25 @@ undo/redo, twist counter, scramble, solve detection. *Done when* `{4,3,3} 2` is 
 **Phase 5 — Catalog + persistence.** Full picker with piece counts and sizes, lazy loading, JSON
 save/load, drag-and-drop legacy import/export, autosave, shareable permalinks, core preferences.
 
-**Phase 6 — Polish & outreach.** Shadows, ghost/transparency mode, a guided "what is 4D" tour, a
-compatibility page documenting the grip-index guarantee.
+**Phase 6 — Several apps on one engine.** Extract everything layout-free into `@mc4d/shell`, move
+today's UI to `apps/classic`, and build the workspace as a multi-page site behind a landing page —
+so that alternative front-ends are separate apps rather than more controls in one panel. Then
+canonical view orientations with keyboard bindings, and multiple simultaneous viewports. The
+trade-offs are worked through in [`multi-app.md`](multi-app.md). *Done when* the classic app is
+byte-for-byte the same experience served from `apps/classic`, and a second front-end exists that
+shares its session logic without sharing its layout.
+
+Also in this phase, and independent of it: a guided "what is 4D" tour, and a compatibility page
+documenting the grip-index guarantee.
+
+Two earlier Phase 6 candidates were dropped deliberately. A **dedicated mobile layout** is no longer
+motivated — the collapsible panel, the layer toggles and the direction toggle made the existing
+responsive layout good enough in practice. The **opacity discontinuity** at 100% is understood and
+documented, and not worth the order-independent transparency it would take to fix properly.
+
+**Phase 7 — A hypercube-specific app.** A layout designed around `{4,3,3}` rather than around the
+general catalog, still supporting any number of slices. Scoped separately because it is a design
+question before it is an engineering one.
 
 ## Testing
 
