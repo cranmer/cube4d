@@ -41,12 +41,14 @@ import { PuzzleRenderer } from '@mc4d/render';
 const QUARTER_TURN_MS = 190;
 
 /**
- * Playback runs at half speed.
+ * Playback runs at a quarter speed.
  *
  * Making a move yourself, you already know what you did; watching someone else's solve you are
- * trying to read it, and the pace that feels responsive under your own hand is too quick to follow.
+ * trying to read it, and the pace that feels responsive under your own hand is far too quick to
+ * follow. A quarter turn takes about three quarters of a second here, which is slow enough to see
+ * which layer moved and which way.
  */
-const PLAYBACK_SLOWDOWN = 2;
+const PLAYBACK_SLOWDOWN = 4;
 
 /** The original's easing: slow at both ends, quick through the middle. */
 const ease = (x: number) => (Math.sin((x - 0.5) * Math.PI) + 1) / 2;
