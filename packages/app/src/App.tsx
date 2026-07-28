@@ -1,9 +1,19 @@
-import { useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { DEFAULT_PUZZLE_ID, findEntry } from '@mc4d/puzzle-core';
 import { PALETTES, paletteSwatches } from '@mc4d/render';
 
 import { PuzzlePicker } from './PuzzlePicker.js';
+import {
+  decodePermalink,
+  download,
+  encodePermalink,
+  fromSaveDoc,
+  parseDropped,
+  saveDocToLogText,
+  suggestFilename,
+  toSaveDoc,
+} from './persist.js';
 
 import { DEFAULT_CONTROLS, usePuzzleCanvas } from './usePuzzleCanvas.js';
 import { usePuzzleSession, type PuzzleActions } from './usePuzzle.js';
@@ -42,6 +52,119 @@ export function App() {
 
   const { controls, setControls } = puzzle;
   const sliceLabel = describeSlices(session.slicemask);
+  const [notice, setNotice] = useState<string | null>(null);
+  // State, not a ref: a restore has to wait for the right geometry, and setting a ref would not
+  // schedule the effect that consumes it — so a link for the puzzle already on screen would sit
+  // there forever, since nothing else causes a render.
+  const [pendingRestore, setPendingRestore] = useState<ReturnType<typeof fromSaveDoc> | null>(null);
+
+  const say = useCallback((message: string) => {
+    setNotice(message);
+    setTimeout(() => setNotice((current) => (current === message ? null : current)), 4000);
+  }, []);
+
+  // --- opening a permalink
+  const [hash, setHash] = useState(() => globalThis.location?.hash ?? '');
+  useEffect(() => {
+    // Pasting a link into the address bar of an already-open tab changes only the fragment, which
+    // is a same-document navigation: nothing reloads and a mount-only effect would never see it.
+    const onHashChange = () => setHash(globalThis.location.hash);
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, []);
+
+  useEffect(() => {
+    const link = decodePermalink(hash);
+    if (!link || !puzzle.catalog) return;
+    const entry = findEntry(puzzle.catalog, link.puzzleId);
+    if (!entry) {
+      say(`This link is for ${link.puzzleId}, which is not in the catalog.`);
+      return;
+    }
+    setPendingRestore({
+      puzzleId: entry.id,
+      schlafli: entry.schlafli,
+      length: entry.length,
+      history: { moves: link.moves, marks: [], index: link.moves.length },
+      scrambleState: link.moves.length > 0 ? 'full' : 'none',
+      viewMatrix: [],
+    });
+    // Clear the fragment so a reload does not keep re-applying it over your own moves.
+    globalThis.history?.replaceState(null, '', globalThis.location.pathname);
+    setHash('');
+    if (entry.id !== puzzle.puzzleId) puzzle.selectPuzzle(entry.id, entry.path);
+  }, [hash, puzzle.catalog]);
+
+  // A restore has to wait for the right geometry to finish loading.
+  useEffect(() => {
+    if (!pendingRestore || !puzzle.geometry || puzzle.puzzleId !== pendingRestore.puzzleId) return;
+    setPendingRestore(null);
+    actions.restore(pendingRestore);
+    // The original stores the camera alongside the moves, so a loaded solve looks as it was left.
+    if (pendingRestore.viewMatrix.length === 16) puzzle.setRotation(pendingRestore.viewMatrix);
+    say(`Loaded ${pendingRestore.history.moves.length} moves.`);
+  }, [pendingRestore, puzzle.geometry, puzzle.puzzleId, actions, say]);
+
+  const currentEntry = puzzle.catalog ? findEntry(puzzle.catalog, puzzle.puzzleId) : undefined;
+
+  const buildDoc = useCallback(() => {
+    const state = actions.snapshot();
+    return toSaveDoc(
+      {
+        puzzleId: puzzle.puzzleId,
+        schlafli: currentEntry?.schlafli ?? puzzle.geometry?.schlafli ?? '',
+        length: currentEntry?.length ?? puzzle.geometry?.edgeLength ?? 0,
+        history: state.history,
+        scrambleState: state.scrambleState,
+        ...(state.scramble ? { scramble: state.scramble } : {}),
+        viewMatrix: puzzle.getRotation(),
+        ...(puzzle.catalog ? { assetsVersion: puzzle.catalog.assetsVersion } : {}),
+      },
+      puzzle.geometry,
+    );
+  }, [actions, currentEntry, puzzle.catalog, puzzle.geometry, puzzle.puzzleId]);
+
+  const openFile = useCallback(
+    async (file: File) => {
+      try {
+        const { doc, warnings } = parseDropped(file.name, await file.text());
+        const snapshot = fromSaveDoc(doc);
+        const entry = puzzle.catalog ? findEntry(puzzle.catalog, snapshot.puzzleId) : undefined;
+        if (!entry) {
+          say(`${file.name} is for ${snapshot.puzzleId}, which is not in the catalog.`);
+          return;
+        }
+        for (const warning of warnings) say(warning);
+        if (entry.id === puzzle.puzzleId) {
+          actions.restore(snapshot);
+          if (snapshot.viewMatrix.length === 16) puzzle.setRotation(snapshot.viewMatrix);
+          say(`Loaded ${snapshot.history.moves.length} moves from ${file.name}.`);
+        } else {
+          setPendingRestore(snapshot);
+          puzzle.selectPuzzle(entry.id, entry.path);
+        }
+      } catch (e) {
+        say(e instanceof Error ? e.message : String(e));
+      }
+    },
+    [actions, puzzle, say],
+  );
+
+  // --- drag and drop, anywhere on the window
+  useEffect(() => {
+    const over = (event: DragEvent) => event.preventDefault();
+    const drop = (event: DragEvent) => {
+      event.preventDefault();
+      const file = event.dataTransfer?.files?.[0];
+      if (file) void openFile(file);
+    };
+    window.addEventListener('dragover', over);
+    window.addEventListener('drop', drop);
+    return () => {
+      window.removeEventListener('dragover', over);
+      window.removeEventListener('drop', drop);
+    };
+  }, [openFile]);
 
   return (
     <div className="layout">
@@ -56,9 +179,8 @@ export function App() {
             )}
           </div>
         )}
-        {session.solved && session.scrambled && (
-          <div className="banner">Solved</div>
-        )}
+        {session.solved && session.scrambled && <div className="banner">Solved</div>}
+        {notice && <div className="notice">{notice}</div>}
         <div className="hud">
           <span>
             <b>{session.twistCount}</b> twist{session.twistCount === 1 ? '' : 's'}
@@ -310,6 +432,61 @@ export function App() {
             hidden so you can see through it into the interior — which is why a cube appears to sit
             inside another cube. Every one of those cells is a genuine cube; they only look
             distorted because they are further away in a direction you cannot point.
+          </p>
+        </div>
+
+        <div className="group">
+          <h2>Solve</h2>
+          <div className="buttons">
+            <button
+              onClick={() => download(suggestFilename(puzzle.puzzleId, 'json'), JSON.stringify(buildDoc(), null, 2), 'application/json')}
+              title="Save as JSON — this project's own format"
+            >
+              Save
+            </button>
+            <button
+              onClick={() => download(suggestFilename(puzzle.puzzleId, 'log'), saveDocToLogText(buildDoc()), 'text/plain')}
+              title="Export a MagicCube4D .log file, readable by the original"
+            >
+              Export .log
+            </button>
+          </div>
+          <div className="buttons">
+            <label className="filebutton">
+              Open…
+              <input
+                type="file"
+                accept=".json,.log,application/json,text/plain"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) void openFile(file);
+                  e.target.value = '';
+                }}
+              />
+            </label>
+            <button
+              onClick={async () => {
+                const state = actions.snapshot();
+                const url = `${globalThis.location.origin}${globalThis.location.pathname}#${encodePermalink(
+                  puzzle.puzzleId,
+                  state.history.moves.slice(0, state.history.index),
+                )}`;
+                try {
+                  await navigator.clipboard.writeText(url);
+                  say('Link copied.');
+                } catch {
+                  // Clipboard access needs permission and a secure context; fall back to showing it.
+                  globalThis.prompt?.('Copy this link:', url);
+                }
+              }}
+              title="Copy a link that reproduces this position"
+            >
+              Copy link
+            </button>
+          </div>
+          <p className="hint">
+            Or drop a <code>.json</code> or <code>.log</code> file anywhere on the page. Exported
+            logs open in the original MagicCube4D.
           </p>
         </div>
 

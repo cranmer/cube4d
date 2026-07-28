@@ -60,6 +60,9 @@ export interface PuzzleCanvas {
   setControls(controls: Partial<ViewControls>): void;
   resetView(): void;
   getRenderer(): PuzzleRenderer | null;
+  /** The current 4D view rotation, row-major, as `.log` files store it. */
+  getRotation(): number[];
+  setRotation(mat4d: readonly number[]): void;
 }
 
 const PALETTE_KEY = 'mc4d.palette';
@@ -368,6 +371,12 @@ export function usePuzzleCanvas(
   };
 
   const getRenderer = useCallback(() => rendererRef.current, []);
+  const getRotation = useCallback(() => Array.from(rotationRef.current.mat), []);
+  const setRotation = useCallback((mat4d: readonly number[]) => {
+    if (mat4d.length !== 16) return;
+    rotationRef.current = { mat: Float64Array.from(mat4d), spin: null };
+    rendererRef.current?.setRotation(rotationRef.current.mat);
+  }, []);
 
   const selectPuzzle = useCallback((id: string, path: string) => {
     setError(null);
@@ -387,5 +396,7 @@ export function usePuzzleCanvas(
     setControls,
     resetView,
     getRenderer,
+    getRotation,
+    setRotation,
   };
 }

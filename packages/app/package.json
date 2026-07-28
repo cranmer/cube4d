@@ -15,7 +15,8 @@
     "@mc4d/render": "*",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "three": "^0.169.0"
+    "three": "^0.169.0",
+    "@mc4d/legacy-format": "*"
   },
   "devDependencies": {
     "@types/react": "^18.3.1",

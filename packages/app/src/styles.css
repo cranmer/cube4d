@@ -220,3 +220,41 @@ button:disabled:hover { background: #21262d; }
   color: var(--dim);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
+
+.filebutton {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #21262d;
+  border: 1px solid var(--edge);
+  border-radius: 6px;
+  padding: 6px 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.filebutton:hover { background: #2c333c; }
+.filebutton input { display: none; }
+
+.hint code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  background: #21262d;
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+.notice {
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  max-width: 80%;
+  padding: 8px 16px;
+  border-radius: 8px;
+  background: rgba(20, 22, 26, 0.9);
+  border: 1px solid var(--edge);
+  color: var(--text);
+  font-size: 13px;
+  text-align: center;
+}

@@ -68,6 +68,16 @@ export interface PuzzleSession {
   readonly busy: boolean;
 }
 
+export interface SessionState {
+  readonly history: History;
+  readonly scrambleState: 'none' | 'partial' | 'full' | 'solved';
+  /**
+   * Present only for scrambles this app generated. A scramble imported from a `.log` has none:
+   * the original uses an unseeded RNG, so those solves can never be re-derived.
+   */
+  readonly scramble?: { seed: number; algo: 'mulberry32-v1'; twists: number } | undefined;
+}
+
 export interface PuzzleActions {
   onPointerMove(x: number, y: number): void;
   onPointerLeave(): void;
@@ -79,6 +89,10 @@ export interface PuzzleActions {
   reset(): void;
   toggleSlice(index: number): void;
   setReversed(reversed: boolean): void;
+  /** Everything a save file needs. */
+  snapshot(): SessionState;
+  /** Replay a loaded move list onto a solved puzzle, without animating. */
+  restore(state: SessionState): void;
 }
 
 export function usePuzzleSession(
@@ -98,6 +112,7 @@ export function usePuzzleSession(
   // Which way a plain tap turns. Right-click is the desktop way to reverse a twist, and touch has
   // no second button, so the direction has to be selectable.
   const reversedRef = useRef(false);
+  const scrambleRef = useRef<SessionState['scramble']>(undefined);
   const effectiveMask = () => keyMaskRef.current | chipMaskRef.current || 1;
   const syncMask = () => setSlicemask(effectiveMask());
 
@@ -312,6 +327,39 @@ export function usePuzzleSession(
       refreshFlags();
     },
 
+    snapshot() {
+      return {
+        history: historyRef.current,
+        // "Solved" is a state the original records in the header, distinct from merely being
+        // unscrambled — it means this file represents a completed solve.
+        scrambleState: scrambled
+          ? isSolved(geometry!, stateRef.current!)
+            ? ('solved' as const)
+            : ('full' as const)
+          : ('none' as const),
+        ...(scrambleRef.current ? { scramble: scrambleRef.current } : {}),
+      };
+    },
+
+    restore(next) {
+      const view = renderer();
+      if (!geometry || !view) return;
+      // Replay rather than trust a stored position: the move list is the source of truth, and
+      // replaying it proves the file and the geometry actually agree.
+      const state = solvedState(geometry);
+      const applied = next.history.moves.slice(0, next.history.index);
+      for (const move of applied) applyMove(geometry, state, move);
+      stateRef.current = state;
+      historyRef.current = next.history;
+      scrambleRef.current = next.scramble;
+      queueRef.current = [];
+      animationRef.current = null;
+      view.endTwist();
+      view.setState(state);
+      setScrambled(next.scrambleState !== 'none');
+      refreshFlags();
+    },
+
     scramble() {
       const view = renderer();
       if (!geometry || !view) return;
@@ -319,7 +367,9 @@ export function usePuzzleSession(
       // and the original does the same.
       stateRef.current = solvedState(geometry);
       const seed = (Math.random() * 0x7fffffff) | 0;
-      const moves = scramble(geometry, { twists: fullScrambleLength(geometry), seed });
+      const twists = fullScrambleLength(geometry);
+      const moves = scramble(geometry, { twists, seed });
+      scrambleRef.current = { seed, algo: 'mulberry32-v1', twists };
       let history = emptyHistory;
       for (const move of moves) {
         applyMove(geometry, stateRef.current, move);
@@ -351,6 +401,7 @@ export function usePuzzleSession(
       if (!geometry || !view) return;
       stateRef.current = solvedState(geometry);
       historyRef.current = emptyHistory;
+      scrambleRef.current = undefined;
       queueRef.current = [];
       animationRef.current = null;
       view.endTwist();

@@ -118,7 +118,7 @@ export function saveToLog(doc: SaveDoc): LogFile {
     twistCount: imported?.twistCount ?? doc.meta?.twistCount ?? 0,
     schlafli: doc.puzzle.schlafli,
     edgeLength: doc.puzzle.length,
-    viewMatrix: doc.view?.mat4d ?? identity4(),
+    viewMatrix: doc.view?.mat4d?.length === 16 ? doc.view.mat4d : identity4(),
     moves: doc.moves.map((t): Move => ({ g: t[0], d: t[1], s: t[2] })),
     marks: [...doc.marks],
     index: doc.index,

@@ -174,6 +174,15 @@ describe('Java double formatting', () => {
     expect(javaDoubleToString(0.01819699718070393)).toBe('0.01819699718070393');
   });
 
+  it('refuses anything that is not a number', () => {
+    // A missing value used to slip through: `Number.isNaN(undefined)` is false, so `undefined`
+    // fell into the formatting path and emerged as "N.aNENaN" — which looks enough like a number
+    // to be written to a file, and was only caught later by the parser refusing to read it.
+    expect(() => javaDoubleToString(undefined as unknown as number)).toThrow(TypeError);
+    expect(() => javaDoubleToString('1.0' as unknown as number)).toThrow(TypeError);
+    expect(javaDoubleToString(NaN)).toBe('NaN');
+  });
+
   it('reproduces every number in the corpus exactly', () => {
     // The real test: every value in every view matrix, re-rendered from the parsed double.
     for (const name of version3) {

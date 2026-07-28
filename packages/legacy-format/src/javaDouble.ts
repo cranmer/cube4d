@@ -29,6 +29,13 @@
  * way Java writes them, though a view matrix should never hold one.
  */
 export function javaDoubleToString(value: number): string {
+  // Anything that is not a finite number is rejected outright. An earlier version tested only for
+  // NaN, which `undefined` is not, so a missing value fell through the formatting path and came
+  // out as the plausible-looking "N.aNENaN" — written into a file, and only caught later by the
+  // parser refusing to read it back.
+  if (typeof value !== 'number') {
+    throw new TypeError(`javaDoubleToString expected a number, got ${typeof value}`);
+  }
   if (Number.isNaN(value)) return 'NaN';
   if (value === Number.POSITIVE_INFINITY) return 'Infinity';
   if (value === Number.NEGATIVE_INFINITY) return '-Infinity';
