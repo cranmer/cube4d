@@ -55,3 +55,19 @@ if (missing > 0 && !process.env.MC4D_ALLOW_PARTIAL_ASSETS) {
   );
 }
 console.log(summary + (missing ? `; ${missing} missing (partial build allowed)` : ''));
+
+// Real solve logs from the Hall of Fame, shipped so they can be replayed in the app. Only the
+// version 3 files: the rest are a format the current MagicCube4D cannot open either.
+const LOGS_FROM = `${ROOT}fixtures/logs/`;
+const LOGS_TO = fileURLToPath(new URL('../public/examples/', import.meta.url));
+mkdirSync(LOGS_TO, { recursive: true });
+let logs = 0;
+for (const name of readdirSync(LOGS_FROM)) {
+  if (!name.endsWith('.log')) continue;
+  const text = readFileSync(LOGS_FROM + name, 'utf8');
+  const header = text.split(/\r?\n/)[0].trim().split(/\s+/);
+  if (header[0] !== 'MagicCube4D' || header[1] !== '3') continue;
+  copyFileSync(LOGS_FROM + name, LOGS_TO + name);
+  logs++;
+}
+console.log(`staged ${logs} example solve logs`);

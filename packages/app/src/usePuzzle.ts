@@ -65,6 +65,8 @@ export interface PuzzleSession {
   readonly sliceCount: number;
   /** Increments on every change to the move list. Autosave watches this. */
   readonly revision: number;
+  /** True while stepping automatically through the remaining moves. */
+  readonly playing: boolean;
   /** True when a plain tap twists the reverse way — the equivalent of holding right-click. */
   readonly reversed: boolean;
   readonly busy: boolean;
@@ -91,6 +93,10 @@ export interface PuzzleActions {
   reset(): void;
   toggleSlice(index: number): void;
   setReversed(reversed: boolean): void;
+  /** Play the redo tail forward, or stop. */
+  setPlaying(playing: boolean): void;
+  /** Jump straight to a position without animating, for scrubbing a loaded solve. */
+  seek(index: number): void;
   /** Everything a save file needs. */
   snapshot(): SessionState;
   /** Replay a loaded move list onto a solved puzzle, without animating. */
@@ -126,6 +132,8 @@ export function usePuzzleSession(
   const [slicemask, setSlicemask] = useState(0);
   const [reversed, setReversedState] = useState(false);
   const [revision, setRevision] = useState(0);
+  const [playing, setPlayingState] = useState(false);
+  const playingRef = useRef(false);
   const [busy, setBusy] = useState(false);
 
   /**
@@ -155,6 +163,8 @@ export function usePuzzleSession(
     // puzzle, and carrying it over would silently disable every click.
     chipMaskRef.current = 1;
     keyMaskRef.current = 0;
+    playingRef.current = false;
+    setPlayingState(false);
     setSlicemask(1);
     renderer()?.setState(stateRef.current);
     setTwistCount(0);
@@ -216,6 +226,19 @@ export function usePuzzleSession(
         }
       } else if (view && queueRef.current.length > 0) {
         startNext();
+      } else if (view && playingRef.current) {
+        // Playback is just redo, driven by the same clock, so a watched solve animates exactly as
+        // a played one does.
+        const stepped = redo(historyRef.current);
+        if (stepped) {
+          historyRef.current = stepped.history;
+          queueRef.current.push({ move: stepped.move, record: false });
+          startNext();
+        } else {
+          playingRef.current = false;
+          setPlayingState(false);
+          refreshFlags();
+        }
       }
       frame = requestAnimationFrame(tick);
     };
@@ -309,6 +332,8 @@ export function usePuzzleSession(
       const base = reversedRef.current ? -1 : 1;
       const direction = (button === 2 ? -base : base) as 1 | -1;
       const move: Move = { g: gripIndex, d: direction, s: mask };
+      playingRef.current = false;
+      setPlayingState(false);
       historyRef.current = pushMove(historyRef.current, move);
       enqueue(move, true);
       setRedoable(false);
@@ -400,6 +425,28 @@ export function usePuzzleSession(
       setReversedState(next);
     },
 
+    setPlaying(next) {
+      playingRef.current = next;
+      setPlayingState(next);
+    },
+
+    seek(index) {
+      const view = renderer();
+      if (!geometry || !view) return;
+      playingRef.current = false;
+      setPlayingState(false);
+      queueRef.current = [];
+      animationRef.current = null;
+      const clamped = Math.max(0, Math.min(historyRef.current.moves.length, index));
+      const state = solvedState(geometry);
+      for (const move of historyRef.current.moves.slice(0, clamped)) applyMove(geometry, state, move);
+      stateRef.current = state;
+      historyRef.current = { ...historyRef.current, index: clamped };
+      view.endTwist();
+      view.setState(state);
+      refreshFlags();
+    },
+
     reset() {
       const view = renderer();
       if (!geometry || !view) return;
@@ -428,6 +475,7 @@ export function usePuzzleSession(
       slicemask,
       sliceCount,
       revision,
+      playing,
       reversed,
       busy,
     },

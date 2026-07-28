@@ -113,8 +113,8 @@ a solve without trusting the client. It costs nothing now and cannot be retrofit
 | **2** | Headless core | ✅ **done** — all 8 real solve logs replay to solved |
 | **3** | Renderer, static | ✅ **done** — renders and rotates in a browser |
 | **4** | Interaction | ✅ **done** — scramble and solve in the browser |
-| **5** | Catalog + persistence | next |
-| **6** | Polish & outreach | not started |
+| **5** | Catalog + persistence | ✅ **done** — all 128 puzzles, save/load/share, autosave |
+| **6** | Polish, touch & outreach | next |
 
 **Phase 0 — Measure and freeze.** Build every catalog entry, record element counts and exact asset
 sizes, identify anything too large or broken to ship, and acquire a corpus of real `.log` files.

@@ -20,8 +20,8 @@ If you want the conclusions rather than the story:
 
 ## Status
 
-**Phases 0–4 of 6 complete.** The puzzle is playable in a browser: click to twist, scramble, undo,
-solve.
+**Phases 0–5 of 6 complete.** All 128 puzzles are playable in a browser, solves persist and can be
+saved, shared or exported, and the real Hall-of-Fame records replay on demand.
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -30,8 +30,8 @@ solve.
 | 2 | Headless puzzle core | ✅ complete |
 | 3 | Renderer, static (first shareable artifact) | ✅ complete |
 | 4 | Interaction — twisting, undo, scramble | ✅ complete |
-| 5 | Catalog + persistence | next |
-| 6 | Polish & outreach | not started |
+| 5 | Catalog + persistence | ✅ complete |
+| 6 | Polish, touch & outreach | next |
 
 What exists today: all 128 puzzles export to binary assets; `@mc4d/puzzle-core` decodes, twists,
 scrambles and tracks history; `@mc4d/legacy-format` reads and writes `.log` files, with an

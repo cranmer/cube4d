@@ -6,6 +6,7 @@ import { PALETTES, paletteSwatches } from '@mc4d/render';
 import { PuzzlePicker } from './PuzzlePicker.js';
 import { Section } from './Section.js';
 import { Autosave } from './autosave.js';
+import { EXAMPLES, type Example } from './examples.js';
 import {
   decodePermalink,
   download,
@@ -102,7 +103,13 @@ export function App() {
 
   // A restore has to wait for the right geometry to finish loading.
   useEffect(() => {
-    if (!pendingRestore || !puzzle.geometry || puzzle.puzzleId !== pendingRestore.puzzleId) return;
+    // Guard on the *loaded* geometry, not the requested id. Selecting a puzzle updates the id
+    // immediately while the asset is still downloading, so for a moment the id says one puzzle and
+    // `geometry` is still the previous one — restoring then would apply the moves to the wrong
+    // puzzle and consume the pending restore, leaving nothing to apply when the right one arrives.
+    if (!pendingRestore || !puzzle.geometry) return;
+    if (puzzle.geometry.id !== pendingRestore.puzzleId) return;
+    if (puzzle.puzzleId !== pendingRestore.puzzleId) return;
     setPendingRestore(null);
     actions.restore(pendingRestore);
     // The original stores the camera alongside the moves, so a loaded solve looks as it was left.
@@ -159,6 +166,40 @@ export function App() {
     if (doc.moves.length === 0) autosave.clear();
     else autosave.schedule(doc);
   }, [session.revision, puzzle.geometry, autosaveChecked, autosave, buildDoc]);
+
+  /**
+   * Load a real solve and park it at the scramble, so the interesting part is what happens next.
+   *
+   * The move list runs scramble → boundary → solution, so seeking to the boundary shows the
+   * position the solver actually faced. Play then works through their solution.
+   */
+  const loadExample = useCallback(
+    async (example: Example) => {
+      try {
+        const response = await fetch(`${import.meta.env.BASE_URL}examples/${example.file}`);
+        if (!response.ok) throw new Error(`could not load ${example.file}`);
+        const { doc } = parseDropped(example.file, await response.text());
+        const snapshot = fromSaveDoc(doc);
+        const entry = puzzle.catalog ? findEntry(puzzle.catalog, snapshot.puzzleId) : undefined;
+        if (!entry) {
+          say(`${example.file} is for ${snapshot.puzzleId}, which is not in the catalog.`);
+          return;
+        }
+        const boundary = snapshot.history.marks.find((m) => m.kind === 'scramble');
+        const staged = { ...snapshot, history: { ...snapshot.history, index: boundary?.at ?? 0 } };
+        if (entry.id === puzzle.puzzleId) {
+          actions.restore(staged);
+          say(`${example.solver}: ${snapshot.history.moves.length - (boundary?.at ?? 0)} moves. Press Play.`);
+        } else {
+          setPendingRestore(staged);
+          puzzle.selectPuzzle(entry.id, entry.path);
+        }
+      } catch (e) {
+        say(e instanceof Error ? e.message : String(e));
+      }
+    },
+    [actions, puzzle, say],
+  );
 
   const openFile = useCallback(
     async (file: File) => {
@@ -280,6 +321,13 @@ export function App() {
             </button>
             <button disabled={!session.canRedo} onClick={() => actions.redo()}>
               Redo
+            </button>
+            <button
+              disabled={!session.canRedo && !session.playing}
+              onClick={() => actions.setPlaying(!session.playing)}
+              title="Step forward through the remaining moves"
+            >
+              {session.playing ? 'Stop' : 'Play'}
             </button>
           </div>
           <div className="buttons">
@@ -432,6 +480,32 @@ export function App() {
             />
           </Section>
         )}
+
+        <Section
+          id="examples"
+          title="Real solves"
+          badge={`${EXAMPLES.length}`}
+        >
+          <p className="hint">
+            Actual solves from the{' '}
+            <a
+              href="https://superliminal.com/cube/halloffame.htm"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              MagicCube4D Hall of Fame
+            </a>
+            . Each loads at the position the solver faced — press Play to watch it come apart.
+          </p>
+          <div className="examples">
+            {EXAMPLES.map((example) => (
+              <button key={example.file} className="example" onClick={() => void loadExample(example)}>
+                <span className="who">{example.solver}</span>
+                <span className="what">{example.note}</span>
+              </button>
+            ))}
+          </div>
+        </Section>
 
         {puzzle.geometry && (
           <Section id="facts" title="This puzzle">
