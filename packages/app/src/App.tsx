@@ -393,7 +393,7 @@ export function App() {
           <p className="hint">Which way a click turns. Right-click always turns the other way.</p>
         </Section>
 
-        <Section id="controls" title="View controls">
+        <Section id="controls" title="Instructions">
           <dl className="help">
             <dt>Click a sticker</dt>
             <dd>Twist that piece. Right-click turns the other way.</dd>
@@ -435,7 +435,7 @@ export function App() {
           </div>
         </Section>
 
-        <Section id="view" title="View">
+        <Section id="view" title="View controls">
           <Slider
             label="Face shrink"
             value={controls.faceShrink}
