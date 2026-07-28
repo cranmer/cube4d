@@ -56,6 +56,12 @@ const ease = (x: number) => (Math.sin((x - 0.5) * Math.PI) + 1) / 2;
 interface Animation {
   move: Move;
   startedAt: number;
+  /**
+   * How long the layer is lit before it moves. Zero for your own moves — you know what you just
+   * clicked, and a delay there would only feel like lag.
+   */
+  telegraphMs: number;
+  /** How long the turn itself takes, after any telegraph. */
   durationMs: number;
   /** Applied to the puzzle state when the animation ends; false while previewing an undo. */
   record: boolean;
@@ -203,16 +209,23 @@ export function usePuzzleSession(
       const next = queueRef.current.shift();
       const view = renderer();
       if (!next || !view) return;
+      // A 180° twist takes twice as long as a 90° one, so every move turns at the same rate.
+      const total =
+        ((QUARTER_TURN_MS * 4) / Math.max(2, geometry.gripSymmetryOrders[next.move.g])) *
+        (playingRef.current ? PLAYBACK_SLOWDOWN : 1);
+      // During playback the time is split evenly: half showing which layer is about to turn, half
+      // turning it. The move takes no longer than before, it is just readable now.
+      const telegraphMs = playingRef.current ? total / 2 : 0;
       animationRef.current = {
         move: next.move,
         startedAt: performance.now(),
-        // A 180° twist takes twice as long as a 90° one, so every move turns at the same rate.
-        durationMs:
-          ((QUARTER_TURN_MS * 4) / Math.max(2, geometry.gripSymmetryOrders[next.move.g])) *
-          (playingRef.current ? PLAYBACK_SLOWDOWN : 1),
+        telegraphMs,
+        durationMs: total - telegraphMs,
         record: next.record,
       };
       view.beginTwist(stickersInSlice(geometry, next.move.g, next.move.s));
+      view.setTwistMatrix(twistMatrix(geometry, next.move.g, next.move.d, 0));
+      view.setTelegraph(telegraphMs > 0);
       setBusy(true);
     };
 
@@ -220,6 +233,17 @@ export function usePuzzleSession(
       const view = renderer();
       const animation = animationRef.current;
       if (view && animation) {
+        const elapsed = performance.now() - animation.startedAt;
+        if (elapsed < animation.telegraphMs) {
+          // Lit but still. The twist matrix is already at zero, so nothing needs updating.
+          frame = requestAnimationFrame(tick);
+          return;
+        }
+        if (animation.telegraphMs > 0) {
+          view.setTelegraph(false);
+          animation.telegraphMs = 0;
+          animation.startedAt = performance.now();
+        }
         const t = Math.min(1, (performance.now() - animation.startedAt) / animation.durationMs);
         view.setTwistMatrix(
           twistMatrix(geometry, animation.move.g, animation.move.d, ease(t)),

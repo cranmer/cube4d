@@ -94,6 +94,7 @@ out vec3 vPos3;
 flat out float vColorIndex;
 flat out float vCubie;
 flat out float vSticker;
+flat out float vInSlice;
 
 void main() {
   int stickerId = int(aStickerId + 0.5);
@@ -106,6 +107,7 @@ void main() {
   vColorIndex = meta.x;
   vCubie = meta.y;
   vSticker = aStickerId;
+  vInSlice = meta.z;
 
   vec3 p = project(place(aVertMinusStickerCenter, centerMinusFace, faceCenter, meta.z));
   vPos3 = p;
@@ -127,6 +129,7 @@ in vec3 vPos3;
 flat in float vColorIndex;
 flat in float vCubie;
 flat in float vSticker;
+flat in float vInSlice;
 
 // One texel per face. A texture rather than a uniform array because the catalog reaches 120 faces
 // and uniform array sizes are tightly limited on some GPUs — and because a twist can update
@@ -140,6 +143,13 @@ uniform float uOpacity;
 // What the cursor is over, or -1 for nothing. Highlighting by cubie lights the whole piece.
 uniform float uHighlightSticker;
 uniform float uHighlightCubie;
+/**
+ * Lights the layer that is about to turn, before it turns.
+ *
+ * Watching a recorded solve, the move is over before you have worked out which layer moved. Showing
+ * it first turns each move into two readable halves: what is about to happen, then it happening.
+ */
+uniform float uTelegraph;
 
 out vec4 fragColor;
 
@@ -166,7 +176,8 @@ void main() {
 
   bool highlit =
     (uHighlightCubie >= 0.0 && abs(vCubie - uHighlightCubie) < 0.5) ||
-    (uHighlightSticker >= 0.0 && abs(vSticker - uHighlightSticker) < 0.5);
+    (uHighlightSticker >= 0.0 && abs(vSticker - uHighlightSticker) < 0.5) ||
+    (uTelegraph > 0.5 && vInSlice > 0.5);
   // The original brightens twice, each step a 1/0.7 scale — about 2x, clamped.
   if (highlit) color = min(color * 2.04, vec3(1.0));
 
