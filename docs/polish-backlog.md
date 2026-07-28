@@ -25,7 +25,8 @@ to face, and it needs answering on its own terms.
 | Desktop input | What it does | Touch has no… |
 |---|---|---|
 | ~~Hold 1–9~~ | Choose which layers turn | *solved: on-screen toggles* |
-| Right-click | Twist the other way | second button |
+| ~~Pinch~~ | — | *added: zoom* |
+| ~~Right-click~~ | Twist the other way | *solved: direction toggle* |
 | Shift + drag | Rotate in 4D rather than 3D | modifier key — *deliberately unaddressed* |
 | Hover | Highlight the piece under the cursor | cursor |
 
@@ -35,14 +36,12 @@ to face, and it needs answering on its own terms.
 
 ### Twist direction
 
-Options, roughly in order of preference:
+**Done** — a two-segment toggle below the layer buttons. Right-click still means "the other way",
+relative to whichever segment is chosen, so the two never fight.
 
-1. A direction toggle beside the slice chips (⟲ / ⟳) — explicit and always visible.
-2. Two-finger tap for the reverse direction — fast, but discoverable only if taught.
-3. Long-press for reverse — conflicts with OS text-selection gestures on some platforms.
-
-The toggle is the safe choice, and it also gives desktop users an alternative to remembering that
-right-click reverses.
+Note on the icons: the obvious characters (⟲ ⟳ ↺ ↻) are missing from enough system fonts to render
+as a dot, so they are drawn as SVG. A filled arrowhead also read as a speck at 16px; an arc running
+into a right-angled tail, at the same stroke weight, is legible at any size.
 
 ### 4D rotation
 

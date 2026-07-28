@@ -155,10 +155,40 @@ export function App() {
         )}
 
         <div className="group">
+          <h2>Direction</h2>
+          {/* Right-click reverses a twist on a desktop; touch has no second button, so the
+              direction needs to be selectable. Right-click still means "the other way" whichever
+              of these is chosen. */}
+          <div className="chips">
+            <button
+              className={session.reversed ? 'chip' : 'chip on'}
+              onClick={() => actions.setReversed(false)}
+              aria-pressed={!session.reversed}
+              title="Counter-clockwise — what a plain click has always done"
+            >
+              <TurnIcon clockwise={false} />
+              <span>Counter</span>
+            </button>
+            <button
+              className={session.reversed ? 'chip on' : 'chip'}
+              onClick={() => actions.setReversed(true)}
+              aria-pressed={session.reversed}
+              title="Clockwise — the same as right-clicking"
+            >
+              <TurnIcon clockwise />
+              <span>Clockwise</span>
+            </button>
+          </div>
+          <p className="hint">Which way a click turns. Right-click always turns the other way.</p>
+        </div>
+
+        <div className="group">
           <h2>Controls</h2>
           <dl className="help">
             <dt>Click a sticker</dt>
             <dd>Twist that piece. Right-click turns the other way.</dd>
+            <dt>Direction</dt>
+            <dd>Sets which way a plain click turns, for when right-click is not available.</dd>
             <dt>Hold 1–9</dt>
             <dd>Choose which layers turn — the same as the Layers toggles above.</dd>
             <dt>Drag</dt>
@@ -267,6 +297,43 @@ export function App() {
         </div>
       </aside>
     </div>
+  );
+}
+
+/**
+ * A circular arrow.
+ *
+ * Drawn rather than typed: the obvious characters for this (⟲ ⟳ ↺ ↻) are missing from enough
+ * system fonts to render as a dot, which is worse than no icon at all. One is the mirror of the
+ * other, so the same path serves both.
+ */
+function TurnIcon({ clockwise }: { clockwise: boolean }) {
+  // An arc that runs into a right-angled tail. A filled arrowhead was the first attempt and read
+  // as a speck at 15px; a corner the same weight as the arc is legible at any size.
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="16"
+      height="16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {clockwise ? (
+        <>
+          <polyline points="23 4 23 10 17 10" />
+          <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+        </>
+      ) : (
+        <>
+          <polyline points="1 4 1 10 7 10" />
+          <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
+        </>
+      )}
+    </svg>
   );
 }
 

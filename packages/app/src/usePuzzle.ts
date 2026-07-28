@@ -63,6 +63,8 @@ export interface PuzzleSession {
   readonly slicemask: number;
   /** Number of layers this puzzle has, and so how many slice toggles to offer. */
   readonly sliceCount: number;
+  /** True when a plain tap twists the reverse way — the equivalent of holding right-click. */
+  readonly reversed: boolean;
   readonly busy: boolean;
 }
 
@@ -76,6 +78,7 @@ export interface PuzzleActions {
   scramble(): void;
   reset(): void;
   toggleSlice(index: number): void;
+  setReversed(reversed: boolean): void;
 }
 
 export function usePuzzleSession(
@@ -90,6 +93,9 @@ export function usePuzzleSession(
   // stay put. They union, and an empty selection means the outermost layer.
   const keyMaskRef = useRef(0);
   const chipMaskRef = useRef(0);
+  // Which way a plain tap turns. Right-click is the desktop way to reverse a twist, and touch has
+  // no second button, so the direction has to be selectable.
+  const reversedRef = useRef(false);
   const effectiveMask = () => keyMaskRef.current | chipMaskRef.current || 1;
 
   const [twistCount, setTwistCount] = useState(0);
@@ -98,6 +104,7 @@ export function usePuzzleSession(
   const [undoable, setUndoable] = useState(false);
   const [redoable, setRedoable] = useState(false);
   const [slicemask, setSlicemask] = useState(0);
+  const [reversed, setReversedState] = useState(false);
   const [busy, setBusy] = useState(false);
 
   /**
@@ -270,8 +277,11 @@ export function usePuzzleSession(
       const mask = effectiveMask();
       if (gripIndex < 0 || !isValidTwist(geometry, gripIndex, mask)) return false;
 
-      // Left turns one way, right the other — the original's convention.
-      const move: Move = { g: gripIndex, d: button === 2 ? -1 : 1, s: mask };
+      // Left turns one way, right the other — the original's convention. The direction toggle
+      // flips the base, so right-click still means "the other way" whichever base is selected.
+      const base = reversedRef.current ? -1 : 1;
+      const direction = (button === 2 ? -base : base) as 1 | -1;
+      const move: Move = { g: gripIndex, d: direction, s: mask };
       historyRef.current = pushMove(historyRef.current, move);
       enqueue(move, true);
       setRedoable(false);
@@ -322,6 +332,11 @@ export function usePuzzleSession(
       setSlicemask(effectiveMask());
     },
 
+    setReversed(next) {
+      reversedRef.current = next;
+      setReversedState(next);
+    },
+
     reset() {
       const view = renderer();
       if (!geometry || !view) return;
@@ -348,6 +363,7 @@ export function usePuzzleSession(
       canRedo: redoable,
       slicemask,
       sliceCount,
+      reversed,
       busy,
     },
     actions,
