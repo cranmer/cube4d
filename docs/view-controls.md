@@ -213,7 +213,29 @@ the flip chooses which end of that pair, and Turn chooses the corner you view it
 
 ---
 
-## 8. Open UI questions
+## 8. Holding a key to borrow a setting
+
+Two of the twist controls can be borrowed rather than changed, and the pattern is worth naming
+because it is the right answer whenever a setting is usually one way:
+
+| Held | Borrows |
+|---|---|
+| `1`–`9` | those layers, unioned with the on-screen toggles |
+| `Shift` | the other twist direction, exclusive-or'd with the toggle |
+
+Exclusive-or rather than "force clockwise": holding shift reverses whatever the toggle currently
+says, so it means the same thing — *the other way* — from either setting. Both are reported as the
+*effective* value, so the on-screen chips light up to match what a click will actually do while the
+key is down; a control that lied about that would be worse than no control.
+
+Note the near-collision. Shift also selects the 4D drag planes (XW/YW instead of XZ/YZ). It is not a
+conflict, because one is a drag and the other is a click, and those are already told apart by whether
+the pointer moved — but it does mean shift-dragging and shift-clicking do unrelated things, which is
+worth knowing before adding a third meaning to the key.
+
+---
+
+## 9. Open UI questions
 
 Recorded rather than settled — these are the experiments in flight.
 

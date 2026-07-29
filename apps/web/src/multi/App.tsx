@@ -33,24 +33,35 @@ import { Viewport } from './Viewport.js';
  */
 
 const REPO_URL = 'https://github.com/cranmer/cube4d';
-const MAX_PANES = 3;
 
-/** Panes are labelled rather than numbered from zero, since the labels are for people. */
-const PANE_LABELS = ['A', 'B', 'C'];
+/**
+ * The panes, named rather than counted.
+ *
+ * They were a count — one, two or three — which quietly meant the panes were interchangeable, and
+ * they are not: each keeps its own camera, so B is a *particular* view of the puzzle and not merely
+ * "the second one". Showing them is therefore a choice per pane, which also means you can put B
+ * beside C and leave A closed, rather than only ever growing the set from the left.
+ */
+const PANES = ['A', 'B', 'C'];
 
-function readPaneCount(): number {
+function readShown(): boolean[] {
+  const fallback = [true, true, false];
   try {
-    const stored = Number(globalThis.localStorage?.getItem(appKey('panes')));
-    return Number.isInteger(stored) && stored >= 1 && stored <= MAX_PANES ? stored : 2;
+    const stored = globalThis.localStorage?.getItem(appKey('panes'));
+    if (!stored) return fallback;
+    const shown = PANES.map((name) => stored.includes(name));
+    // A layout with nothing in it is not a layout.
+    return shown.some(Boolean) ? shown : fallback;
   } catch {
-    return 2;
+    return fallback;
   }
 }
 
 export function App() {
   const assetBase = `${import.meta.env.BASE_URL}assets/`;
   const asset = usePuzzleAsset(assetBase, { id: DEFAULT_PUZZLE_ID, path: '4-3-3_3.mc4dpz' });
-  const [paneCount, setPaneCountState] = useState(readPaneCount);
+  const [shown, setShown] = useState<boolean[]>(readShown);
+  const visibleCount = shown.filter(Boolean).length;
 
   // Every pane's renderer, so the session can broadcast a twist to all of them. A ref rather than
   // state: it changes when a pane mounts, and re-rendering the panes because a pane mounted would
@@ -60,8 +71,8 @@ export function App() {
     renderers.current[index] = renderer;
   }, []);
   const getViews = useCallback(
-    () => renderers.current.slice(0, paneCount).filter((r): r is PuzzleRenderer => !!r),
-    [paneCount],
+    () => renderers.current.filter((r, i): r is PuzzleRenderer => !!r && !!shown[i]),
+    [shown],
   );
 
   // Where each pane's camera was when it was last open. Closing a pane and reopening it should
@@ -88,29 +99,41 @@ export function App() {
   const { session, actions } = usePuzzleSession(getViews, asset.geometry);
   actionsRef.current = actions;
 
-  const setPaneCount = useCallback((n: number) => {
-    // Ask every pane about to close where it is, while it still exists to answer.
-    for (const [index, take] of takeSnapshot.current) {
-      if (index >= n) cameras.current.set(index, take());
-    }
-    setPaneCountState(n);
-    try {
-      globalThis.localStorage?.setItem(appKey('panes'), String(n));
-    } catch {
-      /* a forgotten layout is not worth surfacing */
-    }
+  const togglePane = useCallback((index: number) => {
+    setShown((current) => {
+      const next = [...current];
+      next[index] = !next[index];
+      // Closing the last one would leave nothing to look at, so it stays open — the same rule the
+      // layer chips follow when you deselect the last layer.
+      if (!next.some(Boolean)) return current;
+      // Ask the pane where it is while it still exists to answer.
+      if (!next[index]) {
+        const take = takeSnapshot.current.get(index);
+        if (take) cameras.current.set(index, take());
+      }
+      try {
+        globalThis.localStorage?.setItem(
+          appKey('panes'),
+          PANES.filter((_, i) => next[i]).join(''),
+        );
+      } catch {
+        /* a forgotten layout is not worth surfacing */
+      }
+      return next;
+    });
   }, []);
 
   const { controls, setControls } = asset;
 
   return (
     <div className="layout">
-      <div className={`stage panes-${paneCount}`}>
-        {Array.from({ length: paneCount }, (_, i) => (
+      <div className={`stage panes-${visibleCount}`}>
+        {PANES.map((name, i) =>
+          shown[i] ? (
           <Viewport
             key={i}
             index={i}
-            label={PANE_LABELS[i]}
+            label={name}
             geometry={asset.geometry}
             controls={controls}
             handlers={handlers}
@@ -118,7 +141,8 @@ export function App() {
             onSnapshot={onSnapshot}
             initial={cameras.current.get(i)}
           />
-        ))}
+          ) : null,
+        )}
         {(asset.loading || asset.error) && (
           <div className="overlay">
             {asset.error ? (
@@ -188,23 +212,30 @@ export function App() {
           . <a href={import.meta.env.BASE_URL}>More apps</a>.
         </p>
 
-        <Section id="panes" title="Panes" defaultOpen badge={`${paneCount}`}>
+        <Section
+          id="panes"
+          title="Panes"
+          defaultOpen
+          badge={PANES.filter((_, i) => shown[i]).join(' ')}
+        >
           <div className="chips">
-            {Array.from({ length: MAX_PANES }, (_, i) => (
+            {PANES.map((name, i) => (
               <button
-                key={i}
-                className={paneCount === i + 1 ? 'chip on' : 'chip'}
-                onClick={() => setPaneCount(i + 1)}
-                aria-pressed={paneCount === i + 1}
+                key={name}
+                className={shown[i] ? 'chip on' : 'chip'}
+                onClick={() => togglePane(i)}
+                aria-pressed={shown[i]}
+                title={`Show or hide pane ${name}`}
               >
-                {i + 1}
+                {name}
               </button>
             ))}
           </div>
           <p className="hint">
-            How many views of the same puzzle. Each has its own camera and its own Turn, Tip and Flip
-            underneath it; everything else on this panel applies to all of them. Hover a sticker in
-            any pane and it lights up in every pane.
+            Which views of the puzzle to show — any one, any two, or all three. Each keeps its own
+            camera, so closing a pane and reopening it returns you to the view you had. Turn, Tip and
+            Flip sit under the pane they move; everything else on this panel applies to all of them.
+            Hover a sticker in any pane and it lights up in every pane.
           </p>
         </Section>
 
@@ -251,7 +282,10 @@ export function App() {
               Clockwise
             </button>
           </div>
-          <p className="hint">Which way a click turns. Right-click always turns the other way.</p>
+          <p className="hint">
+            Which way a click turns. Right-click always turns the other way, and so does holding{' '}
+            <kbd>Shift</kbd>.
+          </p>
         </Section>
 
         <Section id="view" title="View controls">

@@ -100,7 +100,12 @@ export interface PuzzleSession {
   readonly playing: boolean;
   /** 1 is the default pace; 4 is four times faster, 0.25 four times slower. */
   readonly playbackSpeed: number;
-  /** True when a plain tap twists the reverse way — the equivalent of holding right-click. */
+  /**
+   * True when a plain tap twists the reverse way — the equivalent of holding right-click.
+   *
+   * This is the *effective* direction, so it flips while shift is held rather than only reporting
+   * the toggle. A direction indicator built on it therefore shows what a click will actually do.
+   */
   readonly reversed: boolean;
   readonly busy: boolean;
 }
@@ -187,9 +192,18 @@ export function usePuzzleSession(
   // Which way a plain tap turns. Right-click is the desktop way to reverse a twist, and touch has
   // no second button, so the direction has to be selectable.
   const reversedRef = useRef(false);
+  // Shift, while held, means "the other way" — the same shape of control as holding a number key to
+  // borrow a layer, and the same reason: reversing one twist should not mean changing a setting and
+  // changing it back. It combines with the toggle by exclusive-or, so holding shift always reverses
+  // whatever the toggle currently says rather than forcing one direction.
+  const shiftReversedRef = useRef(false);
   const scrambleRef = useRef<SessionState['scramble']>(undefined);
   const effectiveMask = () => keyMaskRef.current | chipMaskRef.current || 1;
   const syncMask = () => setSlicemask(effectiveMask());
+  const effectiveReversed = () => reversedRef.current !== shiftReversedRef.current;
+  // The reported value is the effective one, so the direction buttons light up to match what a click
+  // would actually do while shift is down — exactly as the layer chips show the borrowed layer.
+  const syncReversed = () => setReversedState(effectiveReversed());
 
   const [twistCount, setTwistCount] = useState(0);
   const [solved, setSolved] = useState(true);
@@ -344,13 +358,19 @@ export function usePuzzleSession(
     return () => cancelAnimationFrame(frame);
   }, [geometry, views, refreshFlags]);
 
-  // --- number keys pick which slices turn
+  // --- keys held to borrow a layer, or to reverse the twist
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const digit = Number(event.key);
       if (Number.isInteger(digit) && digit >= 1 && digit <= 9) {
         keyMaskRef.current |= 1 << (digit - 1);
         syncMask();
+      }
+      // Shift also selects the 4D drag planes, which is not a conflict: that is a drag and this is a
+      // click, and the two are already told apart by whether the pointer moved.
+      if (event.shiftKey && !shiftReversedRef.current) {
+        shiftReversedRef.current = true;
+        syncReversed();
       }
     };
     const onKeyUp = (event: KeyboardEvent) => {
@@ -359,11 +379,17 @@ export function usePuzzleSession(
         keyMaskRef.current &= ~(1 << (digit - 1));
         syncMask();
       }
+      if (!event.shiftKey && shiftReversedRef.current) {
+        shiftReversedRef.current = false;
+        syncReversed();
+      }
     };
     // Releasing a key while the window is unfocused would otherwise leave it stuck down.
     const onBlur = () => {
       keyMaskRef.current = 0;
+      shiftReversedRef.current = false;
       syncMask();
+      syncReversed();
     };
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
@@ -436,7 +462,7 @@ export function usePuzzleSession(
 
       // Left turns one way, right the other — the original's convention. The direction toggle
       // flips the base, so right-click still means "the other way" whichever base is selected.
-      const base = reversedRef.current ? -1 : 1;
+      const base = effectiveReversed() ? -1 : 1;
       const direction = (button === 2 ? -base : base) as 1 | -1;
       const move: Move = { g: gripIndex, d: direction, s: mask };
       playingRef.current = false;
@@ -532,7 +558,7 @@ export function usePuzzleSession(
 
     setReversed(next) {
       reversedRef.current = next;
-      setReversedState(next);
+      syncReversed();
     },
 
     setPlaying(next) {

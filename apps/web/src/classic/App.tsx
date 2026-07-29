@@ -524,7 +524,11 @@ export function App() {
               <span>Clockwise</span>
             </button>
           </div>
-          <p className="hint">Which way a click turns. Right-click always turns the other way.</p>
+          <p className="hint">
+            Which way a click turns. Right-click always turns the other way, and so does holding{' '}
+            <kbd>Shift</kbd> — for reversing one twist without changing the setting and changing it
+            back.
+          </p>
         </Section>
 
         {/* Its own section, directly below the twist controls: which way you are looking is a
