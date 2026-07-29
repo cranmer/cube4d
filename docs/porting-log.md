@@ -749,6 +749,15 @@ and "which corner am I looking from" stay independent questions.
 The direction was settled by rendering all four corners headlessly and comparing them against
 hand-rotated reference images, cell colour by cell colour. My first sign was backwards.
 
+The named viewpoints then needed the same treatment for the same reason. Aligning an axis to the
+centre is a signed permutation, and on its own it gives a face-on view: legible, but flat, with whole
+cells lined up behind one another. The fix is to compose each one with the default view's obliqueness
+— which is available for free, since `NICE_VIEW` fixes W and so is a pure 3D rotation. Applied after
+the alignment it tilts the picture into the pleasant corner without disturbing which cell is centred.
+Every viewpoint is now the default view with a different cell in the middle, which is what having
+them is for. It also makes one identity visible that was always true: the default view already
+centres the −W cell, so `kata` and `default` are the same view.
+
 One thing had to be unlearned along the way: a slerp that helpfully flips its argument to take the
 shorter arc is *wrong* here. Only the pair's overall sign may change, so the two factors have to move
 together; letting each choose independently produces the negation of the rotation you asked for, and

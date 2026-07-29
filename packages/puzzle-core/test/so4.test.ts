@@ -167,9 +167,12 @@ describe('interpolating between orientations', () => {
   });
 
   it('actually moves — the failure the earlier attempts hid', () => {
-    // Six of the eight axis-aligned viewpoints differ from the default by a rotation containing a
+    // Most of the axis-aligned viewpoints differ from the default by a rotation containing a
     // half-turn. Both cheaper schemes stalled on exactly these, so assert progress at every step.
-    for (const view of CANONICAL_VIEWS.slice(1)) {
+    //
+    // `kata` is excluded because it genuinely has nowhere to go: the default view already centres
+    // the −W cell, so asking for it is asking to stay put.
+    for (const view of CANONICAL_VIEWS.slice(1).filter((v) => v.id !== 'kata')) {
       const distances = [];
       for (let step = 0; step <= 10; ++step) {
         const m = interpolateRotation(nice, view.mat, step / 10);

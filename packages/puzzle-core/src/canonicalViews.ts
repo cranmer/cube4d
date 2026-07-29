@@ -33,21 +33,39 @@ export interface CanonicalView {
 }
 
 /**
- * A rotation sending the signed axis `axis` to -W, with the remaining axes kept in a right-handed
- * order so that the picture does not mirror as you step between viewpoints.
+ * The default view's 3D obliqueness, on its own.
  *
- * Built as a signed permutation: row `i` of the matrix is where basis vector `i` lands.
+ * `NICE_VIEW` leaves W alone — its last row and column are both `(0,0,0,1)` — so it is a pure
+ * rotation of the 3D part, and that is exactly what makes the opening picture readable: nothing is
+ * seen face-on, so seven of the eight cells are visible at once with nothing hidden behind anything.
+ */
+const OBLIQUE = gramSchmidt(Float64Array.from(NICE_VIEW));
+
+/**
+ * A view bringing the signed axis `axis` to -W, seen from the same oblique corner as the default.
+ *
+ * The alignment itself is a signed permutation — row `i` says where basis vector `i` lands, and the
+ * sign of one axis is flipped where needed to keep the determinant at +1, so this is a rotation and
+ * never a reflection. On its own that produces a face-on view, which is legible but flat: whole
+ * cells line up behind one another and the structure is harder to read than in the opening view.
+ *
+ * Composing it with `OBLIQUE` fixes that, and costs nothing, because `OBLIQUE` fixes W. Applied
+ * after the alignment it tilts the 3D part into the pleasant corner while leaving the centred cell
+ * exactly where the alignment put it. Every viewpoint therefore looks like the default view with a
+ * different cell in the middle, which is the point of having them.
+ *
+ * One consequence worth knowing: the default view already centres the -W cell, so `kata` — which
+ * asks for exactly that — comes out identical to it.
  */
 function bringToCentre(axis: number, sign: 1 | -1): number[] {
   const mat = new Array<number>(N * N).fill(0);
   // The chosen axis goes to -W...
   mat[axis * N + 3] = -sign;
-  // ...and the other three fill X, Y, Z in their original relative order. Reversing the sign of one
-  // of them when needed keeps the determinant at +1, so this is a rotation and never a reflection.
+  // ...and the other three fill X, Y, Z in their original relative order.
   const rest = [0, 1, 2, 3].filter((a) => a !== axis);
   for (let k = 0; k < 3; ++k) mat[rest[k] * N + k] = 1;
   if (determinantIsNegative(mat)) mat[rest[0] * N + 0] = -mat[rest[0] * N + 0];
-  return mat;
+  return [...mxm(Float64Array.from(mat), OBLIQUE, N)];
 }
 
 /** Sign of the determinant of a signed permutation matrix, by counting swaps and negations. */
@@ -83,24 +101,24 @@ export const CANONICAL_VIEWS: readonly CanonicalView[] = [
     hint: 'The oblique view the puzzle opens in, chosen to show all four axes at once.',
     // NICE_VIEW is quoted to three decimals in the original, so it is very slightly not a rotation.
     // Everything in this list should be one exactly, since callers may compose them.
-    mat: [...gramSchmidt(Float64Array.from(NICE_VIEW))],
+    mat: [...OBLIQUE],
   },
-  { id: 'right', name: 'Right', hint: 'Looking along +X.', mat: bringToCentre(0, 1) },
-  { id: 'left', name: 'Left', hint: 'Looking along −X.', mat: bringToCentre(0, -1) },
-  { id: 'up', name: 'Up', hint: 'Looking along +Y.', mat: bringToCentre(1, 1) },
-  { id: 'down', name: 'Down', hint: 'Looking along −Y.', mat: bringToCentre(1, -1) },
-  { id: 'front', name: 'Front', hint: 'Looking along +Z.', mat: bringToCentre(2, 1) },
-  { id: 'back', name: 'Back', hint: 'Looking along −Z.', mat: bringToCentre(2, -1) },
+  { id: 'right', name: 'Right', hint: 'The +X cell in the middle.', mat: bringToCentre(0, 1) },
+  { id: 'left', name: 'Left', hint: 'The −X cell in the middle.', mat: bringToCentre(0, -1) },
+  { id: 'up', name: 'Up', hint: 'The +Y cell in the middle.', mat: bringToCentre(1, 1) },
+  { id: 'down', name: 'Down', hint: 'The −Y cell in the middle.', mat: bringToCentre(1, -1) },
+  { id: 'front', name: 'Front', hint: 'The +Z cell in the middle.', mat: bringToCentre(2, 1) },
+  { id: 'back', name: 'Back', hint: 'The −Z cell in the middle.', mat: bringToCentre(2, -1) },
   {
     id: 'ana',
     name: 'Ana',
-    hint: 'Looking along +W — one of the two directions perpendicular to all of X, Y and Z.',
+    hint: 'The +W cell in the middle — one of the two directions perpendicular to X, Y and Z alike.',
     mat: bringToCentre(3, 1),
   },
   {
     id: 'kata',
     name: 'Kata',
-    hint: 'Looking along −W — the other direction with no 3D analogue.',
+    hint: 'The −W cell in the middle. This is the direction the default view already looks along.',
     mat: bringToCentre(3, -1),
   },
 ];

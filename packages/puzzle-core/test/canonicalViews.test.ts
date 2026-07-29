@@ -75,9 +75,34 @@ describe('canonical views', () => {
     ['kata', [0, 0, 0, -1]],
   ])('%s puts its axis at the centre, farthest from the eye', (id, axis) => {
     // The renderer's 4D eye is on +W and projects with eyeW/(eyeW - w), so w = -1 is farthest away
-    // and therefore projects to the small cell at the middle of the picture.
+    // and therefore projects to the small cell at the middle of the picture. The oblique rotation
+    // composed onto each viewpoint fixes W, so it cannot disturb this.
     const view = canonicalViewById(id)!;
-    expect(transform(axis, view.mat)).toEqual([0, 0, 0, -1]);
+    transform(axis, view.mat).forEach((x, i) => expect(x).toBeCloseTo(i === 3 ? -1 : 0, 12));
+  });
+
+  it('are all the default view with a different cell in the middle', () => {
+    // Each viewpoint should differ from the default only by which puzzle axis is aligned where —
+    // never by how obliquely the 3D part is seen. Equivalently: strip the alignment and the oblique
+    // rotation that remains is the same one, which is what makes them all look alike.
+    const rows = (m: readonly number[]) =>
+      [0, 1, 2, 3].map((i) => m.slice(i * N, i * N + N));
+    const defaultRows = rows(CANONICAL_VIEWS[0].mat);
+    for (const view of CANONICAL_VIEWS) {
+      // Every row of a viewpoint must be, up to sign, some row of the default view.
+      for (const row of rows(view.mat)) {
+        const matched = defaultRows.some((d) =>
+          d.every((x, i) => Math.abs(Math.abs(x) - Math.abs(row[i])) < 1e-9),
+        );
+        expect(matched, `${view.id}: row ${row.map((x) => x.toFixed(3))}`).toBe(true);
+      }
+    }
+  });
+
+  it('makes kata coincide with the default, since both centre the −W cell', () => {
+    canonicalViewById('kata')!.mat.forEach((x, i) =>
+      expect(x).toBeCloseTo(CANONICAL_VIEWS[0].mat[i], 12),
+    );
   });
 
   it('cycles forwards and backwards, wrapping', () => {
