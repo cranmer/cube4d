@@ -411,7 +411,7 @@ export function App() {
           <a href="https://claude.ai/" target="_blank" rel="noopener noreferrer">
             Claude
           </a>
-          .
+          . <a href={`${import.meta.env.BASE_URL}gallery/`}>Browse all 128 puzzles</a>.
         </p>
 
         {/* Navigation only. Scramble and reset discard a solve, so they live at the far end of

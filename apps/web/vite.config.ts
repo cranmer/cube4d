@@ -18,6 +18,7 @@ export default defineConfig({
       input: {
         landing: entry('index.html'),
         classic: entry('classic/index.html'),
+        gallery: entry('gallery/index.html'),
       },
     },
   },
