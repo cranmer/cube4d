@@ -87,41 +87,45 @@ function determinantIsNegative(mat: readonly number[]): boolean {
 }
 
 /**
- * The viewpoints offered, in cycling order.
+ * The viewpoints offered, in cycling order: the four positive axes, then the four negative.
+ *
+ * Named for the axis each brings to the middle rather than for a screen direction. These were once
+ * Right/Left/Up/Down/Front/Back/Ana/Kata, which read well and were wrong: the view is deliberately
+ * oblique, so no puzzle axis points at the top of the screen, and "Front" was the button that
+ * centred the cell you saw *above* everything else. An axis name cannot mislead that way, and it
+ * stays honest on the puzzles where no cell sits on an axis at all.
  *
  * Deliberately puzzle-independent: these are orientations of 4-space, not of any particular
  * polytope, so the same key means the same rotation on every puzzle in the catalog. For the
- * hypercube — where the eight cell centres are exactly the eight signed axes — each one also
- * happens to bring a specific cell to the centre, which is the case that matters most.
+ * hypercube — whose eight cell centres are exactly the eight signed axes — each also brings a
+ * specific cell to the middle, which is the case that matters most. On a duoprism or the 120-cell
+ * they are still perfectly good directions; they just do not name a cell.
+ *
+ * There is no separate "default" entry. The opening view already centres −W, so `-w` is it.
  */
 export const CANONICAL_VIEWS: readonly CanonicalView[] = [
+  { id: '+x', name: '+X', hint: 'The +X direction in the middle.', mat: bringToCentre(0, 1) },
+  { id: '+y', name: '+Y', hint: 'The +Y direction in the middle.', mat: bringToCentre(1, 1) },
+  { id: '+z', name: '+Z', hint: 'The +Z direction in the middle.', mat: bringToCentre(2, 1) },
   {
-    id: 'default',
-    name: 'Default',
-    hint: 'The oblique view the puzzle opens in, chosen to show all four axes at once.',
-    // NICE_VIEW is quoted to three decimals in the original, so it is very slightly not a rotation.
-    // Everything in this list should be one exactly, since callers may compose them.
-    mat: [...OBLIQUE],
-  },
-  { id: 'right', name: 'Right', hint: 'The +X cell in the middle.', mat: bringToCentre(0, 1) },
-  { id: 'left', name: 'Left', hint: 'The −X cell in the middle.', mat: bringToCentre(0, -1) },
-  { id: 'up', name: 'Up', hint: 'The +Y cell in the middle.', mat: bringToCentre(1, 1) },
-  { id: 'down', name: 'Down', hint: 'The −Y cell in the middle.', mat: bringToCentre(1, -1) },
-  { id: 'front', name: 'Front', hint: 'The +Z cell in the middle.', mat: bringToCentre(2, 1) },
-  { id: 'back', name: 'Back', hint: 'The −Z cell in the middle.', mat: bringToCentre(2, -1) },
-  {
-    id: 'ana',
-    name: 'Ana',
-    hint: 'The +W cell in the middle — one of the two directions perpendicular to X, Y and Z alike.',
+    id: '+w',
+    name: '+W',
+    hint: 'The +W direction in the middle — "ana", one of the two directions perpendicular to X, Y and Z alike.',
     mat: bringToCentre(3, 1),
   },
+  { id: '-x', name: '−X', hint: 'The −X direction in the middle.', mat: bringToCentre(0, -1) },
+  { id: '-y', name: '−Y', hint: 'The −Y direction in the middle.', mat: bringToCentre(1, -1) },
+  { id: '-z', name: '−Z', hint: 'The −Z direction in the middle.', mat: bringToCentre(2, -1) },
   {
-    id: 'kata',
-    name: 'Kata',
-    hint: 'The −W cell in the middle. This is the direction the default view already looks along.',
+    id: '-w',
+    name: '−W',
+    hint: 'The −W direction in the middle — "kata", the other direction with no 3D analogue. This is the view the puzzle opens in.',
     mat: bringToCentre(3, -1),
   },
 ];
+
+/** The orientation a puzzle opens in, and what Reset view returns to. */
+export const DEFAULT_VIEW_ID = '-w';
 
 /**
  * The four roles a puzzle axis can play in a view, read off the view matrix.

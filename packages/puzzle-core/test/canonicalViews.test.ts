@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   CANONICAL_VIEWS,
   canonicalViewById,
+  DEFAULT_VIEW_ID,
   nextCanonicalView,
   quarterTurn,
   tipView,
@@ -37,12 +38,15 @@ function determinant4(m: readonly number[]): number {
 }
 
 describe('canonical views', () => {
-  it('offers the default plus one per signed axis', () => {
-    expect(CANONICAL_VIEWS).toHaveLength(9);
-    expect(CANONICAL_VIEWS[0].id).toBe('default');
-    // The same view, but orthonormalised: the original quotes NICE_VIEW to three decimals, which
-    // is not quite a rotation, and everything in this list has to be one exactly.
-    CANONICAL_VIEWS[0].mat.forEach((x, i) => expect(Math.abs(x - NICE_VIEW[i])).toBeLessThan(0.002));
+  it('offers exactly one per signed axis', () => {
+    expect(CANONICAL_VIEWS).toHaveLength(8);
+    // The opening view already centres −W, so there is no separate "default" entry to duplicate it.
+    expect(canonicalViewById(DEFAULT_VIEW_ID)!.id).toBe('-w');
+    // The −W view is the opening view, orthonormalised: the original quotes NICE_VIEW to three
+    // decimals, which is not quite a rotation, and everything in this list has to be one exactly.
+    canonicalViewById('-w')!.mat.forEach((x, i) =>
+      expect(Math.abs(x - NICE_VIEW[i])).toBeLessThan(0.002),
+    );
     expect(new Set(CANONICAL_VIEWS.map((v) => v.id)).size).toBe(CANONICAL_VIEWS.length);
   });
 
@@ -67,14 +71,14 @@ describe('canonical views', () => {
   });
 
   it.each([
-    ['right', [1, 0, 0, 0]],
-    ['left', [-1, 0, 0, 0]],
-    ['up', [0, 1, 0, 0]],
-    ['down', [0, -1, 0, 0]],
-    ['front', [0, 0, 1, 0]],
-    ['back', [0, 0, -1, 0]],
-    ['ana', [0, 0, 0, 1]],
-    ['kata', [0, 0, 0, -1]],
+    ['+x', [1, 0, 0, 0]],
+    ['-x', [-1, 0, 0, 0]],
+    ['+y', [0, 1, 0, 0]],
+    ['-y', [0, -1, 0, 0]],
+    ['+z', [0, 0, 1, 0]],
+    ['-z', [0, 0, -1, 0]],
+    ['+w', [0, 0, 0, 1]],
+    ['-w', [0, 0, 0, -1]],
   ])('%s puts its axis at the centre, farthest from the eye', (id, axis) => {
     // The renderer's 4D eye is on +W and projects with eyeW/(eyeW - w), so w = -1 is farthest away
     // and therefore projects to the small cell at the middle of the picture. The oblique rotation
@@ -89,7 +93,7 @@ describe('canonical views', () => {
     // rotation that remains is the same one, which is what makes them all look alike.
     const rows = (m: readonly number[]) =>
       [0, 1, 2, 3].map((i) => m.slice(i * N, i * N + N));
-    const defaultRows = rows(CANONICAL_VIEWS[0].mat);
+    const defaultRows = rows(canonicalViewById(DEFAULT_VIEW_ID)!.mat);
     for (const view of CANONICAL_VIEWS) {
       // Every row of a viewpoint must be, up to sign, some row of the default view.
       for (const row of rows(view.mat)) {
@@ -101,19 +105,19 @@ describe('canonical views', () => {
     }
   });
 
-  it('makes kata coincide with the default, since both centre the −W cell', () => {
-    canonicalViewById('kata')!.mat.forEach((x, i) =>
-      expect(x).toBeCloseTo(CANONICAL_VIEWS[0].mat[i], 12),
+  it('opens on −W, which is why there is no separate default entry', () => {
+    canonicalViewById(DEFAULT_VIEW_ID)!.mat.forEach((x, i) =>
+      expect(x).toBeCloseTo([...gramSchmidt(Float64Array.from(NICE_VIEW))][i], 12),
     );
   });
 
   it('cycles forwards and backwards, wrapping', () => {
-    expect(nextCanonicalView('default', 1).id).toBe('right');
-    expect(nextCanonicalView('default', -1).id).toBe('kata');
-    expect(nextCanonicalView('kata', 1).id).toBe('default');
+    expect(nextCanonicalView('+x', 1).id).toBe('+y');
+    expect(nextCanonicalView('+x', -1).id).toBe('-w');
+    expect(nextCanonicalView('-w', 1).id).toBe('+x');
     // A dragged view belongs to no viewpoint; stepping forward should land on the first.
-    expect(nextCanonicalView(null, 1).id).toBe('default');
-    expect(nextCanonicalView(null, -1).id).toBe('kata');
+    expect(nextCanonicalView(null, 1).id).toBe('+x');
+    expect(nextCanonicalView(null, -1).id).toBe('-w');
   });
 });
 
@@ -183,8 +187,9 @@ describe('turning to the next corner', () => {
 describe('tipping to a new centred cell', () => {
   it('reproduces the kata to down transition exactly', () => {
     // The motion this control generalises, named by the two viewpoints it connects.
-    const tipped = tipView(canonicalViewById('kata')!.mat, 1);
-    canonicalViewById('down')!.mat.forEach((x, i) => expect(tipped[i]).toBeCloseTo(x, 12));
+    // Once called "kata to down"; the same two viewpoints are now named for their axes.
+    const tipped = tipView(canonicalViewById('-w')!.mat, 1);
+    canonicalViewById('-y')!.mat.forEach((x, i) => expect(tipped[i]).toBeCloseTo(x, 12));
   });
 
   it('is a three-cycle: three presses return exactly home', () => {
@@ -196,8 +201,8 @@ describe('tipping to a new centred cell', () => {
   });
 
   it('undoes itself', () => {
-    const there = tipView(CANONICAL_VIEWS[0].mat, 1);
-    tipView(there, -1).forEach((x, i) => expect(x).toBeCloseTo(CANONICAL_VIEWS[0].mat[i], 9));
+    const home = canonicalViewById(DEFAULT_VIEW_ID)!.mat;
+    tipView(tipView(home, 1), -1).forEach((x, i) => expect(x).toBeCloseTo(home[i], 9));
   });
 
   it('changes which cell is centred, where turning never does', () => {
@@ -219,7 +224,7 @@ describe('tipping to a new centred cell', () => {
     // with no sign changes.
     type Mat = Float64Array | readonly number[];
     const key = (m: Mat) => Array.from(m, (x) => x.toFixed(5)).join(',');
-    const start: Mat = CANONICAL_VIEWS[0].mat;
+    const start: Mat = canonicalViewById(DEFAULT_VIEW_ID)!.mat;
     const visited = new Map<string, Mat>([[key(start), start]]);
     let frontier: Mat[] = [start];
     while (frontier.length) {
@@ -238,6 +243,6 @@ describe('tipping to a new centred cell', () => {
     const centred = new Set(
       [...visited.values()].map((m) => viewpointCentredBy(m)?.id).filter(Boolean),
     );
-    expect([...centred].sort()).toEqual(['back', 'default', 'down', 'left']);
+    expect([...centred].sort()).toEqual(['-w', '-x', '-y', '-z']);
   });
 });

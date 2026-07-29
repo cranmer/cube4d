@@ -10,6 +10,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   canonicalViewById,
   continueSpin,
+  DEFAULT_VIEW_ID,
   createRotation,
   drag,
   interpolateRotation,
@@ -145,7 +146,7 @@ export function usePuzzleCanvas(
     to: readonly number[] | Float64Array;
     startedAt: number;
   } | null>(null);
-  const [canonicalView, setCanonicalView] = useState<string | null>('default');
+  const [canonicalView, setCanonicalView] = useState<string | null>(DEFAULT_VIEW_ID);
   // Held in a ref so the pointer listeners never need re-binding when a callback identity changes.
   const handlersRef = useRef(handlers);
   handlersRef.current = handlers;
@@ -425,7 +426,7 @@ export function usePuzzleCanvas(
 
   const resetView = () => {
     glideRef.current = null;
-    setCanonicalView('default');
+    setCanonicalView(DEFAULT_VIEW_ID);
     rotationRef.current = createRotation();
     rendererRef.current?.setRotation(rotationRef.current.mat);
     rendererRef.current?.setZoom(1);

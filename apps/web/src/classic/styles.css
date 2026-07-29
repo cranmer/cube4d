@@ -129,6 +129,19 @@ dl.help dd { color: var(--dim); margin: 1px 0 0; }
 button:disabled { opacity: 0.4; cursor: default; }
 button:disabled:hover { background: #21262d; }
 
+/* Top-right, opposite the twist counter and clear of both view pads. */
+.axis-inset {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  pointer-events: none;
+  opacity: 0.9;
+}
+.axis-frame { fill: rgba(22, 27, 34, 0.5); stroke: var(--edge); stroke-width: 1; }
+
+.check { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--dim); }
+.check input { accent-color: #5b9dff; }
+
 /* Duplicated view controls, floated in the viewport's lower corners. Faded until the pointer is
    near them, so they stay out of the way of the puzzle itself. */
 .viewpad {
@@ -200,7 +213,8 @@ button:disabled:hover { background: #21262d; }
 
 /* Three across: the names are short, and a grid keeps opposite pairs adjacent so the structure of
    the four axes is visible rather than just a list. */
-.viewpoints { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
+/* Four columns, positives on the top row: the vertical pairing shows the four opposite pairs. */
+.viewpoints { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
 .viewpoint { padding: 6px 4px; font-size: 12.5px; }
 .viewpoint.selected { border-color: #5b9dff; background: #1b2430; }
 

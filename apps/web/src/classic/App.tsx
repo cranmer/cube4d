@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { CANONICAL_VIEWS, DEFAULT_PUZZLE_ID, findEntry } from '@mc4d/puzzle-core';
+
+import { AxisInset } from './AxisInset.js';
 import { PALETTES, paletteSwatches } from '@mc4d/render';
 
 import {
@@ -16,6 +18,7 @@ import {
   PuzzlePicker,
   saveDocToLogText,
   Section,
+  appKey,
   suggestFilename,
   toSaveDoc,
   usePuzzleCanvas,
@@ -60,6 +63,23 @@ export function App() {
   const sliceLabel = describeSlices(session.slicemask);
   const viewpointLabel =
     CANONICAL_VIEWS.find((v) => v.id === puzzle.canonicalView)?.name ?? 'Free';
+  const [axisHints, setAxisHints] = useState(() => {
+    try {
+      return globalThis.localStorage?.getItem(appKey('axisHints')) !== 'off';
+    } catch {
+      return true;
+    }
+  });
+  const toggleAxisHints = useCallback(() => {
+    setAxisHints((on) => {
+      try {
+        globalThis.localStorage?.setItem(appKey('axisHints'), on ? 'off' : 'on');
+      } catch {
+        /* a forgotten preference is not worth surfacing */
+      }
+      return !on;
+    });
+  }, []);
   const [notice, setNotice] = useState<string | null>(null);
   // State, not a ref: a restore has to wait for the right geometry, and setting a ref would not
   // schedule the effect that consumes it — so a link for the puzzle already on screen would sit
@@ -287,6 +307,8 @@ export function App() {
           </span>
           {sliceLabel !== '1' && <span className="slices">layer {sliceLabel}</span>}
         </div>
+
+        {axisHints && <AxisInset getRotation={puzzle.getRotation} />}
 
         {/* An experiment, deliberately duplicating the panel controls rather than moving them: are
             motion controls better placed next to the thing they move? See docs/view-controls.md. */}
@@ -524,6 +546,11 @@ export function App() {
             the hidden cell comes up to the top, and the top one drops into the ring. Dragging
             leaves the viewpoint behind, which is what a blank label means.
           </p>
+
+          <label className="check">
+            <input type="checkbox" checked={axisHints} onChange={toggleAxisHints} />
+            <span>Show axis hints in the corner</span>
+          </label>
 
           <h3 className="subhead">Colors</h3>
           <div className="palettes">

@@ -53,6 +53,7 @@ export type { CanonicalView } from './canonicalViews.js';
 export {
   CANONICAL_VIEWS,
   canonicalViewById,
+  DEFAULT_VIEW_ID,
   nextCanonicalView,
   quarterTurn,
   tipView,

@@ -97,33 +97,36 @@ most of what makes them feel like views of one object rather than eight unrelate
 
 ---
 
-## 4. The nine named viewpoints
+## 4. The eight named viewpoints
 
 Each is a signed permutation bringing one axis to −W, composed with the default view's obliqueness so
 it is seen from the same corner.
 
 | Button | Centres | Vivid colour in the middle | Then hidden |
 |---|---|---|---|
-| Default | −e3 | purple | pink |
-| Right | +e0 | red | orange |
-| Left | −e0 | orange | red |
-| Up | +e1 | blue | green |
-| Down | −e1 | green | blue |
-| Front | +e2 | white | yellow |
-| Back | −e2 | yellow | white |
-| Ana | +e3 | pink | purple |
-| Kata | −e3 | purple | pink |
+| +X | +e0 | red | orange |
+| +Y | +e1 | blue | green |
+| +Z | +e2 | white | yellow |
+| +W | +e3 | pink | purple |
+| −X | −e0 | orange | red |
+| −Y | −e1 | green | blue |
+| −Z | −e2 | yellow | white |
+| −W | −e3 | purple | pink |
 
-Two things to know:
+**They used to be called Right/Left/Up/Down/Front/Back/Ana/Kata, and that was wrong.** The names
+read well but described screen directions, which the buttons do not control. The view is
+deliberately oblique, so no puzzle axis points at the top of the screen: "Front" was the button that
+centred the cell you saw *above* everything else, and "Up" centred one at the upper right. An axis
+name cannot mislead that way. It also stays honest on the puzzles where the correspondence to cells
+breaks down entirely — on a duoprism or the 120-cell, `+X` is still a perfectly good direction, it
+just does not name a cell.
 
-- **Kata and Default are the same view.** The default already centres −e3, which is exactly what
-  Kata asks for. Not a bug — arithmetic that was previously hidden because Kata used to render
-  face-on.
-- **The names are about puzzle axes, not screen directions, and they do not line up.** "Front"
-  centres `+e2`, which is the cell at the *top* of the default view. "Up" centres `+e1`, which is
-  at the upper *right*. The names would only match the screen if the view were axis-aligned, and it
-  is deliberately not. This is a genuine wart, and worth fixing by renaming rather than by
-  un-obliquing the view.
+*Ana* and *kata*, Hinton's 1880s words for the two directions perpendicular to length, width and
+height alike, survive in the tooltips for `+W` and `−W`. They are worth teaching, but they are not
+what a button should say.
+
+**There is no separate "default" entry.** The opening view already centres −e3, so `−W` *is* the
+default; a ninth button would have done nothing.
 
 ---
 
@@ -168,7 +171,7 @@ The complement of Turn. A three-cycle of axes, with no sign changes at all:
  the other ring axis            unchanged
 ```
 
-From the default view this is exactly the **Kata → Down** transition:
+From the opening view this is exactly the **−W → −Y** transition:
 
 ```
 e1 → e3      green swings in and becomes the centre
@@ -194,8 +197,8 @@ makes Turn and Tip compose: spin the ring to choose a cell, then tip to bring it
 Measured by generating the group, not argued:
 
 > Turn and Tip together generate exactly **48 orientations** — a quarter of the 4-cube's 192
-> rotations — and every one of them centres a **negative** axis. Only `−e3` (Default/Kata), `−e1`
-> (Down), `−e2` (Back) and `−e0` (Left) are reachable. **Right, Up, Front and Ana are not.**
+> rotations — and every one of them centres a **negative** axis. Only `−W`, `−X`, `−Y` and `−Z` are
+> reachable. **`+X`, `+Y`, `+Z` and `+W` are not.**
 
 The reason is structural. Turn fixes W, so it cannot change the middle at all. Tip changes it, but
 is a pure axis cycle with no sign flips. Neither can ever *reverse* a direction, so the four positive
@@ -221,13 +224,23 @@ degrade gracefully to a puzzle with a different number of cells — the named vi
 `{4,3,3}`, whereas Turn and Tip read their axes off the view matrix and work anywhere. They are not
 exclusive; the picker is a shortcut and the motions are a way to explore.
 
-**Naming.** If the buttons stay, Right/Up/Front do not mean what a newcomer will read them to mean
-(see §4). Naming by the colour brought to the middle is unambiguous and matches how people actually
-talk about the puzzle, but it moves with the palette. Naming by axis (`+X`, `−W`) is exact and cold.
+**Naming.** *Settled:* the buttons name axes (see §4). The alternative was to name them by the
+colour brought to the middle, which is how people actually talk about the puzzle — but that moves
+with the palette, and only works on the hypercube.
 
 **Where the controls live.** Turn and Tip are currently duplicated as an overlay in the bottom
 corners of the viewport as well as in the panel, to find out whether motion controls want to be near
 the thing they move.
 
+**The axis inset.** A 96px compass in the top-right, toggleable, showing where the four axes
+currently point. Two decisions inside it are worth knowing. Its W axis is projected
+*orthographically* rather than in perspective: the renderer divides by `eyeW − w`, which for an axis
+aimed straight at the eye magnifies by twenty and would fling the spoke off the edge, whereas
+dropping W makes such an axis collapse to the middle — the honest picture, and exactly what happens
+to the cell that gets culled. And its colours are the conventional gizmo hues rather than the
+puzzle's palette, because on most puzzles no cell sits on an axis at all, and palette colours would
+claim otherwise.
+
 **Which cell is hidden.** No control names it, but it is always the partner of the centred cell, and
-players do ask where a colour went. A line of text may be worth more than another button.
+players do ask where a colour went. The axis inset now shows this implicitly — the axis pointing at
+you is drawn brightest and collapsed to the middle — but a line of text may still be worth more.
