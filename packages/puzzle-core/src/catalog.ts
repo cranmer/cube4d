@@ -39,7 +39,32 @@ export interface CatalogFamily {
 }
 
 /**
- * Group the catalog by Schläfli symbol, preserving the original's ordering.
+ * Whether an entry is a puzzle at all.
+ *
+ * Every family has an edge length of 1, which means no cuts: one cubie, one sticker per face, and
+ * nothing that can be twisted except the whole thing at once. They are legitimate members of the
+ * catalog and the exporter builds them, but offering them to someone looking for a puzzle to solve
+ * is offering them a solved puzzle. Twenty-one of the 128 entries are like this.
+ *
+ * Tested by cubie count rather than by length, because that is the property that actually matters
+ * and it does not assume the convention holds for some future family.
+ */
+export function isPlayable(entry: CatalogEntry): boolean {
+  return entry.nCubies > 1;
+}
+
+/**
+ * The order families are offered in, most-wanted first.
+ *
+ * The catalog's own order comes from the original's menu, which is roughly by discovery. Nearly
+ * everyone arriving here wants the 3×3×3×3, and most of the rest want one of the other regular
+ * 4-polytopes, so those come first and the duoprisms — of which there are many, all similar —
+ * follow. Everything not named keeps its catalog position.
+ */
+const FAMILY_ORDER = ['{4,3,3}', '{5,3,3}', '{3,3,3}', '{5,3}x{}'];
+
+/**
+ * Group the catalog by Schläfli symbol.
  *
  * The original's menu is one submenu per symbol with an item per legal length, and that grouping is
  * worth keeping: the lengths of one family are the same puzzle at different sizes, which is a very
@@ -52,11 +77,18 @@ export function groupByFamily(catalog: Catalog): CatalogFamily[] {
     if (existing) existing.push(entry);
     else families.set(entry.schlafli, [entry]);
   }
-  return [...families.entries()].map(([schlafli, entries]) => ({
-    schlafli,
-    name: entries.find((e) => e.name)?.name ?? '',
-    entries: [...entries].sort((a, b) => a.length - b.length),
-  }));
+  const rank = (schlafli: string) => {
+    const at = FAMILY_ORDER.indexOf(schlafli);
+    return at < 0 ? FAMILY_ORDER.length : at;
+  };
+  return [...families.entries()]
+    .map(([schlafli, entries]) => ({
+      schlafli,
+      name: entries.find((e) => e.name)?.name ?? '',
+      entries: [...entries].sort((a, b) => a.length - b.length),
+    }))
+    // Stable, so anything unranked keeps the catalog's own order.
+    .sort((a, b) => rank(a.schlafli) - rank(b.schlafli));
 }
 
 export function findEntry(catalog: Catalog, id: string): CatalogEntry | undefined {

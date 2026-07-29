@@ -4,6 +4,7 @@ import {
   describeShape,
   formatBytes,
   groupByFamily,
+  isPlayable,
   type Catalog,
   type CatalogEntry,
 } from '@mc4d/puzzle-core';
@@ -45,7 +46,17 @@ export function Gallery() {
       .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
   }, []);
 
-  const families = useMemo(() => (catalog ? groupByFamily(catalog) : []), [catalog]);
+  // Every family has an edge length of 1 — one cubie, nothing to twist — and showing someone a
+  // solved puzzle they cannot scramble is not showing them a puzzle.
+  const families = useMemo(
+    () =>
+      catalog
+        ? groupByFamily(catalog)
+            .map((f) => ({ ...f, entries: f.entries.filter(isPlayable) }))
+            .filter((f) => f.entries.length > 0)
+        : [],
+    [catalog],
+  );
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return families;
@@ -62,7 +73,7 @@ export function Gallery() {
       .filter((f) => f.entries.length > 0);
   }, [families, query]);
 
-  const total = catalog?.puzzles.length ?? 0;
+  const total = useMemo(() => families.reduce((n, f) => n + f.entries.length, 0), [families]);
 
   return (
     <main>
@@ -72,9 +83,8 @@ export function Gallery() {
         </p>
         <h1>Puzzles</h1>
         <p className="lede">
-          Every one of the {total || 128} puzzles the engine can build, from a five-cell simplex to a
-          120-cell made of dodecahedra. Pick one to open it in the{' '}
-          <a href={`${BASE}classic/`}>classic app</a>.
+          {total || 107} puzzles, from the familiar 3×3×3×3 to a 120-cell made of dodecahedra. Pick
+          one to open it in the <a href={`${BASE}classic/`}>classic app</a>.
         </p>
         <p className="lede small">
           A puzzle is a Schläfli product symbol and an edge length — nothing here is special-cased.

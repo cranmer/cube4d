@@ -151,6 +151,23 @@ export function App() {
     return () => window.removeEventListener('hashchange', onHashChange);
   }, []);
 
+  // A solve named in the fragment — `#solve=charles-3x3x3x3-191.log` — so the Hall of Fame can be
+  // linked to from anywhere rather than only reached by opening a panel section and pressing a
+  // button. Only the corpus is accepted, since this fetches whatever it is handed.
+  useEffect(() => {
+    const wanted = new URLSearchParams(hash.replace(/^#/, '')).get('solve');
+    if (!wanted || !puzzle.catalog) return;
+    const example = EXAMPLES.find((e) => e.file === wanted);
+    if (!example) {
+      say(`No solve called ${wanted}.`);
+      return;
+    }
+    void loadExample(example);
+    // Consumed, so a reload does not reload the solve over whatever you have since done.
+    history.replaceState(null, '', globalThis.location.pathname);
+    setHash('');
+  }, [hash, puzzle.catalog]);
+
   useEffect(() => {
     const link = decodePermalink(hash);
     if (!link || !puzzle.catalog) return;

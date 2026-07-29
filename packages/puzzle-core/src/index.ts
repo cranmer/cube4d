@@ -88,4 +88,5 @@ export {
   findEntry,
   formatBytes,
   groupByFamily,
+  isPlayable,
 } from './catalog.js';

@@ -60,7 +60,9 @@
         transition: border-color 120ms ease, background 120ms ease;
       }
       a.app:hover { background: #1b2029; border-color: #3b4655; }
-      .app h2 { margin: 0 0 4px; font-size: 17px; }
+      .app h2 { margin: 0 0 4px; font-size: 17px; display: flex; align-items: center; gap: 9px; }
+      .app h2 svg { flex: none; color: #7d8da3; }
+      a.app:hover h2 svg { color: var(--link); }
       .app p { margin: 0; color: var(--dim); font-size: 14px; }
       .app.soon { opacity: 0.55; }
       .app.soon h2::after {
@@ -75,6 +77,33 @@
         color: var(--dim);
         vertical-align: 2px;
       }
+      h3 {
+        margin: 40px 0 4px;
+        font-size: 11px;
+        letter-spacing: 0.09em;
+        text-transform: uppercase;
+        color: #6e7a8c;
+      }
+      .section-note { margin: 0 0 14px; color: var(--dim); font-size: 13.5px; }
+      .solves { display: grid; grid-template-columns: repeat(auto-fill, minmax(238px, 1fr)); gap: 10px; }
+      .solve {
+        display: flex;
+        align-items: center;
+        gap: 11px;
+        padding: 11px 13px;
+        background: var(--panel);
+        border: 1px solid var(--edge);
+        border-radius: 9px;
+        text-decoration: none;
+        color: inherit;
+        transition: border-color 120ms ease, background 120ms ease;
+      }
+      .solve:hover { background: #1b2029; border-color: #3b4655; }
+      .solve-icon { color: #d9b45a; display: inline-flex; flex: none; }
+      .solve-text { display: flex; flex-direction: column; min-width: 0; }
+      .solve-text b { font-size: 14px; }
+      .solve-text span { color: var(--dim); font-size: 12px; }
+
       footer { margin-top: 44px; color: var(--dim); font-size: 13px; }
       footer p { margin: 0 0 6px; }
     </style>
@@ -98,27 +127,58 @@
       -->
       <nav class="apps">
         <a class="app" href="classic/">
-          <h2>Classic</h2>
+          <h2>
+            <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor"
+              stroke-width="1.5" stroke-linejoin="round" aria-hidden="true">
+              <path d="M8 1.6 14 4.6v6.8L8 14.4 2 11.4V4.6Z"/>
+              <path d="M2 4.6 8 7.6l6-3M8 7.6v6.8"/>
+            </svg>
+            Classic
+          </h2>
           <p>
             The full catalog &mdash; all 128 puzzles, free rotation, save and load, and the Hall of
             Fame records replaying at your own pace. Closest to the original.
           </p>
         </a>
         <a class="app" href="gallery/">
-          <h2>Puzzle gallery</h2>
+          <h2>
+            <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor"
+              stroke-width="1.5" stroke-linejoin="round" aria-hidden="true">
+              <rect x="1.8" y="1.8" width="5.1" height="5.1" rx="1"/>
+              <rect x="9.1" y="1.8" width="5.1" height="5.1" rx="1"/>
+              <rect x="1.8" y="9.1" width="5.1" height="5.1" rx="1"/>
+              <rect x="9.1" y="9.1" width="5.1" height="5.1" rx="1"/>
+            </svg>
+            Puzzle gallery
+          </h2>
           <p>
-            All 128 of them, pictured &mdash; from a five-cell simplex to a 120-cell made of
-            dodecahedra. Pick one and it opens in the classic app.
+            Every puzzle worth solving, pictured &mdash; from the familiar 3&times;3&times;3&times;3
+            to a 120-cell made of dodecahedra. Pick one and it opens in the classic app.
           </p>
         </a>
         <div class="app soon">
-          <h2>Hypercube</h2>
+          <h2>
+            <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor"
+              stroke-width="1.5" stroke-linejoin="round" aria-hidden="true">
+              <rect x="1.6" y="1.6" width="9" height="9" rx="1"/>
+              <rect x="5.4" y="5.4" width="9" height="9" rx="1"/>
+              <path d="M1.6 1.6 5.4 5.4M10.6 1.6l3.8 3.8M1.6 10.6l3.8 3.8M10.6 10.6l3.8 3.8"/>
+            </svg>
+            Hypercube
+          </h2>
           <p>
             A layout built around the 3&times;3&times;3&times;3 itself rather than around a catalog,
             with named viewpoints and more than one view at once.
           </p>
         </div>
       </nav>
+
+      <h3>Hall of Fame</h3>
+      <p class="section-note">
+        Real solves people emailed to Superliminal, some of them records. Each opens at the position
+        its solver faced &mdash; press Play to watch it come apart.
+      </p>
+      <div class="solves" id="solves"></div>
 
       <footer>
         <p>
@@ -129,5 +189,6 @@
         </p>
       </footer>
     </main>
+    <script type="module" src="/src/landing/main.ts"></script>
   </body>
 </html>

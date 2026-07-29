@@ -3,6 +3,7 @@ import {
   describeShape,
   formatBytes,
   groupByFamily,
+  isPlayable,
   type Catalog,
   type CatalogEntry,
 } from '@mc4d/puzzle-core';
@@ -28,7 +29,15 @@ export function PuzzlePicker({
   onSelect: (entry: CatalogEntry) => void;
   loadingId: string | null;
 }) {
-  const families = useMemo(() => groupByFamily(catalog), [catalog]);
+  // An edge length of 1 has one cubie and no twists, so it is not offered — see isPlayable. A
+  // permalink to one still opens; it just is not something to pick on purpose.
+  const families = useMemo(
+    () =>
+      groupByFamily(catalog)
+        .map((f) => ({ ...f, entries: f.entries.filter(isPlayable) }))
+        .filter((f) => f.entries.length > 0),
+    [catalog],
+  );
   const currentFamily = useMemo(
     () => catalog.puzzles.find((p) => p.id === currentId)?.schlafli ?? families[0]?.schlafli,
     [catalog, currentId, families],
