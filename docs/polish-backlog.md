@@ -64,7 +64,7 @@ behaviour.
 ### Layout
 
 Panel sections now collapse, and their state is remembered, which shortens the panel considerably —
-by default only Move, Layers, Direction, Puzzle and Start over are open. Collapsed sections show a
+by default only Move, Twist control, Viewpoint control, Puzzles and Start over are open. Collapsed sections show a
 badge with their current value, so folding one away loses no information.
 
 **A dedicated mobile layout is no longer planned.** Under 720px the panel still stacks below the

@@ -396,4 +396,9 @@ button:disabled:hover { background: #21262d; }
   margin: 2px 0 8px;
 }
 .subhead + * { margin-top: 0; }
-.palettes + .subhead { margin-top: 16px; }
+/* A subhead following anything gets air, so grouped controls read as separate runs rather than as
+   one wall. The rule above still pulls the first control up tight under its own subhead. */
+.palettes + .subhead,
+.hint + .subhead,
+.chips + .subhead,
+.turnview + .subhead { margin-top: 18px; }

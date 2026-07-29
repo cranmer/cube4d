@@ -414,31 +414,47 @@ export function App() {
           </div>
         </Section>
 
-        {session.sliceCount > 1 && (
-          <Section id="layers" title="Layers" defaultOpen badge={sliceLabel}>
-            {/* One toggle per layer the puzzle actually has, so a 2⁴ offers two and a 4⁴ four.
-                These mirror the 1–9 keys, which still work — but the keys are held and invisible,
-                and these stay put and show their state. */}
-            <div className="chips">
-              {Array.from({ length: session.sliceCount }, (_, i) => (
-                <button
-                  key={i}
-                  className={session.slicemask & (1 << i) ? 'chip on' : 'chip'}
-                  onClick={() => actions.toggleSlice(i)}
-                  title={`Layer ${i + 1}, counting inward from the cell you click`}
-                >
-                  {i + 1}
-                </button>
-              ))}
-            </div>
-            <p className="hint">
-              Which layers turn, counting inward. Select several to turn them together; select all
-              to rotate the whole puzzle.
-            </p>
-          </Section>
-        )}
+        {/* Layers and direction are one decision in two parts — they both answer "what happens
+            when I click a sticker" — so they live together rather than as neighbouring sections
+            that must both be open to be useful. */}
+        <Section
+          id="twist"
+          title="Twist control"
+          defaultOpen
+          badge={
+            session.sliceCount > 1
+              ? `${sliceLabel} · ${session.reversed ? 'clockwise' : 'counter'}`
+              : session.reversed
+                ? 'clockwise'
+                : 'counter'
+          }
+        >
+          {session.sliceCount > 1 && (
+            <>
+              <h3 className="subhead">Layers</h3>
+              {/* One toggle per layer the puzzle actually has, so a 2⁴ offers two and a 4⁴ four.
+                  These mirror the 1–9 keys, which still work — but the keys are held and invisible,
+                  and these stay put and show their state. */}
+              <div className="chips">
+                {Array.from({ length: session.sliceCount }, (_, i) => (
+                  <button
+                    key={i}
+                    className={session.slicemask & (1 << i) ? 'chip on' : 'chip'}
+                    onClick={() => actions.toggleSlice(i)}
+                    title={`Layer ${i + 1}, counting inward from the cell you click`}
+                  >
+                    {i + 1}
+                  </button>
+                ))}
+              </div>
+              <p className="hint">
+                Which layers turn, counting inward. Select several to turn them together; select all
+                to rotate the whole puzzle.
+              </p>
+            </>
+          )}
 
-        <Section id="direction" title="Direction" defaultOpen badge={session.reversed ? 'clockwise' : 'counter'}>
+          <h3 className="subhead">Direction</h3>
           {/* Right-click reverses a twist on a desktop; touch has no second button, so the
               direction needs to be selectable. Right-click still means "the other way" whichever
               of these is chosen. */}
@@ -465,41 +481,11 @@ export function App() {
           <p className="hint">Which way a click turns. Right-click always turns the other way.</p>
         </Section>
 
-        <Section id="controls" title="Instructions">
-          <dl className="help">
-            <dt>Click a sticker</dt>
-            <dd>Twist that piece. Right-click turns the other way.</dd>
-            <dt>Direction</dt>
-            <dd>Sets which way a plain click turns, for when right-click is not available.</dd>
-            <dt>Hold 1–9</dt>
-            <dd>Choose which layers turn — the same as the Layers toggles above.</dd>
-            <dt>Drag</dt>
-            <dd>Rotate in 3D.</dd>
-            <dt>Shift + drag</dt>
-            <dd>
-              Rotate in 4D. This is the one with no 3D analogue: it turns cells through the fourth
-              dimension and brings the hidden cell to the front.
-            </dd>
-            <dt>Right-drag</dt>
-            <dd>Roll, and rotate in the ZW plane.</dd>
-            <dt>Scroll, or pinch</dt>
-            <dd>Zoom.</dd>
-          </dl>
-        </Section>
-
-        <Section id="why" title="Why it looks like that">
-          <p className="facts">
-            You are seeing a 4D object projected into 3D, then onto your screen. The nearest cell is
-            hidden so you can see through it into the interior — which is why a cube appears to sit
-            inside another cube. Every one of those cells is a genuine cube; they only look
-            distorted because they are further away in a direction you cannot point.
-          </p>
-        </Section>
-
-        <Section id="view" title="View controls" badge={viewpointLabel}>
+        {/* Its own section, directly below the twist controls: which way you are looking is a
+            different question from what a click does, and both want to stay open while playing. */}
+        <Section id="viewpoint" title="Viewpoint control" defaultOpen badge={viewpointLabel}>
           {/* Named orientations, so there is always a way back from a 4D rotation that got away
               from you. Cycling with [ and ] is the fastest way to see how they relate. */}
-          <h3 className="subhead">Viewpoint</h3>
           <div className="viewpoints">
             {CANONICAL_VIEWS.map((view) => (
               <button
@@ -551,7 +537,40 @@ export function App() {
             <input type="checkbox" checked={axisHints} onChange={toggleAxisHints} />
             <span>Show axis hints in the corner</span>
           </label>
+        </Section>
 
+        <Section id="controls" title="Instructions">
+          <dl className="help">
+            <dt>Click a sticker</dt>
+            <dd>Twist that piece. Right-click turns the other way.</dd>
+            <dt>Direction</dt>
+            <dd>Sets which way a plain click turns, for when right-click is not available.</dd>
+            <dt>Hold 1–9</dt>
+            <dd>Choose which layers turn — the same as the Layers toggles above.</dd>
+            <dt>Drag</dt>
+            <dd>Rotate in 3D.</dd>
+            <dt>Shift + drag</dt>
+            <dd>
+              Rotate in 4D. This is the one with no 3D analogue: it turns cells through the fourth
+              dimension and brings the hidden cell to the front.
+            </dd>
+            <dt>Right-drag</dt>
+            <dd>Roll, and rotate in the ZW plane.</dd>
+            <dt>Scroll, or pinch</dt>
+            <dd>Zoom.</dd>
+          </dl>
+        </Section>
+
+        <Section id="why" title="Why it looks like that">
+          <p className="facts">
+            You are seeing a 4D object projected into 3D, then onto your screen. The nearest cell is
+            hidden so you can see through it into the interior — which is why a cube appears to sit
+            inside another cube. Every one of those cells is a genuine cube; they only look
+            distorted because they are further away in a direction you cannot point.
+          </p>
+        </Section>
+
+        <Section id="view" title="View controls">
           <h3 className="subhead">Colors</h3>
           <div className="palettes">
             {PALETTES.map((palette) => (
