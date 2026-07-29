@@ -116,10 +116,11 @@ export interface SessionState {
 }
 
 export interface PuzzleActions {
-  onPointerMove(x: number, y: number): void;
+  /** `view` is the viewport the pointer is over; picking only means something under one camera. */
+  onPointerMove(view: PuzzleRenderer, x: number, y: number): void;
   onPointerLeave(): void;
   /** Returns true if the click was consumed by a twist. */
-  onClick(x: number, y: number, button: number): boolean;
+  onClick(view: PuzzleRenderer, x: number, y: number, button: number): boolean;
   undo(): void;
   redo(): void;
   scramble(): void;
@@ -157,9 +158,22 @@ function storeSpeed(speed: number): void {
 }
 
 export function usePuzzleSession(
-  renderer: () => PuzzleRenderer | null,
+  /**
+   * Every viewport showing this puzzle, in whatever order the app keeps them.
+   *
+   * State changes and twist animation are broadcast to all of them — one puzzle seen from several
+   * angles, not several puzzles. Picking is the exception and cannot be broadcast: a click happens
+   * under one camera, so those actions take the view it happened in.
+   */
+  views: () => readonly PuzzleRenderer[],
   geometry: PuzzleGeometry | null,
 ): { session: PuzzleSession; actions: PuzzleActions } {
+  /** Apply something to every viewport. */
+  const each = (fn: (view: PuzzleRenderer) => void) => {
+    for (const view of views()) fn(view);
+  };
+  /** True when at least one viewport exists to draw into. */
+  const anyView = () => views().length > 0;
   const stateRef = useRef<Int32Array | null>(null);
   const historyRef = useRef<History>(emptyHistory);
   const animationRef = useRef<Animation | null>(null);
@@ -221,13 +235,13 @@ export function usePuzzleSession(
     playingRef.current = false;
     setPlayingState(false);
     setSlicemask(1);
-    renderer()?.setState(stateRef.current);
+    each((v) => v.setState(stateRef.current!));
     setTwistCount(0);
     setSolved(true);
     setScrambled(false);
     setUndoable(false);
     setRedoable(false);
-  }, [geometry, renderer]);
+  }, [geometry, views]);
 
   const refreshFlags = useCallback(() => {
     if (!geometry) return;
@@ -246,8 +260,7 @@ export function usePuzzleSession(
 
     const startNext = () => {
       const next = queueRef.current.shift();
-      const view = renderer();
-      if (!next || !view) return;
+      if (!next || !anyView()) return;
       // A 180° twist takes twice as long as a 90° one, so every move turns at the same rate.
       const base =
         (QUARTER_TURN_MS * 4) / Math.max(2, geometry.gripSymmetryOrders[next.move.g]);
@@ -262,21 +275,26 @@ export function usePuzzleSession(
         durationMs: turnMs,
         record: next.record,
       };
-      view.beginTwist(stickersInSlice(geometry, next.move.g, next.move.s));
-      view.setTwistMatrix(twistMatrix(geometry, next.move.g, next.move.d, 0));
+      const slice = stickersInSlice(geometry, next.move.g, next.move.s);
+      const rest = twistMatrix(geometry, next.move.g, next.move.d, 0);
+      each((v) => {
+        v.beginTwist(slice);
+        v.setTwistMatrix(rest);
+      });
       if (next.telegraph) {
         // Point at the sticker a player would have clicked for this move, highlighted exactly as
         // hovering it would be. A log records only the grip, so the sticker has to be recovered.
         const sticker = stickerForGrip(geometry, next.move.g);
-        view.setHighlight(-1, sticker >= 0 ? geometry.sticker2cubie[sticker] : -1);
+        const cubie = sticker >= 0 ? geometry.sticker2cubie[sticker] : -1;
+        each((v) => v.setHighlight(-1, cubie));
       }
       setBusy(true);
     };
 
     const tick = () => {
-      const view = renderer();
+      const drawing = anyView();
       const animation = animationRef.current;
-      if (view && animation) {
+      if (drawing && animation) {
         const elapsed = performance.now() - animation.startedAt;
         if (elapsed < animation.telegraphMs) {
           // Lit but still. The twist matrix is already at zero, so nothing needs updating.
@@ -284,28 +302,29 @@ export function usePuzzleSession(
           return;
         }
         if (animation.telegraphMs > 0) {
-          view.setHighlight(-1, -1);
+          each((v) => v.setHighlight(-1, -1));
           animation.telegraphMs = 0;
           animation.startedAt = performance.now();
         }
         const t = Math.min(1, (performance.now() - animation.startedAt) / animation.durationMs);
-        view.setTwistMatrix(
-          twistMatrix(geometry, animation.move.g, animation.move.d, ease(t)),
-        );
+        const turning = twistMatrix(geometry, animation.move.g, animation.move.d, ease(t));
+        each((v) => v.setTwistMatrix(turning));
         if (t >= 1) {
           // Commit: the state changes only once the animation has finished, exactly as in the
           // original, so what you see and what the puzzle believes never disagree mid-turn.
           applyMove(geometry, stateRef.current!, animation.move);
-          view.endTwist();
-          view.setState(stateRef.current!);
+          each((v) => {
+            v.endTwist();
+            v.setState(stateRef.current!);
+          });
           animationRef.current = null;
           refreshFlags();
           if (queueRef.current.length > 0) startNext();
           else setBusy(false);
         }
-      } else if (view && queueRef.current.length > 0) {
+      } else if (drawing && queueRef.current.length > 0) {
         startNext();
-      } else if (view && playingRef.current) {
+      } else if (drawing && playingRef.current) {
         // Playback is just redo, driven by the same clock, so a watched solve animates exactly as
         // a played one does.
         const stepped = redo(historyRef.current);
@@ -323,7 +342,7 @@ export function usePuzzleSession(
     };
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
-  }, [geometry, renderer, refreshFlags]);
+  }, [geometry, views, refreshFlags]);
 
   // --- number keys pick which slices turn
   useEffect(() => {
@@ -382,30 +401,32 @@ export function usePuzzleSession(
   }, [geometry, twistCount, solved]);
 
   const actions: PuzzleActions = {
-    onPointerMove(x, y) {
-      const view = renderer();
-      if (!view || !geometry || animationRef.current) return;
+    onPointerMove(view, x, y) {
+      if (!geometry || animationRef.current) return;
+      // Picked in the view the pointer is over, since a pixel only means something under one
+      // camera — but lit in all of them, because it is one piece and the point of a second view is
+      // to see where that piece went.
       const hit = view.pick(x, y);
       if (!hit) {
-        view.setHighlight(-1, -1);
+        each((v) => v.setHighlight(-1, -1));
         return;
       }
       const { gripIndex } = gripForPick(geometry, hit.sticker, hit.poly);
       // Only light up what could actually be twisted with the current slice selection.
       if (gripIndex < 0 || !isValidTwist(geometry, gripIndex, effectiveMask())) {
-        view.setHighlight(-1, -1);
+        each((v) => v.setHighlight(-1, -1));
         return;
       }
-      view.setHighlight(-1, geometry.sticker2cubie[hit.sticker]);
+      const cubie = geometry.sticker2cubie[hit.sticker];
+      each((v) => v.setHighlight(-1, cubie));
     },
 
     onPointerLeave() {
-      renderer()?.setHighlight(-1, -1);
+      each((v) => v.setHighlight(-1, -1));
     },
 
-    onClick(x, y, button) {
-      const view = renderer();
-      if (!view || !geometry) return false;
+    onClick(view, x, y, button) {
+      if (!geometry) return false;
       const hit = view.pick(x, y);
       if (!hit) return false;
 
@@ -458,8 +479,7 @@ export function usePuzzleSession(
     },
 
     restore(next) {
-      const view = renderer();
-      if (!geometry || !view) return;
+      if (!geometry || !anyView()) return;
       // Replay rather than trust a stored position: the move list is the source of truth, and
       // replaying it proves the file and the geometry actually agree.
       const state = solvedState(geometry);
@@ -470,15 +490,16 @@ export function usePuzzleSession(
       scrambleRef.current = next.scramble;
       queueRef.current = [];
       animationRef.current = null;
-      view.endTwist();
-      view.setState(state);
+      each((v) => {
+        v.endTwist();
+        v.setState(state);
+      });
       setScrambled(next.scrambleState !== 'none');
       refreshFlags();
     },
 
     scramble() {
-      const view = renderer();
-      if (!geometry || !view) return;
+      if (!geometry || !anyView()) return;
       // Applied instantly rather than animated — watching sixty random twists is not interesting,
       // and the original does the same.
       stateRef.current = solvedState(geometry);
@@ -495,8 +516,10 @@ export function usePuzzleSession(
       historyRef.current = pushMark(history, 'scramble');
       queueRef.current = [];
       animationRef.current = null;
-      view.endTwist();
-      view.setState(stateRef.current);
+      each((v) => {
+        v.endTwist();
+        v.setState(stateRef.current!);
+      });
       setScrambled(true);
       refreshFlags();
     },
@@ -525,8 +548,7 @@ export function usePuzzleSession(
     },
 
     seek(index) {
-      const view = renderer();
-      if (!geometry || !view) return;
+      if (!geometry || !anyView()) return;
       playingRef.current = false;
       setPlayingState(false);
       queueRef.current = [];
@@ -536,21 +558,24 @@ export function usePuzzleSession(
       for (const move of historyRef.current.moves.slice(0, clamped)) applyMove(geometry, state, move);
       stateRef.current = state;
       historyRef.current = { ...historyRef.current, index: clamped };
-      view.endTwist();
-      view.setState(state);
+      each((v) => {
+        v.endTwist();
+        v.setState(state);
+      });
       refreshFlags();
     },
 
     reset() {
-      const view = renderer();
-      if (!geometry || !view) return;
+      if (!geometry || !anyView()) return;
       stateRef.current = solvedState(geometry);
       historyRef.current = emptyHistory;
       scrambleRef.current = undefined;
       queueRef.current = [];
       animationRef.current = null;
-      view.endTwist();
-      view.setState(stateRef.current);
+      each((v) => {
+        v.endTwist();
+        v.setState(stateRef.current!);
+      });
       setScrambled(false);
       refreshFlags();
     },

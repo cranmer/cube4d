@@ -33,10 +33,7 @@ export {
   type PuzzleSession,
   type SessionState,
 } from './usePuzzle.js';
-export {
-  DEFAULT_CONTROLS,
-  usePuzzleCanvas,
-  type CanvasHandlers,
-  type PuzzleCanvas,
-  type ViewControls,
-} from './usePuzzleCanvas.js';
+export { usePuzzleCanvas, type CanvasHandlers, type PuzzleCanvas } from './usePuzzleCanvas.js';
+export { usePuzzleAsset, type PuzzleAsset } from './usePuzzleAsset.js';
+export { useViewport, type Viewport, type ViewportHandlers } from './useViewport.js';
+export { DEFAULT_CONTROLS, type ViewControls } from './viewControls.js';

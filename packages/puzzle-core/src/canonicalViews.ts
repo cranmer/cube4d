@@ -232,6 +232,24 @@ export function tipView(mat: Float64Array | readonly number[], step: 1 | -1): Fl
 }
 
 /**
+ * Turn the whole arrangement over: the cell in the middle and the hidden one swap places.
+ *
+ * Turn and Tip between them cannot do this, and the gap is structural rather than incidental. Turn
+ * fixes W, so it cannot change the middle at all; Tip changes it, but is a pure cycle of axes with
+ * no sign changes. Neither can ever *reverse* a direction, so between them they reach only the four
+ * viewpoints that centre a negative axis — 48 of the 4-cube's 192 orientations. Adding this reaches
+ * all eight.
+ *
+ * It is a half-turn in the plane of the viewer axis and the vertical one, so the top and bottom
+ * cells trade places at the same time. Being a half-turn it is its own inverse: one button, two
+ * presses returns you home, and there is no direction to choose.
+ */
+export function flipView(mat: Float64Array | readonly number[]): Float64Array {
+  const { viewer, up } = axisRoles(mat);
+  return mxm(makeRowRotMat(N, viewer, up, Math.PI), Float64Array.from(mat), N);
+}
+
+/**
  * Which named viewpoint a matrix is showing, judged by the only thing the name claims: which cell
  * sits in the middle. Null once the view has been dragged somewhere that centres nothing.
  */

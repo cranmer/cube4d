@@ -4,6 +4,7 @@ import { CANONICAL_VIEWS, DEFAULT_PUZZLE_ID, findEntry } from '@mc4d/puzzle-core
 
 import { AxisInset } from './AxisInset.js';
 import { assignFaceColors, paletteById, PALETTES, paletteSwatches } from '@mc4d/render';
+import type { PuzzleRenderer } from '@mc4d/render';
 
 import {
   Autosave,
@@ -44,8 +45,10 @@ export function App() {
   const actionsRef = useRef<PuzzleActions | null>(null);
   const handlers = useMemo(
     () => ({
-      onTap: (x: number, y: number, button: number) => actionsRef.current?.onClick(x, y, button),
-      onHover: (x: number, y: number) => actionsRef.current?.onPointerMove(x, y),
+      onTap: (view: PuzzleRenderer, x: number, y: number, button: number) =>
+        actionsRef.current?.onClick(view, x, y, button),
+      onHover: (view: PuzzleRenderer, x: number, y: number) =>
+        actionsRef.current?.onPointerMove(view, x, y),
       onLeave: () => actionsRef.current?.onPointerLeave(),
     }),
     [],
@@ -56,7 +59,7 @@ export function App() {
     { id: DEFAULT_PUZZLE_ID, path: '4-3-3_3.mc4dpz' },
     handlers,
   );
-  const { session, actions } = usePuzzleSession(puzzle.getRenderer, puzzle.geometry);
+  const { session, actions } = usePuzzleSession(puzzle.getViews, puzzle.geometry);
   actionsRef.current = actions;
 
   const { controls, setControls } = puzzle;

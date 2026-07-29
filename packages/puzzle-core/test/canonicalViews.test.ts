@@ -4,6 +4,7 @@ import {
   CANONICAL_VIEWS,
   canonicalViewById,
   DEFAULT_VIEW_ID,
+  flipView,
   nextCanonicalView,
   quarterTurn,
   tipView,
@@ -244,5 +245,55 @@ describe('tipping to a new centred cell', () => {
       [...visited.values()].map((m) => viewpointCentredBy(m)?.id).filter(Boolean),
     );
     expect([...centred].sort()).toEqual(['-w', '-x', '-y', '-z']);
+  });
+});
+
+describe('flipping the arrangement over', () => {
+  it('is its own inverse', () => {
+    for (const view of CANONICAL_VIEWS) {
+      const there = flipView(view.mat);
+      flipView(there).forEach((x, i) => expect(x).toBeCloseTo(view.mat[i], 9));
+    }
+  });
+
+  it('swaps the centred viewpoint for its opposite', () => {
+    for (const view of CANONICAL_VIEWS) {
+      const flipped = viewpointCentredBy(flipView(view.mat));
+      // '+x' ↔ '-x', and so on: same axis, other sign.
+      expect(flipped?.id, `flip of ${view.id}`).toBe(
+        (view.id.startsWith('+') ? '-' : '+') + view.id.slice(1),
+      );
+    }
+  });
+
+  it('completes the set: turn, tip and flip reach all eight viewpoints', () => {
+    // The counterpart of the negative result above. Turn fixes W and Tip never changes a sign, so
+    // the two of them reach only half; a half-turn through W is exactly what was missing.
+    type Mat = Float64Array | readonly number[];
+    const key = (m: Mat) => Array.from(m, (x) => x.toFixed(5)).join(',');
+    const start: Mat = canonicalViewById(DEFAULT_VIEW_ID)!.mat;
+    const visited = new Map<string, Mat>([[key(start), start]]);
+    let frontier: Mat[] = [start];
+    while (frontier.length) {
+      const next: Mat[] = [];
+      for (const m of frontier) {
+        for (const c of [tipView(m, 1), tipView(m, -1), quarterTurn(m, 1), quarterTurn(m, -1), flipView(m)]) {
+          if (!visited.has(key(c))) {
+            visited.set(key(c), c);
+            next.push(c);
+          }
+        }
+      }
+      frontier = next;
+    }
+    const centred = new Set(
+      [...visited.values()].map((m) => viewpointCentredBy(m)?.id).filter(Boolean),
+    );
+    expect([...centred].sort()).toEqual(['+w', '+x', '+y', '+z', '-w', '-x', '-y', '-z']);
+    // 144 orientations, which is *not* a subgroup order — 192 is not a multiple of it. That is
+    // expected: each move reads its axes off the matrix it is applied to, so these are not fixed
+    // group elements and the reachable set is a graph orbit rather than a subgroup. What matters is
+    // that it contains every viewpoint from every corner, which the assertion above covers.
+    expect(visited.size).toBe(144);
   });
 });

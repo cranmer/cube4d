@@ -54,6 +54,7 @@ export {
   CANONICAL_VIEWS,
   canonicalViewById,
   DEFAULT_VIEW_ID,
+  flipView,
   nextCanonicalView,
   quarterTurn,
   tipView,
