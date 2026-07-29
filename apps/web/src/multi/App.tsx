@@ -9,8 +9,8 @@ import {
   appKey,
   usePuzzleAsset,
   usePuzzleSession,
-  useViewport,
   type PuzzleActions,
+  type ViewSnapshot,
 } from '@mc4d/shell';
 
 import { Viewport } from './Viewport.js';
@@ -64,6 +64,15 @@ export function App() {
     [paneCount],
   );
 
+  // Where each pane's camera was when it was last open. Closing a pane and reopening it should
+  // return you to the view you had set up, not to the default — that view is often the whole reason
+  // the pane was open.
+  const cameras = useRef(new Map<number, ViewSnapshot>());
+  const takeSnapshot = useRef(new Map<number, () => ViewSnapshot>());
+  const onSnapshot = useCallback((index: number, fn: () => ViewSnapshot) => {
+    takeSnapshot.current.set(index, fn);
+  }, []);
+
   const actionsRef = useRef<PuzzleActions | null>(null);
   const handlers = useMemo(
     () => ({
@@ -80,6 +89,10 @@ export function App() {
   actionsRef.current = actions;
 
   const setPaneCount = useCallback((n: number) => {
+    // Ask every pane about to close where it is, while it still exists to answer.
+    for (const [index, take] of takeSnapshot.current) {
+      if (index >= n) cameras.current.set(index, take());
+    }
     setPaneCountState(n);
     try {
       globalThis.localStorage?.setItem(appKey('panes'), String(n));
@@ -102,6 +115,8 @@ export function App() {
             controls={controls}
             handlers={handlers}
             onRenderer={onRenderer}
+            onSnapshot={onSnapshot}
+            initial={cameras.current.get(i)}
           />
         ))}
         {(asset.loading || asset.error) && (

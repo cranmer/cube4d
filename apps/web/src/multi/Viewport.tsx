@@ -1,7 +1,12 @@
 import { useEffect } from 'react';
 
 import { CANONICAL_VIEWS, type PuzzleGeometry } from '@mc4d/puzzle-core';
-import { useViewport, type ViewControls, type ViewportHandlers } from '@mc4d/shell';
+import {
+  useViewport,
+  type ViewControls,
+  type ViewportHandlers,
+  type ViewSnapshot,
+} from '@mc4d/shell';
 import type { PuzzleRenderer } from '@mc4d/render';
 
 /**
@@ -21,6 +26,8 @@ export function Viewport({
   controls,
   handlers,
   onRenderer,
+  onSnapshot,
+  initial,
   index,
   label,
 }: {
@@ -29,6 +36,10 @@ export function Viewport({
   handlers: ViewportHandlers;
   /** Registers this pane's renderer with the session, so twists are broadcast to it. */
   onRenderer: (index: number, renderer: PuzzleRenderer | null) => void;
+  /** Hands this pane's camera back before it unmounts, so reopening it returns you where you were. */
+  onSnapshot: (index: number, snapshot: () => ViewSnapshot) => void;
+  /** Where to start, if this pane has been open before. */
+  initial: ViewSnapshot | undefined;
   index: number;
   label: string;
 }) {
@@ -36,13 +47,21 @@ export function Viewport({
     // Only the first pane publishes the test handle, so an automated check always finds a
     // predictable one rather than whichever mounted last.
     publishTestHandle: index === 0,
+    initial,
   });
 
-  const { getRenderer } = view;
+  const { getRenderer, snapshot } = view;
   useEffect(() => {
     onRenderer(index, getRenderer());
     return () => onRenderer(index, null);
   }, [onRenderer, index, getRenderer, geometry]);
+
+  // Registered rather than saved on unmount: by the time React runs this component's cleanup the
+  // renderer has already been disposed, so its zoom is gone. The app asks for the snapshot while
+  // the pane is still alive.
+  useEffect(() => {
+    onSnapshot(index, snapshot);
+  }, [onSnapshot, index, snapshot]);
 
   const viewpoint = CANONICAL_VIEWS.find((v) => v.id === view.canonicalView)?.name ?? 'Free';
 

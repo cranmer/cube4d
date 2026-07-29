@@ -55,6 +55,19 @@ export interface ViewportHandlers {
   onLeave(): void;
 }
 
+/**
+ * Everything about where a camera is pointing, in a form that outlives the component.
+ *
+ * A pane that is closed and reopened should come back where it was; without this its rotation dies
+ * with the React component that held it, and reopening silently resets the view someone had set up.
+ */
+export interface ViewSnapshot {
+  /** Row-major 4x4, as `.log` files store it. */
+  readonly mat4d: readonly number[];
+  readonly canonicalView: string | null;
+  readonly zoom: number;
+}
+
 export interface Viewport {
   readonly canvasRef: React.RefObject<HTMLCanvasElement>;
   getRenderer(): PuzzleRenderer | null;
@@ -72,17 +85,24 @@ export interface Viewport {
   tip(step: 1 | -1): void;
   /** A half-turn swapping the centred cell with the hidden one. Its own inverse. */
   flip(): void;
+  /** Where this camera is now, in a form that can be handed back as `initial` later. */
+  snapshot(): ViewSnapshot;
 }
 
 export function useViewport(
   geometry: PuzzleGeometry | null,
   controls: ViewControls,
   handlers: ViewportHandlers,
-  options: { onError?: (message: string) => void; publishTestHandle?: boolean } = {},
+  options: {
+    onError?: (message: string) => void;
+    publishTestHandle?: boolean;
+    /** Where to start, for a pane being restored rather than opened fresh. Read once, at mount. */
+    initial?: ViewSnapshot | undefined;
+  } = {},
 ): Viewport {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<PuzzleRenderer | null>(null);
-  const rotationRef = useRef<RotationState>(createRotation());
+  const rotationRef = useRef<RotationState>(createRotation(options.initial?.mat4d));
   // A glide in progress: where it started, where it is going, and when it began. Held in a ref so
   // the render loop can read it without re-subscribing every frame.
   const glideRef = useRef<{
@@ -90,7 +110,15 @@ export function useViewport(
     to: readonly number[] | Float64Array;
     startedAt: number;
   } | null>(null);
-  const [canonicalView, setCanonicalView] = useState<string | null>(DEFAULT_VIEW_ID);
+  const [canonicalView, setCanonicalView] = useState<string | null>(
+    options.initial ? options.initial.canonicalView : DEFAULT_VIEW_ID,
+  );
+  // Mirrored into a ref so `snapshot` can be a stable callback and still read the current value.
+  const canonicalViewRef = useRef(canonicalView);
+  canonicalViewRef.current = canonicalView;
+  // Zoom lives in the renderer, which does not exist yet at this point, so it is applied when the
+  // renderer is built rather than here.
+  const initialZoom = useRef(options.initial?.zoom ?? 1);
 
   // Held in refs so the listeners never need re-binding when a callback identity changes.
   const handlersRef = useRef(handlers);
@@ -117,6 +145,7 @@ export function useViewport(
     renderer.setRotation(rotationRef.current.mat);
     renderer.setViewParams(settings);
     renderer.setOpacity(settings.opacity);
+    if (initialZoom.current !== 1) renderer.setZoom(initialZoom.current);
 
     const canvas = canvasRef.current;
     const resize = () => {
@@ -376,6 +405,15 @@ export function useViewport(
     setCanonicalView(viewpointCentredBy(to)?.id ?? null);
   }, [glideTo]);
 
+  const snapshot = useCallback(
+    (): ViewSnapshot => ({
+      mat4d: Array.from(rotationRef.current.mat),
+      canonicalView: canonicalViewRef.current,
+      zoom: rendererRef.current?.getZoom() ?? initialZoom.current,
+    }),
+    [],
+  );
+
   const getRenderer = useCallback(() => rendererRef.current, []);
   const getRotation = useCallback(() => Array.from(rotationRef.current.mat), []);
   const setRotation = useCallback((mat4d: readonly number[]) => {
@@ -398,5 +436,6 @@ export function useViewport(
     turnQuarter,
     tip,
     flip,
+    snapshot,
   };
 }

@@ -35,5 +35,10 @@ export {
 } from './usePuzzle.js';
 export { usePuzzleCanvas, type CanvasHandlers, type PuzzleCanvas } from './usePuzzleCanvas.js';
 export { usePuzzleAsset, type PuzzleAsset } from './usePuzzleAsset.js';
-export { useViewport, type Viewport, type ViewportHandlers } from './useViewport.js';
+export {
+  useViewport,
+  type Viewport,
+  type ViewportHandlers,
+  type ViewSnapshot,
+} from './useViewport.js';
 export { DEFAULT_CONTROLS, type ViewControls } from './viewControls.js';
