@@ -287,6 +287,27 @@ export function App() {
           </span>
           {sliceLabel !== '1' && <span className="slices">layer {sliceLabel}</span>}
         </div>
+
+        {/* An experiment, deliberately duplicating the panel controls rather than moving them: are
+            motion controls better placed next to the thing they move? See docs/view-controls.md. */}
+        <div className="viewpad left">
+          <button onClick={() => puzzle.tip(-1)} title="Tip the view back (;)">
+            <TipIcon forward={false} />
+          </button>
+          <button onClick={() => puzzle.tip(1)} title="Tip the view forward (')">
+            <TipIcon forward />
+          </button>
+          <span>Tip</span>
+        </div>
+        <div className="viewpad right">
+          <button onClick={() => puzzle.turnQuarter(-1)} title="Turn the view anticlockwise (,)">
+            <TurnIcon clockwise={false} />
+          </button>
+          <button onClick={() => puzzle.turnQuarter(1)} title="Turn the view clockwise (.)">
+            <TurnIcon clockwise />
+          </button>
+          <span>Turn</span>
+        </div>
       </div>
 
       <aside className="panel">

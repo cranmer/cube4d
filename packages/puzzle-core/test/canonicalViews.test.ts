@@ -217,12 +217,13 @@ describe('tipping to a new centred cell', () => {
     // of them centres a *negative* axis. Reaching +X, +Y, +Z or +W needs a third move that reverses
     // a direction, which neither of these does: turning fixes W, and tipping is a pure axis cycle
     // with no sign changes.
-    const key = (m: Float64Array | readonly number[]) => Array.from(m, (x) => x.toFixed(5)).join(',');
-    const start = Float64Array.from(CANONICAL_VIEWS[0].mat);
-    const visited = new Map([[key(start), start]]);
-    let frontier = [start];
+    type Mat = Float64Array | readonly number[];
+    const key = (m: Mat) => Array.from(m, (x) => x.toFixed(5)).join(',');
+    const start: Mat = CANONICAL_VIEWS[0].mat;
+    const visited = new Map<string, Mat>([[key(start), start]]);
+    let frontier: Mat[] = [start];
     while (frontier.length) {
-      const next: Float64Array[] = [];
+      const next: Mat[] = [];
       for (const m of frontier) {
         for (const c of [tipView(m, 1), tipView(m, -1), quarterTurn(m, 1), quarterTurn(m, -1)]) {
           if (!visited.has(key(c))) {

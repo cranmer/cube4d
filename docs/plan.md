@@ -142,6 +142,10 @@ undo/redo, twist counter, scramble, solve detection. *Done when* `{4,3,3} 2` is 
 **Phase 5 — Catalog + persistence.** Full picker with piece counts and sizes, lazy loading, JSON
 save/load, drag-and-drop legacy import/export, autosave, shareable permalinks, core preferences.
 
+The view controls, the colour-to-axis correspondence and what each rotation does are documented
+separately in [`view-controls.md`](view-controls.md), which also records the UI experiments still
+in flight.
+
 **Phase 6 — Several apps on one engine.** Extract everything layout-free into `@mc4d/shell`, move
 today's UI to `apps/classic`, and build the workspace as a multi-page site behind a landing page —
 so that alternative front-ends are separate apps rather than more controls in one panel. Then

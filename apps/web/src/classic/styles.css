@@ -129,10 +129,38 @@ dl.help dd { color: var(--dim); margin: 1px 0 0; }
 button:disabled { opacity: 0.4; cursor: default; }
 button:disabled:hover { background: #21262d; }
 
+/* Duplicated view controls, floated in the viewport's lower corners. Faded until the pointer is
+   near them, so they stay out of the way of the puzzle itself. */
+.viewpad {
+  position: absolute;
+  bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  opacity: 0.45;
+  transition: opacity 140ms ease;
+}
+.viewpad:hover { opacity: 1; }
+.viewpad.left { left: 14px; }
+.viewpad.right { right: 14px; flex-direction: row-reverse; }
+.viewpad button {
+  display: inline-flex;
+  padding: 8px 11px;
+  background: rgba(22, 27, 34, 0.82);
+  backdrop-filter: blur(3px);
+}
+.viewpad span {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+/* Top-left rather than bottom-left: the lower corners now belong to the view controls. */
 .hud {
   position: absolute;
   left: 14px;
-  bottom: 12px;
+  top: 12px;
   display: flex;
   gap: 14px;
   font-size: 13px;
