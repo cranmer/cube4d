@@ -176,6 +176,10 @@ button:disabled:hover { background: #21262d; }
 .viewpoint { padding: 6px 4px; font-size: 12.5px; }
 .viewpoint.selected { border-color: #5b9dff; background: #1b2430; }
 
+.turnview { display: flex; align-items: center; gap: 6px; margin-top: 6px; }
+.turnview span { flex: 1; text-align: center; font-size: 12.5px; color: var(--dim); }
+.turnview button { padding: 6px 12px; display: inline-flex; }
+
 .masthead { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .masthead .sub { margin-bottom: 0; }
 

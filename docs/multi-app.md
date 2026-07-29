@@ -196,6 +196,19 @@ pair of unit quaternions, so interpolating one is just slerping two quaternions 
 ends, constant angular speed between, no singularity anywhere. That is `so4.ts`, about 100 lines
 with 13 tests, and it is genuinely reusable: any app that wants to move a camera in 4D wants it.
 
+A second control turned out to be needed alongside them, and it produced the same shape of mistake
+one level up. The default view is good *because* it is oblique — seven of the eight cells visible,
+nothing hidden — and it is one of four equally good corners. "Rotate the camera 90° about the
+screen's vertical axis" is the obvious way to reach the other three, and it gives a **degenerate**
+picture: the view's up direction is not the direction of the top cell, so a rotation about the
+screen axis destroys the obliqueness rather than preserving it. What is wanted is a symmetry of the
+arrangement — a rotation about the axis through the top and bottom *cells*, applied to the puzzle
+before the view rather than to the camera after it. Which plane that is gets read off the view
+matrix itself, whose rows are the images of the puzzle's axes, so the control composes with every
+viewpoint instead of being special-cased per viewpoint. And because it fixes the W axis, the centred
+cell never changes: "which cell is in the middle" and "which corner am I looking from" stay
+independent questions with independent controls.
+
 The viewpoints themselves are puzzle-independent, as expected — orientations of 4-space, so the
 same key means the same rotation on every puzzle. For the hypercube, whose eight cell centres *are*
 the eight signed axes, each one also brings a specific cell to the centre, which is the case that

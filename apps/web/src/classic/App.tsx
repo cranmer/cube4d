@@ -75,7 +75,7 @@ export function App() {
   const autosave = useMemo(() => new Autosave({ onUnavailable: say }), [say]);
 
   // --- stepping between named viewpoints
-  const { stepCanonicalView } = puzzle;
+  const { stepCanonicalView, turnQuarter } = puzzle;
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.metaKey || event.ctrlKey || event.altKey) return;
@@ -83,10 +83,12 @@ export function App() {
       // keys, so leave those alone.
       if (event.key === ']') stepCanonicalView(1);
       else if (event.key === '[') stepCanonicalView(-1);
+      else if (event.key === '.') turnQuarter(1);
+      else if (event.key === ',') turnQuarter(-1);
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [stepCanonicalView]);
+  }, [stepCanonicalView, turnQuarter]);
 
   // --- opening a permalink
   const [hash, setHash] = useState(() => globalThis.location?.hash ?? '');
@@ -463,10 +465,25 @@ export function App() {
               </button>
             ))}
           </div>
+          {/* A quarter turn about the screen's vertical axis. The default view is oblique so that
+              seven cells are visible at once, and it is one of four equally good corners — this is
+              how you reach the other three without dragging until it looks about right. It leaves
+              the centred cell alone, so it composes with the viewpoint above rather than fighting
+              it. */}
+          <div className="turnview">
+            <button onClick={() => puzzle.turnQuarter(-1)} title="Turn the view a quarter anticlockwise">
+              <TurnIcon clockwise={false} />
+            </button>
+            <span>Turn view</span>
+            <button onClick={() => puzzle.turnQuarter(1)} title="Turn the view a quarter clockwise">
+              <TurnIcon clockwise />
+            </button>
+          </div>
           <p className="hint">
-            Each brings one direction to the centre of the picture. Step through them with{' '}
-            <kbd>[</kbd> and <kbd>]</kbd>. Dragging leaves them behind, which is what the blank
-            label means.
+            Viewpoints bring one direction to the centre of the picture; step through them with{' '}
+            <kbd>[</kbd> and <kbd>]</kbd>. Turning the view keeps that direction centred and moves
+            you to the next corner, with <kbd>,</kbd> and <kbd>.</kbd>. Dragging leaves the
+            viewpoint behind, which is what the blank label means.
           </p>
 
           <h3 className="subhead">Colors</h3>

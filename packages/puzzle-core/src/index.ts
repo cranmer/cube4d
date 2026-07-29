@@ -54,6 +54,7 @@ export {
   CANONICAL_VIEWS,
   canonicalViewById,
   nextCanonicalView,
+  quarterTurn,
   viewDistance,
 } from './canonicalViews.js';
 export type { Quat } from './so4.js';

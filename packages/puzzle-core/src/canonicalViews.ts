@@ -19,7 +19,7 @@
  */
 
 import { gramSchmidt, NICE_VIEW } from './rotation.js';
-import { identity } from './vecmath.js';
+import { identity, makeRowRotMat, mxm } from './vecmath.js';
 
 const N = 4;
 
@@ -104,6 +104,56 @@ export const CANONICAL_VIEWS: readonly CanonicalView[] = [
     mat: bringToCentre(3, -1),
   },
 ];
+
+/**
+ * The same viewpoint, seen from the next corner round.
+ *
+ * The default oblique view is good precisely because it is oblique — seven of the eight cells are
+ * visible at once and nothing hides behind anything. But it is one of *four* equally good corners,
+ * and the only way to reach the other three was to drag until it looked about right.
+ *
+ * The obvious implementation is wrong, and instructively so. "Rotate the camera 90° about the
+ * screen's vertical axis" is a quarter turn in the view's X–Z plane — exactly what a horizontal
+ * drag does — and it produces a *degenerate* picture, because the view's up direction is not the
+ * direction of the top cell. The default view is deliberately oblique, and a rotation about the
+ * screen axis destroys that obliqueness instead of preserving it.
+ *
+ * What is wanted is a symmetry of the arrangement: rotate about the axis through the top and bottom
+ * *cells*, so the four cells around the ring cycle and everything else stays put. That is a rotation
+ * of the puzzle rather than of the camera, and it is applied before the view rather than after.
+ *
+ * Which plane to rotate in is read off the view itself. The rows of a view matrix are the images of
+ * the puzzle's axes, so the axis pointing at the viewer is the row most aligned with W, the vertical
+ * one is the row most aligned with Y, and the remaining two are the ring. Doing it this way means
+ * the control composes with the named viewpoints instead of being special-cased per viewpoint — and
+ * since the rotation fixes the W axis, the centred cell never changes. "Which cell is in the middle"
+ * and "which corner am I looking from" stay independent questions.
+ */
+export function quarterTurn(mat: Float64Array | readonly number[], step: 1 | -1): Float64Array {
+  const rows = [0, 1, 2, 3];
+  const alignment = (row: number, axis: number) => Math.abs(mat[row * N + axis]);
+
+  const wAxis = rows.reduce((best, r) => (alignment(r, 3) > alignment(best, 3) ? r : best), 0);
+  const rest = rows.filter((r) => r !== wAxis);
+  const upAxis = rest.reduce((best, r) => (alignment(r, 1) > alignment(best, 1) ? r : best), rest[0]);
+  const [a, b] = rest.filter((r) => r !== upAxis);
+
+  // Rotating a towards b is clockwise on screen for one handedness of (image a, image b, image up)
+  // and anticlockwise for the other, and which one it is varies between viewpoints. Reading the sign
+  // off the images rather than assuming it keeps the button meaning the same thing everywhere. The
+  // overall sign is fixed by observation: from the default view, `step = 1` must send the cell on
+  // the upper left round to the upper right.
+  const xyz = (row: number) => [mat[row * N], mat[row * N + 1], mat[row * N + 2]];
+  const [p, q, u] = [xyz(a), xyz(b), xyz(upAxis)];
+  const handedness =
+    p[0] * (q[1] * u[2] - q[2] * u[1]) -
+    p[1] * (q[0] * u[2] - q[2] * u[0]) +
+    p[2] * (q[0] * u[1] - q[1] * u[0]);
+
+  const turn = makeRowRotMat(N, a, b, (step * (handedness >= 0 ? -1 : 1) * Math.PI) / 2);
+  // Pre-multiplied: the puzzle turns under a fixed camera, not the other way round.
+  return mxm(turn, Float64Array.from(mat), N);
+}
 
 export function canonicalViewById(id: string): CanonicalView | undefined {
   return CANONICAL_VIEWS.find((v) => v.id === id);

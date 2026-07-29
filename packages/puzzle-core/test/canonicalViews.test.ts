@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { CANONICAL_VIEWS, canonicalViewById, nextCanonicalView } from '../src/canonicalViews.js';
-import { NICE_VIEW } from '../src/rotation.js';
+import {
+  CANONICAL_VIEWS,
+  canonicalViewById,
+  nextCanonicalView,
+  quarterTurn,
+} from '../src/canonicalViews.js';
+import { gramSchmidt, NICE_VIEW } from '../src/rotation.js';
 
 const N = 4;
 
@@ -82,5 +87,68 @@ describe('canonical views', () => {
     // A dragged view belongs to no viewpoint; stepping forward should land on the first.
     expect(nextCanonicalView(null, 1).id).toBe('default');
     expect(nextCanonicalView(null, -1).id).toBe('kata');
+  });
+});
+
+describe('turning to the next corner', () => {
+  const nice = gramSchmidt(Float64Array.from(NICE_VIEW));
+
+  function det4(m: Float64Array | readonly number[]): number {
+    const minor = (skipRow: number, skipCol: number) => {
+      const v: number[] = [];
+      for (let i = 0; i < N; ++i)
+        for (let j = 0; j < N; ++j) if (i !== skipRow && j !== skipCol) v.push(m[i * N + j]);
+      return (
+        v[0] * (v[4] * v[8] - v[5] * v[7]) -
+        v[1] * (v[3] * v[8] - v[5] * v[6]) +
+        v[2] * (v[3] * v[7] - v[4] * v[6])
+      );
+    };
+    let det = 0;
+    for (let j = 0; j < N; ++j) det += (j % 2 ? -1 : 1) * m[j] * minor(0, j);
+    return det;
+  }
+
+  it('returns exactly where it started after four turns, from every viewpoint', () => {
+    for (const view of CANONICAL_VIEWS) {
+      let m: Float64Array | readonly number[] = view.mat;
+      for (let i = 0; i < 4; ++i) m = quarterTurn(m, 1);
+      for (let i = 0; i < N * N; ++i) expect(m[i], `${view.id} entry ${i}`).toBeCloseTo(view.mat[i], 9);
+    }
+  });
+
+  it('leaves the centred cell alone', () => {
+    // A viewpoint is a claim about which direction sits on the view's -W axis. Turning to another
+    // corner must not change that, or the two controls would fight each other.
+    for (const view of CANONICAL_VIEWS) {
+      const turned = quarterTurn(view.mat, 1);
+      for (let row = 0; row < N; ++row) {
+        expect(turned[row * N + 3], `${view.id} W column, row ${row}`).toBeCloseTo(
+          view.mat[row * N + 3],
+          9,
+        );
+      }
+    }
+  });
+
+  it('is a rotation, not a reflection', () => {
+    for (const view of CANONICAL_VIEWS) {
+      expect(det4(quarterTurn(view.mat, 1)), `${view.id} clockwise`).toBeCloseTo(1, 9);
+      expect(det4(quarterTurn(view.mat, -1)), `${view.id} anticlockwise`).toBeCloseTo(1, 9);
+    }
+  });
+
+  it('undoes itself', () => {
+    const there = quarterTurn(nice, 1);
+    const back = quarterTurn(there, -1);
+    for (let i = 0; i < N * N; ++i) expect(back[i]).toBeCloseTo(nice[i], 9);
+  });
+
+  it('cycles the ring clockwise from the default view', () => {
+    // Pinned against screenshots compared with hand-rotated reference images: from the default,
+    // one clockwise turn must send the cell on the upper left round to the upper right. Puzzle axis
+    // 0 is the upper-left cell there, and axis 1 the upper-right, so its row must move to axis 1's.
+    const turned = quarterTurn(nice, 1);
+    for (let j = 0; j < N; ++j) expect(turned[1 * N + j]).toBeCloseTo(nice[0 * N + j], 9);
   });
 });

@@ -14,6 +14,7 @@ import {
   drag,
   interpolateRotation,
   nextCanonicalView,
+  quarterTurn,
   stopSpinning,
   type PuzzleGeometry,
   type RotationState,
@@ -83,6 +84,11 @@ export interface PuzzleCanvas {
   goToCanonicalView(id: string): void;
   /** Glide to the next or previous viewpoint in the list. */
   stepCanonicalView(step: 1 | -1): void;
+  /**
+   * Glide a quarter turn about the screen's vertical axis — the same oblique view, from the next
+   * corner. Independent of the named viewpoint, which it leaves unchanged.
+   */
+  turnQuarter(step: 1 | -1): void;
   getRenderer(): PuzzleRenderer | null;
   /** The current 4D view rotation, row-major, as `.log` files store it. */
   getRotation(): number[];
@@ -127,9 +133,11 @@ export function usePuzzleCanvas(
   const rotationRef = useRef<RotationState>(createRotation());
   // A glide in progress: where it started, where it is going, and when it began. Held in a ref so
   // the render loop can read it without re-subscribing every frame.
-  const glideRef = useRef<{ from: Float64Array; to: readonly number[]; startedAt: number } | null>(
-    null,
-  );
+  const glideRef = useRef<{
+    from: Float64Array;
+    to: readonly number[] | Float64Array;
+    startedAt: number;
+  } | null>(null);
   const [canonicalView, setCanonicalView] = useState<string | null>('default');
   // Held in a ref so the pointer listeners never need re-binding when a callback identity changes.
   const handlersRef = useRef(handlers);
@@ -429,6 +437,14 @@ export function usePuzzleCanvas(
     setCanonicalView(view.id);
   }, []);
 
+  const turnQuarter = useCallback((step: 1 | -1) => {
+    glideRef.current = {
+      from: Float64Array.from(rotationRef.current.mat),
+      to: quarterTurn(rotationRef.current.mat, step),
+      startedAt: performance.now(),
+    };
+  }, []);
+
   const stepCanonicalView = useCallback(
     (step: 1 | -1) => {
       setCanonicalView((current) => {
@@ -474,6 +490,7 @@ export function usePuzzleCanvas(
     canonicalView,
     goToCanonicalView,
     stepCanonicalView,
+    turnQuarter,
     getRenderer,
     getRotation,
     setRotation,

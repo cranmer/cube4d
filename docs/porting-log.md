@@ -729,6 +729,26 @@ quaternion is `L` — rather than by the usual associate-matrix construction. Sa
 sign conventions to get wrong. About 100 lines and 13 tests, including round-trips over 200
 pseudo-random rotations and the specific half-turn that defeated both earlier attempts.
 
+Then the same shape of mistake happened one level up. The default view is good *because* it is
+oblique — seven of the eight cells visible at once, nothing hidden behind anything — and it is one of
+four equally good corners, with no way to reach the other three but dragging until it looked about
+right. So: a button to turn 90°. Obviously that is a quarter turn about the screen's vertical axis,
+which is exactly what a horizontal drag does.
+
+It produces a flattened, degenerate picture, and the reason is the same species of wrong assumption
+as before: **the view's up direction is not the direction of the top cell.** The obliqueness that
+makes the view good is precisely what a rotation about the screen axis destroys. What is wanted is a
+symmetry of the arrangement — a rotation about the axis through the top and bottom *cells*, which is
+a rotation of the puzzle applied before the view rather than of the camera applied after it. Which
+plane that is can be read off the view matrix, whose rows are the images of the puzzle's axes: the
+one most aligned with W points at the viewer, the one most aligned with Y is vertical, and the
+remaining two are the ring. Done that way it composes with every viewpoint rather than being
+special-cased, and since it fixes W the centred cell never changes — so "which cell is in the middle"
+and "which corner am I looking from" stay independent questions.
+
+The direction was settled by rendering all four corners headlessly and comparing them against
+hand-rotated reference images, cell colour by cell colour. My first sign was backwards.
+
 One thing had to be unlearned along the way: a slerp that helpfully flips its argument to take the
 shorter arc is *wrong* here. Only the pair's overall sign may change, so the two factors have to move
 together; letting each choose independently produces the negation of the rotation you asked for, and
