@@ -291,11 +291,13 @@ export function App() {
         {/* An experiment, deliberately duplicating the panel controls rather than moving them: are
             motion controls better placed next to the thing they move? See docs/view-controls.md. */}
         <div className="viewpad left">
+          {/* The same pair of icons as Turn: in the overlay the two controls are told apart by
+              their label and their corner, so matching icons is the experiment. */}
           <button onClick={() => puzzle.tip(-1)} title="Tip the view back (;)">
-            <TipIcon forward={false} />
+            <TurnIcon clockwise={false} />
           </button>
           <button onClick={() => puzzle.tip(1)} title="Tip the view forward (')">
-            <TipIcon forward />
+            <TurnIcon clockwise />
           </button>
           <span>Tip</span>
         </div>
