@@ -1,4 +1,7 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
+
+import type { PuzzleGeometry } from '@mc4d/puzzle-core';
+import { assignFaceColors, paletteById } from '@mc4d/render';
 
 /**
  * A small compass for 4-space, drawn over the viewport.
@@ -47,6 +50,44 @@ interface Spoke {
 const SPOKES: Spoke[] = AXES.flatMap((_, axis) =>
   [1, -1].map((sign) => ({ axis, sign: sign as 1 | -1 })),
 );
+
+/**
+ * A colour per signed axis, taken from the cell that sits on it.
+ *
+ * The correspondence is real on the hypercube — its eight cell centres are exactly the eight signed
+ * axes — and absent on the duoprisms and the 120-cell, whose faces point elsewhere. So it is looked
+ * up from the geometry rather than assumed, and axes with no cell on them get null and fall back to
+ * a neutral hue. Of the shipped catalog: the hypercube has 8 of 8 faces on an axis, `{5}x{4} 3` has
+ * 5 of 9, the simplex 1 of 5, and the 120-cell none of 120.
+ */
+export function useAxisColors(
+  geometry: PuzzleGeometry | null,
+  paletteId: string,
+): (string | null)[] | undefined {
+  return useMemo(() => {
+    if (!geometry) return undefined;
+    const faceColors = assignFaceColors(
+      geometry.nFaces,
+      geometry.face2OppositeFace,
+      paletteById(paletteId),
+    );
+    const out: (string | null)[] = new Array(8).fill(null);
+    for (let f = 0; f < geometry.nFaces; ++f) {
+      const centre = Array.from(
+        { length: geometry.nDims },
+        (_, i) => geometry.faceCenters[f * geometry.nDims + i],
+      );
+      const length = Math.hypot(...centre);
+      if (length < 1e-9) continue;
+      // On an axis exactly when one component carries the whole length.
+      const axis = centre.findIndex((x) => Math.abs(x) / length > 0.999);
+      if (axis < 0 || axis > 3) continue;
+      const rgb = faceColors[f];
+      out[axis * 2 + (centre[axis] > 0 ? 0 : 1)] = `rgb(${rgb.r},${rgb.g},${rgb.b})`;
+    }
+    return out;
+  }, [geometry, paletteId]);
+}
 
 export function AxisInset({
   getRotation,

@@ -9,6 +9,7 @@
  * See docs/multi-app.md for why.
  */
 
+export { AxisInset, useAxisColors } from './AxisInset.js';
 export { Autosave, type AutosaveHandlers } from './autosave.js';
 export { appKey, claimLegacyKey, setAppId, sharedKey } from './storage.js';
 export { EXAMPLES, type Example } from './examples.js';

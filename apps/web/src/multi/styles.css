@@ -140,6 +140,10 @@ button:disabled:hover { background: #21262d; }
 .axis-frame { fill: rgba(22, 27, 34, 0.5); stroke: var(--edge); stroke-width: 1; }
 
 .check { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--dim); }
+/* A checkbox butted against a row of buttons reads as part of the row rather than as a separate
+   setting, so it gets clear air. */
+.chips + .check { margin-top: 20px; }
+.check + .hint { margin-top: 12px; }
 .check input { accent-color: #5b9dff; }
 
 /* Duplicated view controls, floated in the viewport's lower corners. Faded until the pointer is
@@ -477,10 +481,13 @@ button:disabled:hover { background: #21262d; }
 .pane-controls .flip:hover,
 .pane-controls .reset:hover { color: var(--text); }
 
-/* Top-right of the stage: every pane labels itself in its own top-left corner, so the shared
-   counter has to go somewhere else. */
-.hud { left: auto; right: 18px; top: 16px; }
-.hud .won { color: #7ee787; font-weight: 600; }
+/* The twist counter is not over the canvas here, and could not sensibly be: the stage is divided
+   into panes, each of which labels itself top-left and carries its compass top-right, so there is no
+   un-owned corner left. It is a property of the puzzle rather than of any one view, so it reads in
+   the panel with the other puzzle-level things. */
+.counter { display: flex; gap: 12px; align-items: baseline; font-size: 13px; color: var(--dim); }
+.counter b { font-size: 15px; color: var(--text); font-variant-numeric: tabular-nums; }
+.counter .won { color: #7ee787; font-weight: 600; }
 
 @media (max-width: 900px) {
   .stage.panes-2,

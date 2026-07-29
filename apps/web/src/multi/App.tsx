@@ -9,6 +9,7 @@ import {
   appKey,
   usePuzzleAsset,
   usePuzzleSession,
+  useAxisColors,
   type PuzzleActions,
   type ViewSnapshot,
 } from '@mc4d/shell';
@@ -124,6 +125,26 @@ export function App() {
   }, []);
 
   const { controls, setControls } = asset;
+  const axisColors = useAxisColors(asset.geometry, controls.paletteId);
+  // One setting for every pane: whether to show the compass is a preference about reading the
+  // picture, not something you would want answered differently in pane B than in pane A.
+  const [axisHints, setAxisHints] = useState(() => {
+    try {
+      return globalThis.localStorage?.getItem(appKey('axisHints')) !== 'off';
+    } catch {
+      return true;
+    }
+  });
+  const toggleAxisHints = useCallback(() => {
+    setAxisHints((on) => {
+      try {
+        globalThis.localStorage?.setItem(appKey('axisHints'), on ? 'off' : 'on');
+      } catch {
+        /* a forgotten preference is not worth surfacing */
+      }
+      return !on;
+    });
+  }, []);
 
   return (
     <div className="layout">
@@ -140,6 +161,8 @@ export function App() {
             onRenderer={onRenderer}
             onSnapshot={onSnapshot}
             initial={cameras.current.get(i)}
+            axisColors={axisColors}
+            axisHints={axisHints}
           />
           ) : null,
         )}
@@ -152,12 +175,6 @@ export function App() {
             )}
           </div>
         )}
-        <div className="hud">
-          <span>
-            <b>{session.twistCount}</b> twist{session.twistCount === 1 ? '' : 's'}
-          </span>
-          {session.solved && session.scrambled && <span className="won">Solved</span>}
-        </div>
       </div>
 
       <aside className="panel">
@@ -231,6 +248,10 @@ export function App() {
               </button>
             ))}
           </div>
+          <label className="check">
+            <input type="checkbox" checked={axisHints} onChange={toggleAxisHints} />
+            <span>Show axis hints in each pane</span>
+          </label>
           <p className="hint">
             Which views of the puzzle to show — any one, any two, or all three. Each keeps its own
             camera, so closing a pane and reopening it returns you to the view you had. Turn, Tip and
@@ -240,6 +261,12 @@ export function App() {
         </Section>
 
         <Section id="move" title="Move" defaultOpen>
+          <p className="counter">
+            <span>
+              <b>{session.twistCount}</b> twist{session.twistCount === 1 ? '' : 's'}
+            </span>
+            {session.solved && session.scrambled && <span className="won">Solved</span>}
+          </p>
           <div className="buttons">
             <button onClick={actions.undo} disabled={!session.canUndo || session.busy}>
               Undo

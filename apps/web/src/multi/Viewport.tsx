@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 
 import { CANONICAL_VIEWS, type PuzzleGeometry } from '@mc4d/puzzle-core';
 import {
+  AxisInset,
   useViewport,
   type ViewControls,
   type ViewportHandlers,
@@ -30,6 +31,8 @@ export function Viewport({
   initial,
   index,
   label,
+  axisColors,
+  axisHints,
 }: {
   geometry: PuzzleGeometry | null;
   controls: ViewControls;
@@ -42,6 +45,9 @@ export function Viewport({
   initial: ViewSnapshot | undefined;
   index: number;
   label: string;
+  /** One colour per signed axis for the compass, or undefined before the puzzle has loaded. */
+  axisColors: readonly (string | null)[] | undefined;
+  axisHints: boolean;
 }) {
   const view = useViewport(geometry, controls, handlers, {
     // Only the first pane publishes the test handle, so an automated check always finds a
@@ -68,6 +74,9 @@ export function Viewport({
   return (
     <div className="pane">
       <canvas ref={view.canvasRef} />
+      {/* One compass per pane, because each pane points somewhere different — a single shared one
+          would be telling you about whichever pane it happened to belong to. */}
+      {axisHints && <AxisInset getRotation={view.getRotation} colors={axisColors} />}
       <div className="pane-label">
         <span className="pane-index">{label}</span>
         <span className="pane-view">{viewpoint}</span>

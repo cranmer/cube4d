@@ -68,6 +68,23 @@ public class AssetExporter {
     private static final int MAX_GOLDEN_BYTES = 1_500_000;
     private static final int MIN_GOLDEN_ENTRIES = 64;
 
+    /**
+     * Three-dimensional puzzles, which the original's catalog does not contain because it could
+     * never build their twist axes -- see docs/three-d.md and Grips3D.
+     *
+     * A separate list rather than an addition to MagicCube.SUPPORTED_PUZZLES, because that list is
+     * the original's and this is not: nothing in the legacy submodule is modified. Lengths start at
+     * 2 rather than 1 for the same reason the gallery hides length 1 -- one cubie is not a puzzle.
+     *
+     * {3,3} and {3,4} are absent because they fail inside the CSG for unrelated reasons: an
+     * orientation assertion and an unimplemented Schlafli case. The 3D family here is cubes and
+     * dodecahedra.
+     */
+    private static final String[][] PUZZLES_3D = {
+        { "{4,3}", "2,3,4,5,6,7", "Cube" },
+        { "{5,3}", "2,3", "Dodecahedron" },
+    };
+
     public static void main(String[] args) throws Exception {
         File outDir = new File(args.length > 0 ? args[0] : "build/assets");
         String only = null;
@@ -81,7 +98,13 @@ public class AssetExporter {
         List<String> manifest = new ArrayList<String>();
         int built = 0;
 
-        for(String[] entry : MagicCube.SUPPORTED_PUZZLES) {
+        List<String[]> catalog = new ArrayList<String[]>();
+        for(String[] entry : MagicCube.SUPPORTED_PUZZLES)
+            catalog.add(entry);
+        for(String[] entry : PUZZLES_3D)
+            catalog.add(entry);
+
+        for(String[] entry : catalog) {
             String schlafli = entry[0];
             if(schlafli == null)
                 continue;
@@ -129,15 +152,19 @@ public class AssetExporter {
         final String schlafli;
         final double length;
         final int nDims, nFaces, nStickers, nGrips, nVerts;
+        /** Non-null only for 3D puzzles, whose axes the original does not generate. */
+        final Grips3D grips3d;
 
-        Extractor(PolytopePuzzleDescription p, String schlafli, double length) {
+        Extractor(PolytopePuzzleDescription p, String schlafli, double length) throws Exception {
             this.p = p;
             this.schlafli = schlafli;
             this.length = length;
             this.nDims = p.nDims();
             this.nFaces = p.nFaces();
             this.nStickers = p.nStickers();
-            this.nGrips = p.nGrips();
+            // p.nGrips() reads the description's own grip tables, which do not exist for 3D.
+            this.grips3d = p.nDims() == 3 ? new Grips3D(p) : null;
+            this.nGrips = grips3d != null ? grips3d.nGrips : p.nGrips();
             this.nVerts = p.nVerts();
         }
 
@@ -213,9 +240,16 @@ public class AssetExporter {
             double[][] stickerCenters = (double[][]) field("stickerCentersD");
             double[][] faceInwardNormals = (double[][]) field("faceInwardNormals");
             double[][] faceCutOffsets = (double[][]) field("faceCutOffsets");
-            double[][][] gripUsefulMats = (double[][][]) field("gripUsefulMats");
-            int[] gripDims = (int[]) field("gripDims");
-            float[][] gripCenters = (float[][]) field("gripCentersF");
+            // For 3D these come from Grips3D rather than from the description; everything else on
+            // this page is dimension-generic and needs no branch.
+            double[][][] gripUsefulMats = grips3d != null
+                ? grips3d.gripUsefulMats : (double[][][]) field("gripUsefulMats");
+            int[] gripDims = grips3d != null ? grips3d.gripDims : (int[]) field("gripDims");
+            float[][] gripCenters = grips3d != null
+                ? grips3d.gripCenters : (float[][]) field("gripCentersF");
+            int[] grip2face = grips3d != null ? grips3d.grip2face : p.getGrip2Face();
+            int[] gripSymmetryOrders = grips3d != null
+                ? grips3d.gripSymmetryOrders : p.getGripSymmetryOrders();
             float[][] nicePoints = (float[][]) field("nicePointsToRotateToCenter");
 
             int[] faceCutCounts = new int[nFaces];
@@ -268,8 +302,8 @@ public class AssetExporter {
             b.f64("gripUsefulMats", gripUsefulMats, nDims, nDims);
             b.f32("gripCenters", gripCenters, nDims);
             b.u8("gripDims", gripDims);
-            b.u16("grip2face", p.getGrip2Face());
-            b.u16("gripSymmetryOrders", p.getGripSymmetryOrders());
+            b.u16("grip2face", grip2face);
+            b.u16("gripSymmetryOrders", gripSymmetryOrders);
 
             b.f32("nicePoints", nicePoints, nDims);
 
