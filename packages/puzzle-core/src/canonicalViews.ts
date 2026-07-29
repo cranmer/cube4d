@@ -124,6 +124,28 @@ export const CANONICAL_VIEWS: readonly CanonicalView[] = [
 ];
 
 /**
+ * The four roles a puzzle axis can play in a view, read off the view matrix.
+ *
+ * A view matrix's rows are the images of the puzzle's axes, so the role of each axis is a question
+ * about where its row points: at the viewer (aligned with W), straight up (aligned with Y), or
+ * somewhere in the ring around the middle. Reading the roles rather than hard-coding them is what
+ * lets the view controls compose with every viewpoint instead of being written out per viewpoint.
+ */
+function axisRoles(mat: Float64Array | readonly number[]): {
+  viewer: number;
+  up: number;
+  ring: [number, number];
+} {
+  const rows = [0, 1, 2, 3];
+  const alignment = (row: number, axis: number) => Math.abs(mat[row * N + axis]);
+  const viewer = rows.reduce((best, r) => (alignment(r, 3) > alignment(best, 3) ? r : best), 0);
+  const rest = rows.filter((r) => r !== viewer);
+  const up = rest.reduce((best, r) => (alignment(r, 1) > alignment(best, 1) ? r : best), rest[0]);
+  const [a, b] = rest.filter((r) => r !== up);
+  return { viewer, up, ring: [a, b] };
+}
+
+/**
  * The same viewpoint, seen from the next corner round.
  *
  * The default oblique view is good precisely because it is oblique — seven of the eight cells are
@@ -148,13 +170,8 @@ export const CANONICAL_VIEWS: readonly CanonicalView[] = [
  * and "which corner am I looking from" stay independent questions.
  */
 export function quarterTurn(mat: Float64Array | readonly number[], step: 1 | -1): Float64Array {
-  const rows = [0, 1, 2, 3];
-  const alignment = (row: number, axis: number) => Math.abs(mat[row * N + axis]);
-
-  const wAxis = rows.reduce((best, r) => (alignment(r, 3) > alignment(best, 3) ? r : best), 0);
-  const rest = rows.filter((r) => r !== wAxis);
-  const upAxis = rest.reduce((best, r) => (alignment(r, 1) > alignment(best, 1) ? r : best), rest[0]);
-  const [a, b] = rest.filter((r) => r !== upAxis);
+  const { up: upAxis, ring } = axisRoles(mat);
+  const [a, b] = ring;
 
   // Rotating a towards b is clockwise on screen for one handedness of (image a, image b, image up)
   // and anticlockwise for the other, and which one it is varies between viewpoints. Reading the sign
@@ -171,6 +188,60 @@ export function quarterTurn(mat: Float64Array | readonly number[], step: 1 | -1)
   const turn = makeRowRotMat(N, a, b, (step * (handedness >= 0 ? -1 : 1) * Math.PI) / 2);
   // Pre-multiplied: the puzzle turns under a fixed camera, not the other way round.
   return mxm(turn, Float64Array.from(mat), N);
+}
+
+
+/**
+ * Tip the arrangement: swap which direction is vertical and which faces the viewer.
+ *
+ * Where `quarterTurn` spins the ring and leaves the centred cell alone, this does the complementary
+ * thing — it changes which cell is in the middle, without disturbing the oblique framing. Going from
+ * `kata` to `down`, which is the motion this generalises, it is a clean three-cycle of axes with no
+ * sign changes at all:
+ *
+ *   - one of the two ring axes swings in to face the viewer, so its far cell becomes the centre;
+ *   - the axis that was facing the viewer swings up to vertical, so the cell that was culled and
+ *     invisible appears at the top;
+ *   - the axis that was vertical drops into the ring;
+ *   - the other ring axis does not move.
+ *
+ * Being a three-cycle rather than a swap, three presses return you exactly where you started. Which
+ * of the two ring axes takes part is decided by which one points away from the viewer in 3D, so
+ * `quarterTurn` and this compose: spin the ring to choose a cell, then tip to bring it to the middle.
+ * Between them the two controls reach every viewpoint.
+ */
+export function tipView(mat: Float64Array | readonly number[], step: 1 | -1): Float64Array {
+  const { viewer, up, ring } = axisRoles(mat);
+  // The participating ring axis is the one pointing away from the viewer, so that a quarter turn
+  // followed by a tip brings a *different* cell in each time.
+  const zOf = (row: number) => mat[row * N + 2];
+  const [away, fixed] = zOf(ring[0]) <= zOf(ring[1]) ? ring : [ring[1], ring[0]];
+
+  const cycle = step === 1 ? [away, viewer, up] : [away, up, viewer];
+  const turn = new Float64Array(N * N);
+  turn[fixed * N + fixed] = 1;
+  for (let k = 0; k < 3; ++k) turn[cycle[k] * N + cycle[(k + 1) % 3]] = 1;
+  // A three-cycle is an even permutation, so this is a rotation and needs no sign correction.
+
+  // Pre-multiplied, like quarterTurn: the puzzle turns under a fixed camera.
+  return mxm(turn, Float64Array.from(mat), N);
+}
+
+/**
+ * Which named viewpoint a matrix is showing, judged by the only thing the name claims: which cell
+ * sits in the middle. Null once the view has been dragged somewhere that centres nothing.
+ */
+export function viewpointCentredBy(
+  mat: Float64Array | readonly number[],
+): CanonicalView | undefined {
+  let axis = -1;
+  for (let i = 0; i < N; ++i) if (Math.abs(mat[i * N + 3]) > 0.999) axis = i;
+  if (axis < 0) return undefined;
+  const sign = mat[axis * N + 3] < 0 ? 1 : -1;
+  return CANONICAL_VIEWS.find((v) => {
+    const row = v.mat[axis * N + 3];
+    return Math.abs(row) > 0.999 && (row < 0 ? 1 : -1) === sign;
+  });
 }
 
 export function canonicalViewById(id: string): CanonicalView | undefined {

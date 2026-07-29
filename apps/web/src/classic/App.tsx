@@ -75,7 +75,7 @@ export function App() {
   const autosave = useMemo(() => new Autosave({ onUnavailable: say }), [say]);
 
   // --- stepping between named viewpoints
-  const { stepCanonicalView, turnQuarter } = puzzle;
+  const { stepCanonicalView, tip, turnQuarter } = puzzle;
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.metaKey || event.ctrlKey || event.altKey) return;
@@ -85,10 +85,12 @@ export function App() {
       else if (event.key === '[') stepCanonicalView(-1);
       else if (event.key === '.') turnQuarter(1);
       else if (event.key === ',') turnQuarter(-1);
+      else if (event.key === "'") tip(1);
+      else if (event.key === ';') tip(-1);
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [stepCanonicalView, turnQuarter]);
+  }, [stepCanonicalView, tip, turnQuarter]);
 
   // --- opening a permalink
   const [hash, setHash] = useState(() => globalThis.location?.hash ?? '');
@@ -479,11 +481,25 @@ export function App() {
               <TurnIcon clockwise />
             </button>
           </div>
+          {/* The complement of Turn: where that spins the ring and leaves the middle alone, this
+              swings a ring cell into the middle, brings the hidden cell up to the top, and drops
+              the top one into the ring. A three-cycle, so three presses return you home. */}
+          <div className="turnview">
+            <button onClick={() => puzzle.tip(-1)} title="Tip the view back">
+              <TipIcon forward={false} />
+            </button>
+            <span>Tip view</span>
+            <button onClick={() => puzzle.tip(1)} title="Tip the view forward">
+              <TipIcon forward />
+            </button>
+          </div>
           <p className="hint">
             Viewpoints bring one direction to the centre of the picture; step through them with{' '}
-            <kbd>[</kbd> and <kbd>]</kbd>. Turning the view keeps that direction centred and moves
-            you to the next corner, with <kbd>,</kbd> and <kbd>.</kbd>. Dragging leaves the
-            viewpoint behind, which is what the blank label means.
+            <kbd>[</kbd> and <kbd>]</kbd>. <b>Turn</b> (<kbd>,</kbd> <kbd>.</kbd>) keeps that
+            direction centred and moves you to the next corner. <b>Tip</b> (<kbd>;</kbd>{' '}
+            <kbd>'</kbd>) changes which direction is centred: a ring cell swings into the middle,
+            the hidden cell comes up to the top, and the top one drops into the ring. Dragging
+            leaves the viewpoint behind, which is what a blank label means.
           </p>
 
           <h3 className="subhead">Colors</h3>
@@ -777,6 +793,18 @@ function StopIcon() {
  * system fonts to render as a dot, which is worse than no icon at all. One is the mirror of the
  * other, so the same path serves both.
  */
+/** An arc over the top, to read as tumbling towards or away from you rather than spinning flat. */
+function TipIcon({ forward }: { forward: boolean }) {
+  return (
+    <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor"
+      strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
+      style={{ transform: forward ? undefined : 'scaleX(-1)' }}>
+      <path d="M3 10.5a5 5 0 0 1 10 0" />
+      <path d="M13 6.6v3.9h-3.6" />
+    </svg>
+  );
+}
+
 function TurnIcon({ clockwise }: { clockwise: boolean }) {
   // An arc that runs into a right-angled tail. A filled arrowhead was the first attempt and read
   // as a speck at 15px; a corner the same weight as the arc is legible at any size.

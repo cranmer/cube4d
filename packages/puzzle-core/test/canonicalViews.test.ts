@@ -5,6 +5,8 @@ import {
   canonicalViewById,
   nextCanonicalView,
   quarterTurn,
+  tipView,
+  viewpointCentredBy,
 } from '../src/canonicalViews.js';
 import { gramSchmidt, NICE_VIEW } from '../src/rotation.js';
 
@@ -175,5 +177,66 @@ describe('turning to the next corner', () => {
     // 0 is the upper-left cell there, and axis 1 the upper-right, so its row must move to axis 1's.
     const turned = quarterTurn(nice, 1);
     for (let j = 0; j < N; ++j) expect(turned[1 * N + j]).toBeCloseTo(nice[0 * N + j], 9);
+  });
+});
+
+describe('tipping to a new centred cell', () => {
+  it('reproduces the kata to down transition exactly', () => {
+    // The motion this control generalises, named by the two viewpoints it connects.
+    const tipped = tipView(canonicalViewById('kata')!.mat, 1);
+    canonicalViewById('down')!.mat.forEach((x, i) => expect(tipped[i]).toBeCloseTo(x, 12));
+  });
+
+  it('is a three-cycle: three presses return exactly home', () => {
+    for (const view of CANONICAL_VIEWS) {
+      let m: Float64Array | readonly number[] = view.mat;
+      for (let i = 0; i < 3; ++i) m = tipView(m, 1);
+      for (let i = 0; i < N * N; ++i) expect(m[i], `${view.id} entry ${i}`).toBeCloseTo(view.mat[i], 9);
+    }
+  });
+
+  it('undoes itself', () => {
+    const there = tipView(CANONICAL_VIEWS[0].mat, 1);
+    tipView(there, -1).forEach((x, i) => expect(x).toBeCloseTo(CANONICAL_VIEWS[0].mat[i], 9));
+  });
+
+  it('changes which cell is centred, where turning never does', () => {
+    for (const view of CANONICAL_VIEWS) {
+      expect(viewpointCentredBy(quarterTurn(view.mat, 1))?.id, `turn from ${view.id}`).toBe(
+        viewpointCentredBy(view.mat)?.id,
+      );
+      expect(viewpointCentredBy(tipView(view.mat, 1))?.id, `tip from ${view.id}`).not.toBe(
+        viewpointCentredBy(view.mat)?.id,
+      );
+    }
+  });
+
+  it('reaches only four of the eight centred cells, even combined with turning', () => {
+    // Worth pinning, because it is the natural thing to assume otherwise. Tipping and turning
+    // generate a group of 48 orientations — a quarter of the 4-cube's 192 rotations — and every one
+    // of them centres a *negative* axis. Reaching +X, +Y, +Z or +W needs a third move that reverses
+    // a direction, which neither of these does: turning fixes W, and tipping is a pure axis cycle
+    // with no sign changes.
+    const key = (m: Float64Array | readonly number[]) => Array.from(m, (x) => x.toFixed(5)).join(',');
+    const start = Float64Array.from(CANONICAL_VIEWS[0].mat);
+    const visited = new Map([[key(start), start]]);
+    let frontier = [start];
+    while (frontier.length) {
+      const next: Float64Array[] = [];
+      for (const m of frontier) {
+        for (const c of [tipView(m, 1), tipView(m, -1), quarterTurn(m, 1), quarterTurn(m, -1)]) {
+          if (!visited.has(key(c))) {
+            visited.set(key(c), c);
+            next.push(c);
+          }
+        }
+      }
+      frontier = next;
+    }
+    expect(visited.size).toBe(48);
+    const centred = new Set(
+      [...visited.values()].map((m) => viewpointCentredBy(m)?.id).filter(Boolean),
+    );
+    expect([...centred].sort()).toEqual(['back', 'default', 'down', 'left']);
   });
 });

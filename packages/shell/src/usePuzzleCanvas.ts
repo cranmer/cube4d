@@ -16,6 +16,8 @@ import {
   nextCanonicalView,
   quarterTurn,
   stopSpinning,
+  tipView,
+  viewpointCentredBy,
   type PuzzleGeometry,
   type RotationState,
 } from '@mc4d/puzzle-core';
@@ -89,6 +91,11 @@ export interface PuzzleCanvas {
    * corner. Independent of the named viewpoint, which it leaves unchanged.
    */
   turnQuarter(step: 1 | -1): void;
+  /**
+   * Glide a three-cycle that swaps which direction is vertical and which faces the viewer, bringing
+   * a new cell to the middle. Complementary to `turnQuarter`, which never changes the middle.
+   */
+  tip(step: 1 | -1): void;
   getRenderer(): PuzzleRenderer | null;
   /** The current 4D view rotation, row-major, as `.log` files store it. */
   getRotation(): number[];
@@ -445,6 +452,18 @@ export function usePuzzleCanvas(
     };
   }, []);
 
+  const tip = useCallback((step: 1 | -1) => {
+    const to = tipView(rotationRef.current.mat, step);
+    glideRef.current = {
+      from: Float64Array.from(rotationRef.current.mat),
+      to,
+      startedAt: performance.now(),
+    };
+    // Unlike a quarter turn, this changes which cell is in the middle — which is exactly what the
+    // viewpoint label names, so it has to be recomputed rather than carried over.
+    setCanonicalView(viewpointCentredBy(to)?.id ?? null);
+  }, []);
+
   const stepCanonicalView = useCallback(
     (step: 1 | -1) => {
       setCanonicalView((current) => {
@@ -491,6 +510,7 @@ export function usePuzzleCanvas(
     goToCanonicalView,
     stepCanonicalView,
     turnQuarter,
+    tip,
     getRenderer,
     getRotation,
     setRotation,
