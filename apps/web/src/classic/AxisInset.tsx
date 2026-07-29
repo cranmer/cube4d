@@ -21,14 +21,17 @@ import { useEffect, useRef } from 'react';
  * rather than popping, and at a named viewpoint it is gone entirely — leaving exactly one spoke
  * collapsed at the middle, which is the little cell in the middle of the picture.
  *
- * **The colours are not the puzzle's palette.** On the hypercube each signed axis does happen to be
- * a cell, so palette colours would look right; on a duoprism or the 120-cell no cell sits on an axis
- * at all. Using the conventional gizmo hues keeps this a statement about directions in space rather
- * than about pieces.
+ * **Each spoke is coloured like the cell that sits on it**, so the compass reads directly against
+ * the picture: the green spoke points where the green cell is. That correspondence only exists on
+ * puzzles whose faces happen to lie on the coordinate axes — the hypercube's do, a duoprism's and
+ * the 120-cell's do not — so it is looked up per puzzle rather than assumed, and any axis with no
+ * cell on it falls back to a neutral gizmo hue.
  */
 
 const AXES = ['X', 'Y', 'Z', 'W'] as const;
-const AXIS_COLORS = ['#e8646e', '#5fd48a', '#6aa9ff', '#c98bff'];
+
+/** Used only where no cell lies on the axis, so there is no puzzle colour to borrow. */
+const FALLBACK_COLORS = ['#e8646e', '#5fd48a', '#6aa9ff', '#c98bff'];
 
 const R = 30;
 const SIZE = 96;
@@ -45,7 +48,14 @@ const SPOKES: Spoke[] = AXES.flatMap((_, axis) =>
   [1, -1].map((sign) => ({ axis, sign: sign as 1 | -1 })),
 );
 
-export function AxisInset({ getRotation }: { getRotation: () => number[] }) {
+export function AxisInset({
+  getRotation,
+  colors,
+}: {
+  getRotation: () => number[];
+  /** One CSS colour per spoke, indexed `axis * 2 + (sign > 0 ? 0 : 1)`; null to fall back. */
+  colors?: readonly (string | null)[] | undefined;
+}) {
   const root = useRef<SVGSVGElement>(null);
 
   useEffect(() => {
@@ -109,8 +119,10 @@ export function AxisInset({ getRotation }: { getRotation: () => number[] }) {
       aria-label="Orientation of the four axes"
     >
       <rect x="0.5" y="0.5" width={SIZE - 1} height={SIZE - 1} rx="7" className="axis-frame" />
-      {SPOKES.map(({ axis, sign }, i) => (
-        <g key={i} stroke={AXIS_COLORS[axis]} fill={AXIS_COLORS[axis]}>
+      {SPOKES.map(({ axis, sign }, i) => {
+        const color = colors?.[i] ?? FALLBACK_COLORS[axis];
+        return (
+        <g key={i} stroke={color} fill={color}>
           <line data-line={i} x1={C} y1={C} x2={C} y2={C} strokeWidth="1.4" strokeLinecap="round" />
           <circle data-dot={i} cx={C} cy={C} r="2.5" stroke="none" />
           <text
@@ -126,7 +138,8 @@ export function AxisInset({ getRotation }: { getRotation: () => number[] }) {
             {AXES[axis]}
           </text>
         </g>
-      ))}
+        );
+      })}
     </svg>
   );
 }

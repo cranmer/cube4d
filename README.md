@@ -6,7 +6,7 @@ functional four-dimensional Rubik's cube, plus dozens of other 4D twisty puzzles
 The original is an excellent piece of software that requires a Java installation to run. This is a
 zero-install version: open a link, solve a hypercube.
 
-![The 3×3×3×3 hypercube, rendered in the browser](docs/images/hypercube.png)
+![The 3×3×3×3 hypercube, rendered in the browser](docs/images/favicon.png)
 
 > **Status: early development — Phases 0–3 of 6 complete.** The puzzle renders and rotates in a
 > browser; it does not twist yet. The [porting log](docs/porting-log.md) tracks progress and

@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CANONICAL_VIEWS, DEFAULT_PUZZLE_ID, findEntry } from '@mc4d/puzzle-core';
 
 import { AxisInset } from './AxisInset.js';
-import { PALETTES, paletteSwatches } from '@mc4d/render';
+import { assignFaceColors, paletteById, PALETTES, paletteSwatches } from '@mc4d/render';
 
 import {
   Autosave,
@@ -70,6 +70,32 @@ export function App() {
       return true;
     }
   });
+  /**
+   * A colour per signed axis, taken from the cell that sits on it.
+   *
+   * The correspondence is real on the hypercube — its eight cell centres are exactly the eight
+   * signed axes — and absent on the duoprisms and the 120-cell, whose faces point elsewhere. So it
+   * is looked up from the geometry rather than assumed, and axes with no cell on them get null and
+   * fall back to a neutral hue.
+   */
+  const axisColors = useMemo(() => {
+    const geo = puzzle.geometry;
+    if (!geo) return undefined;
+    const faceColors = assignFaceColors(geo.nFaces, geo.face2OppositeFace, paletteById(controls.paletteId));
+    const out: (string | null)[] = new Array(8).fill(null);
+    for (let f = 0; f < geo.nFaces; ++f) {
+      const c = Array.from({ length: geo.nDims }, (_, i) => geo.faceCenters[f * geo.nDims + i]);
+      const length = Math.hypot(...c);
+      if (length < 1e-9) continue;
+      // On an axis exactly when one component carries the whole length.
+      const axis = c.findIndex((x) => Math.abs(x) / length > 0.999);
+      if (axis < 0 || axis > 3) continue;
+      const rgb = faceColors[f];
+      out[axis * 2 + (c[axis] > 0 ? 0 : 1)] = `rgb(${rgb.r},${rgb.g},${rgb.b})`;
+    }
+    return out;
+  }, [puzzle.geometry, controls.paletteId]);
+
   const toggleAxisHints = useCallback(() => {
     setAxisHints((on) => {
       try {
@@ -308,7 +334,7 @@ export function App() {
           {sliceLabel !== '1' && <span className="slices">layer {sliceLabel}</span>}
         </div>
 
-        {axisHints && <AxisInset getRotation={puzzle.getRotation} />}
+        {axisHints && <AxisInset getRotation={puzzle.getRotation} colors={axisColors} />}
 
         {/* An experiment, deliberately duplicating the panel controls rather than moving them: are
             motion controls better placed next to the thing they move? See docs/view-controls.md. */}

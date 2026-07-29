@@ -244,9 +244,11 @@ opposite is the one hidden between you and everything else.
 Its W axis is projected *orthographically* rather than in perspective: the renderer divides by `eyeW − w`, which for an axis
 aimed straight at the eye magnifies by twenty and would fling the spoke off the edge, whereas
 dropping W makes such an axis collapse to the middle — the honest picture, and exactly what happens
-to the cell that gets culled. And its colours are the conventional gizmo hues rather than the
-puzzle's palette, because on most puzzles no cell sits on an axis at all, and palette colours would
-claim otherwise.
+to the cell that gets culled. And each spoke is coloured like the cell that sits on it, so the
+compass reads directly against the picture — the green spoke points where the green cell is. That
+correspondence is not universal, so it is looked up per puzzle rather than assumed: of the shipped
+catalog, the hypercube has all 8 faces on coordinate axes, `{5}x{4} 3` has 5 of 9, the simplex 1 of
+5, and the 120-cell none of 120. Axes with no cell on them fall back to a neutral hue.
 
 **Which cell is hidden.** No control names it, but it is always the partner of the centred cell, and
 players do ask where a colour went. The axis inset now shows this implicitly — the axis pointing at
