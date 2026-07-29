@@ -233,8 +233,15 @@ corners of the viewport as well as in the panel, to find out whether motion cont
 the thing they move.
 
 **The axis inset.** A 96px compass in the top-right, toggleable, showing where the four axes
-currently point. Two decisions inside it are worth knowing. Its W axis is projected
-*orthographically* rather than in perspective: the renderer divides by `eyeW − w`, which for an axis
+currently point. Three decisions inside it are worth knowing.
+
+An axis pointing at you is **not drawn at all** — that is the one the front-cell cull removes, so a
+label there would name a cell you cannot see. It fades out as the axis swings towards you rather
+than popping, and at a named viewpoint exactly one of the eight is gone. Note which one: at the `+X`
+viewpoint it is **−X** that vanishes, because `+X` is the cell brought to the middle and its
+opposite is the one hidden between you and everything else.
+
+Its W axis is projected *orthographically* rather than in perspective: the renderer divides by `eyeW − w`, which for an axis
 aimed straight at the eye magnifies by twenty and would fling the spoke off the edge, whereas
 dropping W makes such an axis collapse to the middle — the honest picture, and exactly what happens
 to the cell that gets culled. And its colours are the conventional gizmo hues rather than the

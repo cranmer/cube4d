@@ -16,6 +16,11 @@ import { useEffect, useRef } from 'react';
  * viewing direction collapse to the centre — which is the honest picture, and exactly what happens
  * to the cell that gets culled.
  *
+ * **An axis pointing at you is not drawn.** Its cell is the one the front-cell cull removes, so a
+ * label there would name something you cannot see. It fades out as the axis swings towards you
+ * rather than popping, and at a named viewpoint it is gone entirely — leaving exactly one spoke
+ * collapsed at the middle, which is the little cell in the middle of the picture.
+ *
  * **The colours are not the puzzle's palette.** On the hypercube each signed axis does happen to be
  * a cell, so palette colours would look right; on a duoprism or the 120-cell no cell sits on an axis
  * at all. Using the conventional gizmo hues keeps this a statement about directions in space rather
@@ -62,13 +67,15 @@ export function AxisInset({ getRotation }: { getRotation: () => number[] }) {
           const py = C - y * R;
 
           // An axis with no screen direction still needs its label somewhere legible, so it is
-          // parked above or below the centre according to whether it points towards you or away.
+          // parked clear of the middle. Only the one pointing away survives to be drawn there.
           const collapsed = length < COLLAPSED;
           const lx = collapsed ? C : C + (x / length) * (R + 11);
           const ly = collapsed ? C + (w > 0 ? -13 : 15) : C - (y / length) * (R + 11);
 
-          // Towards the viewer reads bright and near; away reads faint. Same cue the puzzle gives.
-          const towards = (w + 1) / 2;
+          // Fades to nothing as the axis turns towards the viewer, because that is precisely when
+          // its cell stops being drawn. Everything from side-on to straight-away stays at full
+          // strength: those cells are all visible, so their labels should all be readable.
+          const shown = Math.min(1, Math.max(0, 1 - w));
 
           const line = svg.querySelector<SVGLineElement>(`[data-line="${i}"]`);
           const dot = svg.querySelector<SVGCircleElement>(`[data-dot="${i}"]`);
@@ -76,14 +83,14 @@ export function AxisInset({ getRotation }: { getRotation: () => number[] }) {
           if (!line || !dot || !text) continue;
           line.setAttribute('x2', String(px));
           line.setAttribute('y2', String(py));
-          line.setAttribute('opacity', String(0.18 + 0.42 * towards));
+          line.setAttribute('opacity', String(0.6 * shown));
           dot.setAttribute('cx', String(px));
           dot.setAttribute('cy', String(py));
-          dot.setAttribute('r', String(1.8 + 1.8 * towards));
-          dot.setAttribute('opacity', String(0.35 + 0.65 * towards));
+          dot.setAttribute('r', String(3 * shown));
+          dot.setAttribute('opacity', String(shown));
           text.setAttribute('x', String(lx));
           text.setAttribute('y', String(ly));
-          text.setAttribute('opacity', String(0.4 + 0.6 * towards));
+          text.setAttribute('opacity', String(shown));
         }
       }
       frame = requestAnimationFrame(tick);
