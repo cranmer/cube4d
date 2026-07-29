@@ -19,6 +19,7 @@ export default defineConfig({
         landing: entry('index.html'),
         classic: entry('classic/index.html'),
         gallery: entry('gallery/index.html'),
+        multi: entry('multi/index.html'),
       },
     },
   },

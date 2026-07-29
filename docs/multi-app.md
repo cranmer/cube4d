@@ -215,7 +215,7 @@ the eight signed axes, each one also brings a specific cell to the centre, which
 matters. Deriving them per puzzle from cell centres remains the only way to make them meaningful for
 the duoprisms, and remains unbuilt.
 
-### 4.3 Multiple simultaneous viewports — the one real refactor
+### 4.3 Multiple simultaneous viewports — the one real refactor ✅ built
 
 Split `usePuzzleCanvas` along the seam identified in §2.1:
 
@@ -232,7 +232,12 @@ usePuzzleSession(views: () => PuzzleRenderer[], geometry)
   actions.onPointerMove(view, x, y)
 ```
 
-Cost: roughly 150 lines touched across two files, no change to `puzzle-core` or `@mc4d/render`.
+Cost, as built: roughly what was estimated, and no change to `puzzle-core` or `@mc4d/render`. The
+one thing the estimate missed is that the viewpoint *controls* had to change too. The eight +X…−W
+buttons are per-pane by nature, and three panes' worth of them would take more room than the puzzle,
+so the panes carry only Turn, Tip and Flip — which is exactly why Flip had to exist first. There is
+deliberately no "active pane": a pane is operated by the buttons underneath it, which needs no
+state, no focus ring and no explaining.
 
 Two facts that make this cheaper than it looks, and one that limits it:
 
@@ -342,7 +347,9 @@ Deliberately ordered so that each step is verifiable before the next begins.
 
 Steps 1 and 2 are the ones with revert risk, and `v0.6.0` is the revert point.
 
-Steps 1, 2 and 3 are done.
+Steps 1–4 are done: the shell is split, storage is namespaced, the view controls exist, and the
+multi-view app ships at `/multi/`. A gallery of the catalog was added along the way, at `/gallery/`,
+which was not on this list.
 
 ---
 
