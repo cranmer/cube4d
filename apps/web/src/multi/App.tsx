@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { DEFAULT_PUZZLE_ID, findEntry } from '@mc4d/puzzle-core';
 import { PALETTES, paletteSwatches } from '@mc4d/render';
@@ -13,6 +13,7 @@ import {
   usePuzzleSession,
   useAxisColors,
   useSolveIO,
+  decodePermalink,
   type PuzzleActions,
   type ViewSnapshot,
 } from '@mc4d/shell';
@@ -139,6 +140,44 @@ export function App() {
     say,
     base: import.meta.env.BASE_URL,
   });
+
+  // --- opening a permalink
+  //
+  // The gallery links every 4D puzzle here, and this app's own Copy link button has always produced
+  // fragments of this shape; until now nothing here read them, so its links opened the hypercube.
+  const [hash, setHash] = useState(() => globalThis.location?.hash ?? '');
+  useEffect(() => {
+    // Pasting a link into an already-open tab changes only the fragment: a same-document navigation
+    // that reloads nothing, so a mount-only effect would never see it.
+    const onHashChange = () => setHash(globalThis.location.hash);
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, []);
+
+  useEffect(() => {
+    const link = decodePermalink(hash);
+    if (!link || !asset.catalog) return;
+    const entry = findEntry(asset.catalog, link.puzzleId);
+    if (!entry) {
+      // Reachable from the gallery: a 3D solid belongs in the cube app, and this app's catalog is
+      // filtered to four dimensions, so the entry is genuinely absent rather than misspelt.
+      say(`This link is for ${link.puzzleId}, which this app does not open.`);
+      return;
+    }
+    io.restoreLater({
+      puzzleId: entry.id,
+      schlafli: entry.schlafli,
+      length: entry.length,
+      history: { moves: link.moves, marks: [], index: link.moves.length },
+      scrambleState: link.moves.length > 0 ? 'full' : 'none',
+      viewMatrix: [],
+    });
+    // Consumed, so a reload does not re-apply it over whatever you have since done. The panes keep
+    // their own cameras either way — a permalink says which puzzle and which moves, never which view.
+    globalThis.history?.replaceState(null, '', globalThis.location.pathname);
+    setHash('');
+    if (entry.id !== asset.puzzleId) asset.selectPuzzle(entry.id, entry.path);
+  }, [hash, asset.catalog]);
 
   const togglePane = useCallback((index: number) => {
     setShown((current) => {

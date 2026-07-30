@@ -80,6 +80,12 @@
         vertical-align: 2px;
       }
       .app.soon h2::after { content: "planned"; }
+      /* The same chip as "planned", coloured the other way: one says not yet, this says just now. */
+      .app h2 .new {
+        border-color: #2f5d3a;
+        background: #16281c;
+        color: #7fd396;
+      }
       h3 {
         margin: 40px 0 4px;
         font-size: 11px;
@@ -132,7 +138,9 @@
       </p>
       <p class="lede">
         Every one of the 128 puzzles that engine can build is here, and solve files from the original
-        open and replay unchanged.
+        open and replay unchanged &mdash; including the
+        <a href="#hall-of-fame">Hall of Fame solves</a> below, real solutions people emailed to
+        Superliminal, which these apps replay at whatever pace you like.
       </p>
 
       <!--
@@ -141,18 +149,23 @@
         panel. See docs/multi-app.md.
       -->
       <nav class="apps">
-        <a class="app" href="classic/">
+        <a class="app" href="multi/">
           <h2>
             <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor"
               stroke-width="1.5" stroke-linejoin="round" aria-hidden="true">
-              <path d="M8 1.6 14 4.6v6.8L8 14.4 2 11.4V4.6Z"/>
-              <path d="M2 4.6 8 7.6l6-3M8 7.6v6.8"/>
+              <rect x="1.6" y="1.6" width="9" height="9" rx="1"/>
+              <rect x="5.4" y="5.4" width="9" height="9" rx="1"/>
+              <path d="M1.6 1.6 5.4 5.4M10.6 1.6l3.8 3.8M1.6 10.6l3.8 3.8M10.6 10.6l3.8 3.8"/>
             </svg>
-            Classic
+            New interface
+            <span class="tag new">New</span>
           </h2>
           <p>
-            The full catalog &mdash; all 128 puzzles, free rotation, save and load, and the Hall of
-            Fame records replaying at your own pace. Closest to the original.
+            The same puzzle from up to three angles at once &mdash; twist in any pane and every pane
+            turns, hover a sticker and it lights up in all of them. Each pane has its own view
+            controls: <b>Turn</b>, <b>Tip</b> and <b>Flip</b> step between the eight ways of facing
+            the puzzle instead of leaving you to drag until it looks about right, and a compass in
+            the corner says which axis you are looking down.
           </p>
         </a>
         <a class="app" href="gallery/">
@@ -168,29 +181,29 @@
           </h2>
           <p>
             Every puzzle worth solving, pictured &mdash; from the familiar 3&times;3&times;3&times;3
-            to a 120-cell made of dodecahedra. Pick one and it opens in the classic app.
+            to a 120-cell made of dodecahedra. Pick one and it opens in the new interface.
           </p>
         </a>
-        <a class="app" href="multi/">
+        <a class="app" href="classic/">
           <h2>
             <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor"
               stroke-width="1.5" stroke-linejoin="round" aria-hidden="true">
-              <rect x="1.6" y="1.6" width="9" height="9" rx="1"/>
-              <rect x="5.4" y="5.4" width="9" height="9" rx="1"/>
-              <path d="M1.6 1.6 5.4 5.4M10.6 1.6l3.8 3.8M1.6 10.6l3.8 3.8M10.6 10.6l3.8 3.8"/>
+              <path d="M8 1.6 14 4.6v6.8L8 14.4 2 11.4V4.6Z"/>
+              <path d="M2 4.6 8 7.6l6-3M8 7.6v6.8"/>
             </svg>
-            Multi-view
+            Classic interface
           </h2>
           <p>
-            The same puzzle from up to three angles at once. Twist in any pane and every pane turns;
-            hover a sticker and it lights up in all of them.
+            The original, as it was: one window, the original colours on the original sky, and a
+            trackball you drag. None of the new view controls &mdash; nothing to press, nothing to
+            learn, nothing between you and the puzzle.
           </p>
         </a>
       </nav>
 
       <div class="apps second">
-        <!-- No dedicated app yet, so it opens the cube in the classic one. The engine builds it, the
-             interface is the same one, and that is the whole point of it existing. -->
+        <!-- The odd one out: a three-dimensional puzzle in a four-dimensional program, which is the
+             whole reason it is interesting and also why it gets its own page. -->
         <a class="app" href="cube/">
           <h2>
             <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor"
@@ -200,6 +213,7 @@
               <path d="M5.15 3.2v6.6M10.85 3.2v6.6M2.3 8l5.7 3 5.7-3"/>
             </svg>
             3D cube
+            <span class="tag new">New</span>
           </h2>
           <p>
             An ordinary Rubik&rsquo;s cube on the same engine, with the same interface &mdash; click
@@ -209,7 +223,7 @@
         </a>
       </div>
 
-      <h3>Hall of Fame</h3>
+      <h3 id="hall-of-fame">Hall of Fame</h3>
       <p class="section-note">
         Real solves people emailed to Superliminal, some of them records. Each opens at the position
         its solver faced &mdash; press Play to watch it come apart.

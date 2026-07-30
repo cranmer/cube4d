@@ -129,19 +129,6 @@ dl.help dd { color: var(--dim); margin: 1px 0 0; }
 button:disabled { opacity: 0.4; cursor: default; }
 button:disabled:hover { background: #21262d; }
 
-/* Top-right, opposite the twist counter and clear of both view pads. */
-.axis-inset {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  pointer-events: none;
-  opacity: 0.9;
-}
-.axis-frame { fill: rgba(22, 27, 34, 0.5); stroke: var(--edge); stroke-width: 1; }
-
-.check { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--dim); }
-.check input { accent-color: #5b9dff; }
-
 .hud {
   position: absolute;
   left: 14px;
@@ -361,5 +348,4 @@ button:disabled:hover { background: #21262d; }
    one wall. The rule above still pulls the first control up tight under its own subhead. */
 .palettes + .subhead,
 .hint + .subhead,
-.chips + .subhead,
-.check + .subhead { margin-top: 18px; }
+.chips + .subhead { margin-top: 18px; }

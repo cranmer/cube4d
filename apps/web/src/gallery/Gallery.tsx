@@ -84,7 +84,7 @@ export function Gallery() {
         <h1>Puzzles</h1>
         <p className="lede">
           {total || 107} puzzles, from the familiar 3×3×3×3 to a 120-cell made of dodecahedra. Pick
-          one to open it in the <a href={`${BASE}classic/`}>classic app</a>.
+          one to open it in the <a href={`${BASE}multi/`}>new interface</a>.
         </p>
         <p className="lede small">
           A puzzle is a Schläfli product symbol and an edge length — nothing here is special-cased.
@@ -126,13 +126,15 @@ export function Gallery() {
 /**
  * Where a puzzle opens.
  *
- * Not always the classic app: a three-dimensional solid belongs in the app built for it, whose view
- * controls will not rotate it out of the hyperplane its rendering depends on.
+ * The multi-view app, which is the one being shown off — its viewpoint controls are the reason a
+ * puzzle you have never seen before is approachable. Except a three-dimensional solid, which belongs
+ * in the app built for it, whose view controls will not rotate it out of the hyperplane its
+ * rendering depends on.
  */
 function linkFor(entry: CatalogEntry): string {
   return entry.nDims === 3
     ? `${BASE}cube/#p=${encodeURIComponent(entry.id)}`
-    : `${BASE}classic/#p=${encodeURIComponent(entry.id)}`;
+    : `${BASE}multi/#p=${encodeURIComponent(entry.id)}`;
 }
 
 function Card({ entry, dims }: { entry: CatalogEntry; dims: number }) {

@@ -257,11 +257,11 @@ operated by the buttons under it, because "which pane?" is a question a panel co
 without inventing an active-pane concept — and playing with the duplicated pair in the classic app
 showed the panel copy going unused there too.
 
-The classic app now has neither. It is the one that keeps faith with the original: free rotation by
-dragging, and Reset view to get back. Named viewpoints, Turn and Tip are the multi-view app's
-vocabulary, and the keys that drove them (`[` `]` `,` `.` `;` `'`) went with them — they were bound
-to the window with no check on the focused element, so a comma typed into a filename field turned
-the puzzle.
+The classic app now has none of it — not the overlay, not the panel section, not the eight named
+viewpoints, and not the axis inset. It is the one that keeps faith with the original: free rotation
+by dragging, and Reset view to get back. That vocabulary belongs to the multi-view app, and the keys
+that drove it (`[` `]` `,` `.` `;` `'`) went with it — they were bound to the window with no check on
+the focused element, so a comma typed into a filename field turned the puzzle.
 
 **The axis inset.** A 96px compass in the top-right, toggleable, showing where the four axes
 currently point. Three decisions inside it are worth knowing.

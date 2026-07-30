@@ -6,7 +6,6 @@ import { PALETTES, paletteSwatches } from '@mc4d/render';
 import type { PuzzleRenderer } from '@mc4d/render';
 
 import {
-  AxisInset,
   Autosave,
   decodePermalink,
   DEFAULT_CONTROLS,
@@ -23,7 +22,6 @@ import {
   Section,
   appKey,
   suggestFilename,
-  useAxisColors,
   toSaveDoc,
   usePuzzleCanvas,
   usePuzzleSession,
@@ -76,25 +74,6 @@ export function App() {
 
   const { controls, setControls } = puzzle;
   const sliceLabel = describeSlices(session.slicemask);
-  const [axisHints, setAxisHints] = useState(() => {
-    try {
-      return globalThis.localStorage?.getItem(appKey('axisHints')) !== 'off';
-    } catch {
-      return true;
-    }
-  });
-  const axisColors = useAxisColors(puzzle.geometry, controls.paletteId);
-
-  const toggleAxisHints = useCallback(() => {
-    setAxisHints((on) => {
-      try {
-        globalThis.localStorage?.setItem(appKey('axisHints'), on ? 'off' : 'on');
-      } catch {
-        /* a forgotten preference is not worth surfacing */
-      }
-      return !on;
-    });
-  }, []);
   const [notice, setNotice] = useState<string | null>(null);
 
   const say = useCallback((message: string) => {
@@ -249,7 +228,6 @@ export function App() {
           {sliceLabel !== '1' && <span className="slices">layer {sliceLabel}</span>}
         </div>
 
-        {axisHints && <AxisInset getRotation={puzzle.getRotation} colors={axisColors} />}
 
       </div>
 
@@ -436,11 +414,6 @@ export function App() {
         </Section>
 
         <Section id="view" title="View controls">
-          <label className="check">
-            <input type="checkbox" checked={axisHints} onChange={toggleAxisHints} />
-            <span>Show axis hints in the corner</span>
-          </label>
-
           <h3 className="subhead">Colors</h3>
           <div className="palettes">
             {PALETTES.map((palette) => (
