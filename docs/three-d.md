@@ -379,3 +379,71 @@ take that, none yet chosen:
    itself as the bridge — "here is why the corner does nothing on a cube, and everything here."
 
 The third is the only one that uses what was learned rather than working around it.
+
+---
+
+## 12. What a twist actually is — and why 120° is physical
+
+The question that settles §11: are the 120° and 180° twists *physical* in 4D, or do the cubies pass
+through each other? Measured on `{4,3,3} 3`, for the cell at +W:
+
+```
+vertex axis  order 3 (120°)   cell normal fixed: 0.0e+0   W component ever changed: 0.0e+0
+edge   axis  order 2 (180°)   cell normal fixed: 0.0e+0   W component ever changed: 0.0e+0
+face   axis  order 4  (90°)   cell normal fixed: 0.0e+0   W component ever changed: 0.0e+0
+```
+
+**No twist of MC4D is a four-dimensional rotation.** Every one is a *simple* rotation — a single
+bivector, one invariant plane — and that plane lies entirely inside the cell's own 3-space. The W
+component of every basis vector is untouched, exactly.
+
+The construction makes this inevitable. `CSG.calcRotationGroupOrder` builds an orthonormal frame `U`
+whose first two rows are the cell's normal and the cell→element direction, then rotates in the plane
+of the *last two* rows — the plane orthogonal to both. The cell normal is W and the element direction
+lies in XYZ, so the rotation plane is inside XYZ.
+
+For the +W cell of a hypercube, with the six coordinate bivectors available in 4D:
+
+| Element | Direction | Rotation plane | Order |
+|---|---|---|---|
+| a face, at +X | `x` | `y∧z` | 4 — 90° |
+| an edge, at +X+Y | `(x+y)/√2` | `(x−y)∧z` | 2 — 180° |
+| a vertex, at +X+Y+Z | `(x+y+z)/√3` | the plane ⟂ to it in XYZ | 3 — 120° |
+
+So of `xy, xz, yz, xw, yw, zw`, a twist of the +W cell uses only the first three, and never the three
+containing W. Cells at ±X use only the planes avoiding X, and so on.
+
+The measured vertex twist is exactly `X→Y→Z→X`: the 3-cycle of coordinate axes, which is the 120°
+rotation about the body diagonal `(1,1,1)`, with W left alone.
+
+### Why that is physical
+
+Because the slab being turned is a **cube**. Layers measured from the +W cell contain, in order:
+
+```
+layer 1: 27 cubies     layer 2: 26 cubies (27 less the invisible core)     layer 3: 27 cubies
+```
+
+Each is a 3×3×3 block at constant W. A twist rotates one or more of these blocks about an axis lying
+in their common 3-space; W never changes, so a moving block stays in its own hyperplane and the
+stationary cubies are in others. Nothing can intersect at any moment of the motion. Within the block,
+the rotation is a symmetry of a cube — order 3 about a vertex, 2 about an edge, 4 about a face — so
+cubies land on cubies.
+
+### The reframing this forces
+
+The fourth dimension is not in the motion. **A hypercube twist is exactly the thing you do to a whole
+Rubik's cube: pick it up and turn it.** What is four-dimensional is that there are *eight* such blocks
+sharing their pieces — 8 × 27 = 216 sticker slots over 81 cubies — and that turning one rearranges the
+others.
+
+Which rescues §11's conclusion rather than confirming it. The 3D cube is not a poor teacher of the
+grip taxonomy; it is a *complete* teacher of one cell of it:
+
+> In four dimensions each of the eight cells is a Rubik's cube in its own right, and a twist turns
+> one of them. In three dimensions there is only one such block — the whole puzzle. That is why a
+> corner click reorients the entire cube here and turns a single cell there. It is the same move; the
+> 3D puzzle just has nothing else to be.
+
+So the corner and edge clicks are not degenerate in 3D after all. They are the honest 3D shadow of the
+4D move, and the lesson is the sentence above.
