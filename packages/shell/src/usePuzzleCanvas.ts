@@ -12,7 +12,7 @@ import type { PuzzleRenderer } from '@mc4d/render';
 
 import { usePuzzleAsset } from './usePuzzleAsset.js';
 import { useViewport, type ViewportHandlers } from './useViewport.js';
-import type { Catalog, PuzzleGeometry } from '@mc4d/puzzle-core';
+import type { Catalog, CatalogEntry, PuzzleGeometry } from '@mc4d/puzzle-core';
 import type { ViewControls } from './viewControls.js';
 
 export type CanvasHandlers = ViewportHandlers;
@@ -48,8 +48,10 @@ export function usePuzzleCanvas(
   assetBase: string,
   initial: { id: string; path: string },
   handlers: CanvasHandlers,
+  /** Which puzzles this app is for; see usePuzzleAsset. Omit to accept everything. */
+  accepts?: (entry: CatalogEntry) => boolean,
 ): PuzzleCanvas {
-  const asset = usePuzzleAsset(assetBase, initial);
+  const asset = usePuzzleAsset(assetBase, initial, accepts);
   const viewport = useViewport(asset.geometry, asset.controls, handlers, {
     onError: asset.reportError,
   });

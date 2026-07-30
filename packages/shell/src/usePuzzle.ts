@@ -107,6 +107,8 @@ export interface PuzzleSession {
    * the toggle. A direction indicator built on it therefore shows what a click will actually do.
    */
   readonly reversed: boolean;
+  /** True while Control is held: a click asks for the facet axis rather than inferring one. */
+  readonly facetAxis: boolean;
   readonly busy: boolean;
 }
 
@@ -197,10 +199,16 @@ export function usePuzzleSession(
   // changing it back. It combines with the toggle by exclusive-or, so holding shift always reverses
   // whatever the toggle currently says rather than forcing one direction.
   const shiftReversedRef = useRef(false);
+  // Control, while held, asks for the facet axis whatever the clicked piece's colour count implies —
+  // the turn the face's centre sticker would give, on puzzles that have one and on those that do not.
+  const facetAxisRef = useRef(false);
   const scrambleRef = useRef<SessionState['scramble']>(undefined);
   const effectiveMask = () => keyMaskRef.current | chipMaskRef.current || 1;
   const syncMask = () => setSlicemask(effectiveMask());
   const effectiveReversed = () => reversedRef.current !== shiftReversedRef.current;
+  /** The facet's own dimension when Control is held, and nothing otherwise. */
+  const axisOverride = (geo: PuzzleGeometry) =>
+    facetAxisRef.current ? geo.nDims - 1 : undefined;
   // The reported value is the effective one, so the direction buttons light up to match what a click
   // would actually do while shift is down — exactly as the layer chips show the borrowed layer.
   const syncReversed = () => setReversedState(effectiveReversed());
@@ -216,6 +224,7 @@ export function usePuzzleSession(
   const [playing, setPlayingState] = useState(false);
   const playingRef = useRef(false);
   const [playbackSpeed, setPlaybackSpeedState] = useState(() => readStoredSpeed());
+  const [facetAxis, setFacetAxis] = useState(false);
   const speedRef = useRef(playbackSpeed);
   const [busy, setBusy] = useState(false);
 
@@ -372,6 +381,10 @@ export function usePuzzleSession(
         shiftReversedRef.current = true;
         syncReversed();
       }
+      if (event.ctrlKey !== facetAxisRef.current) {
+        facetAxisRef.current = event.ctrlKey;
+        setFacetAxis(event.ctrlKey);
+      }
     };
     const onKeyUp = (event: KeyboardEvent) => {
       const digit = Number(event.key);
@@ -383,13 +396,19 @@ export function usePuzzleSession(
         shiftReversedRef.current = false;
         syncReversed();
       }
+      if (event.ctrlKey !== facetAxisRef.current) {
+        facetAxisRef.current = event.ctrlKey;
+        setFacetAxis(event.ctrlKey);
+      }
     };
     // Releasing a key while the window is unfocused would otherwise leave it stuck down.
     const onBlur = () => {
       keyMaskRef.current = 0;
       shiftReversedRef.current = false;
+      facetAxisRef.current = false;
       syncMask();
       syncReversed();
+      setFacetAxis(false);
     };
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
@@ -437,7 +456,7 @@ export function usePuzzleSession(
         each((v) => v.setHighlight(-1, -1));
         return;
       }
-      const { gripIndex } = gripForPick(geometry, hit.sticker, hit.poly);
+      const { gripIndex } = gripForPick(geometry, hit.sticker, hit.poly, axisOverride(geometry));
       // Only light up what could actually be twisted with the current slice selection.
       if (gripIndex < 0 || !isValidTwist(geometry, gripIndex, effectiveMask())) {
         each((v) => v.setHighlight(-1, -1));
@@ -456,7 +475,7 @@ export function usePuzzleSession(
       const hit = view.pick(x, y);
       if (!hit) return false;
 
-      const { gripIndex } = gripForPick(geometry, hit.sticker, hit.poly);
+      const { gripIndex } = gripForPick(geometry, hit.sticker, hit.poly, axisOverride(geometry));
       const mask = effectiveMask();
       if (gripIndex < 0 || !isValidTwist(geometry, gripIndex, mask)) return false;
 
@@ -622,6 +641,7 @@ export function usePuzzleSession(
       revision,
       playing,
       playbackSpeed,
+      facetAxis,
       reversed,
       busy,
     },

@@ -60,7 +60,13 @@ function readShown(): boolean[] {
 
 export function App() {
   const assetBase = `${import.meta.env.BASE_URL}assets/`;
-  const asset = usePuzzleAsset(assetBase, { id: DEFAULT_PUZZLE_ID, path: '4-3-3_3.mc4dpz' });
+  // Four-dimensional only: the per-pane Tip and Flip would rotate a flat puzzle out of its
+  // hyperplane, and this app is about seeing a 4D object from several angles at once.
+  const asset = usePuzzleAsset(
+    assetBase,
+    { id: DEFAULT_PUZZLE_ID, path: '4-3-3_3.mc4dpz' },
+    (entry) => entry.nDims === 4,
+  );
   const [shown, setShown] = useState<boolean[]>(readShown);
   const visibleCount = shown.filter(Boolean).length;
 

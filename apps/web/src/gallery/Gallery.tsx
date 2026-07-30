@@ -112,7 +112,7 @@ export function Gallery() {
           <p className="shape">{describeShape(family.schlafli)}</p>
           <div className="grid">
             {family.entries.map((entry) => (
-              <Card key={entry.id} entry={entry} dims={4} />
+              <Card key={entry.id} entry={entry} dims={entry.nDims} />
             ))}
           </div>
         </section>
@@ -123,11 +123,23 @@ export function Gallery() {
   );
 }
 
+/**
+ * Where a puzzle opens.
+ *
+ * Not always the classic app: a three-dimensional solid belongs in the app built for it, whose view
+ * controls will not rotate it out of the hyperplane its rendering depends on.
+ */
+function linkFor(entry: CatalogEntry): string {
+  return entry.nDims === 3
+    ? `${BASE}cube/#p=${encodeURIComponent(entry.id)}`
+    : `${BASE}classic/#p=${encodeURIComponent(entry.id)}`;
+}
+
 function Card({ entry, dims }: { entry: CatalogEntry; dims: number }) {
   const [failed, setFailed] = useState(false);
   const thumb = `${BASE}gallery/${entry.path.replace(/\.mc4dpz$/, '')}.webp`;
   return (
-    <a className="card" href={`${BASE}classic/#p=${encodeURIComponent(entry.id)}`}>
+    <a className="card" href={linkFor(entry)}>
       <span className="shot">
         {failed ? (
           <span className="noshot" aria-hidden="true" />

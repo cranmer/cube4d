@@ -452,6 +452,7 @@ public class AssetExporter {
             + ", \"bytes\": " + raw.length
             + ", \"gzipBytes\": " + gz.length
             + ", \"sha256\": \"" + sha256(raw) + "\""
+            + ", \"nDims\": " + p.nDims()
             + ", \"nFaces\": " + p.nFaces()
             + ", \"nCubies\": " + p.nCubies()
             + ", \"nStickers\": " + p.nStickers()

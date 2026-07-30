@@ -447,3 +447,90 @@ grip taxonomy; it is a *complete* teacher of one cell of it:
 
 So the corner and edge clicks are not degenerate in 3D after all. They are the honest 3D shadow of the
 4D move, and the lesson is the sentence above.
+
+---
+
+## 13. Which legal moves a click can actually reach
+
+Not all of them, in either dimension. Measured by taking every grip a click can produce — over every
+sticker and every polygon of it — and comparing against every move `isValidTwist` allows:
+
+| Puzzle | | Axes that turn | Reachable | Legal moves | Reachable |
+|---|---|---|---|---|---|
+| `{4,3} 2` pocket cube | 3D | 54 | **6 (11%)** | 66 | **18 (27%)** |
+| `{4,3} 3` Rubik's cube | 3D | 54 | 54 (100%) | 90 | 90 (100%) |
+| `{4,3} 5` professor's | 3D | 54 | 54 (100%) | 234 | 234 (100%) |
+| `{5,3} 3` megaminx | 3D | 132 | 132 (100%) | 204 | 204 (100%) |
+| `{4,3,3} 2` pocket hypercube | 4D | 208 | **64 (31%)** | 624 | **192 (31%)** |
+| `{4,3,3} 3` hypercube | 4D | 208 | 208 (100%) | 1,456 | 1,456 (100%) |
+| `{5,3,3} 2` 120-cell | 4D | 7,440 | 7,440 (100%) | 52,080 | 52,080 (100%) |
+| `{3,3,3} 3` simplex | 4D | 70 | **50 (71%)** | 490 | **350 (71%)** |
+
+**Yes, it happens in 4D too, and worse.** The pocket hypercube reaches under a third of its own legal
+moves, and the simplex under three quarters — both larger gaps than anything in 3D. This is a property
+of the pick heuristic, not of the third dimension, and it has been in the original all along.
+
+The pattern is the same in both cases: the heuristic maps a piece's colour count to an axis
+*dimension*, so it can only reach axes of the dimensions the puzzle's pieces happen to represent.
+
+- **Two-layer puzzles** have nothing but corners, so one dimension is all a click can ask for — and
+  in three dimensions a corner axis can only turn the whole solid (§5a). **The 3D 2×2×2 therefore has
+  no moves at all through this interface.** Every one of its 24 stickers resolves to a vertex axis,
+  and every vertex axis is refused at a single layer, so the pocket cube is unplayable here. Its face
+  axes exist and are legal; nothing can ask for them.
+
+  The original meets the same shape of problem one level up — a 2×2×2 *cell* of a 4D puzzle also has
+  only corners — and solves it with `is2x2x2Cell`, which detects the case by comparing squared
+  distances against tuned constants and reroutes such clicks to a face axis. An equivalent for 3D was
+  written and then removed. It worked, and it was a second special case bolted onto a rule that is
+  supposed to be general, applying to one puzzle and no other. A general answer — something like
+  "fall back to the nearest axis that can actually turn what was asked for" — would fix the pocket
+  cube, the pocket hypercube and the simplex together, and is worth more than three separate
+  exceptions. Until then the 2×2×2 is documented as unplayable rather than quietly special-cased.
+- **The simplex** has pieces carrying more colours than the puzzle has dimensions, so `nDims − colours`
+  goes negative; the code clamps it, and the axes that would have been selected are never asked for.
+
+**The megaminx is fully reachable** — 132 of 132 axes, 204 of 204 moves. What is true of it, and of
+every 3D puzzle, is that its corner and edge axes can only turn the whole solid (§5a), so the only
+moves that rearrange anything are face turns. That is a different observation from unreachability, and
+it is a fact about three dimensions rather than about the interface.
+
+None of this is fixed, deliberately. The alternative to a heuristic that sometimes cannot reach an axis
+is a UI that makes you choose one explicitly, which is the interface the original's own author
+described at length as the thing he did not want.
+
+---
+
+## 14. The app
+
+`/cube/`, its own front-end rather than a mode of the classic one, because almost every control
+differs. What it shares is everything below the layout — the geometry pipeline, the twist code, the
+pick heuristic — which is the point.
+
+**Panes.** A, B and C, as in the multi-view app: each keeps its own camera, and closing one and
+reopening it returns the view you had. Useful for the same reason as on the hypercube, and for one
+more that is particular to this app — tip one pane through the fourth dimension and watch the same
+solid from inside and outside its hyperplane at once.
+
+**View controls.** Turn, Tip, Flip and Reset, per pane. Tip and Flip are here deliberately even
+though a 3D puzzle has no fourth dimension to speak of, because that is exactly what they show:
+
+| | Effect on a puzzle flat in W |
+|---|---|
+| drag | stays in the hyperplane — the drag handler withholds the W planes below four dimensions |
+| Turn | stays in it — rotates in the plane of two puzzle axes |
+| Tip | **leaves it** — rotates the viewer axis into the puzzle's own, so the solid foreshortens in a direction it has no extent in, and lands edge-on |
+| Flip | stays in it, but acts as `diag(1, 1, −1)`: a *mirror*. In four dimensions a solid can be turned into its own reflection without passing through itself |
+| `+X … −W` | not offered — each sends a puzzle axis all the way to W, showing nothing |
+
+**Animation.** Twists animate as they do in 4D, which took a fix worth recording: `twistMatrix`
+returns an n×n matrix, and `Matrix4.fromArray` reads sixteen entries regardless, so a 3×3 matrix was
+filling the rest with `undefined`. The turning layer rendered as NaN — invisible — and a twist
+appeared to happen instantly. The matrix is now widened at the same boundary the geometry is, with
+the missing axes left fixed. Measured afterwards: 8 distinct twist matrices through one turn against
+the hypercube's 16, no NaNs in either.
+
+**Puzzle list.** The eight 3D puzzles, and only those. Each app now declares which dimension it is
+for and the catalog is filtered as it arrives, so a permalink, a picker and a restored session all
+see the same set — verified by handing the classic app a 3D permalink and watching it stay on the
+hypercube. The manifest carries `nDims` for this rather than leaving apps to parse Schläfli symbols.

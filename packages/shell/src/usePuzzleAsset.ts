@@ -7,8 +7,8 @@
  * is pointing.
  */
 
-import { useCallback, useEffect, useState } from 'react';
-import { type Catalog, type PuzzleGeometry } from '@mc4d/puzzle-core';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { type Catalog, type CatalogEntry, type PuzzleGeometry } from '@mc4d/puzzle-core';
 
 import { sharedKey } from './storage.js';
 import { loadPuzzle } from './usePuzzle.js';
@@ -61,6 +61,12 @@ export interface PuzzleAsset {
 export function usePuzzleAsset(
   assetBase: string,
   initial: { id: string; path: string },
+  /**
+   * Which puzzles this app is for. Applied to the catalog as it arrives, so the picker, permalinks
+   * and any restored session all see the same set — an app cannot be talked into loading a puzzle it
+   * was not built to draw. Omit to accept everything.
+   */
+  accepts?: (entry: CatalogEntry) => boolean,
 ): PuzzleAsset {
   const [geometry, setGeometry] = useState<PuzzleGeometry | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -68,6 +74,9 @@ export function usePuzzleAsset(
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [catalog, setCatalog] = useState<Catalog | null>(null);
   const [target, setTarget] = useState(initial);
+  // Held in a ref so passing an inline predicate does not refetch the catalog every render.
+  const acceptsRef = useRef(accepts);
+  acceptsRef.current = accepts;
   const [controls, setControlsState] = useState<ViewControls>(() => ({
     ...DEFAULT_CONTROLS,
     // The palette is a taste and an accessibility choice, so it should survive a reload.
@@ -79,7 +88,8 @@ export function usePuzzleAsset(
     fetch(`${assetBase}manifest.json`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`manifest ${r.status}`))))
       .then((c: Catalog) => {
-        if (!cancelled) setCatalog(c);
+        if (cancelled) return;
+        setCatalog(acceptsRef.current ? { ...c, puzzles: c.puzzles.filter(acceptsRef.current) } : c);
       })
       .catch(() => {
         // The catalog is a convenience; without it the app still plays whatever loaded.

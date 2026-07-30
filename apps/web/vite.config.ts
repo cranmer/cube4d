@@ -20,6 +20,7 @@ export default defineConfig({
         classic: entry('classic/index.html'),
         gallery: entry('gallery/index.html'),
         multi: entry('multi/index.html'),
+        cube: entry('cube/index.html'),
       },
     },
   },

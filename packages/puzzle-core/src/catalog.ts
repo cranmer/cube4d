@@ -7,6 +7,14 @@
  */
 
 export interface CatalogEntry {
+  /**
+   * How many dimensions the puzzle lives in.
+   *
+   * Present so an app can select the puzzles it is for without parsing Schläfli symbols. It matters
+   * more than it sounds: a 3D puzzle in a 4D app is not merely odd, it is drawn by a pipeline whose
+   * view controls would rotate it out of the hyperplane it depends on.
+   */
+  nDims: number;
   /** `"{4,3,3} 3"` — the same identifier `.log` files use to name a puzzle. */
   readonly id: string;
   readonly schlafli: string;
@@ -89,6 +97,11 @@ export function groupByFamily(catalog: Catalog): CatalogFamily[] {
     }))
     // Stable, so anything unranked keeps the catalog's own order.
     .sort((a, b) => rank(a.schlafli) - rank(b.schlafli));
+}
+
+/** A catalog holding only the puzzles of one dimension, for an app that is about one of them. */
+export function catalogOfDimension(catalog: Catalog, nDims: number): Catalog {
+  return { ...catalog, puzzles: catalog.puzzles.filter((p) => p.nDims === nDims) };
 }
 
 export function findEntry(catalog: Catalog, id: string): CatalogEntry | undefined {

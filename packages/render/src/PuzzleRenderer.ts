@@ -168,7 +168,20 @@ export class PuzzleRenderer {
 
   setTwistMatrix(matrix: Float64Array): void {
     if (!this.material) return;
-    (this.material.uniforms.uTwistMat.value as THREE.Matrix4).fromArray(Array.from(matrix));
+    // A puzzle of fewer than four dimensions hands over an n×n matrix, and Matrix4.fromArray reads
+    // sixteen entries regardless — filling the rest with undefined, which is how a 3D twist came to
+    // render as nothing at all rather than as a turning layer. Widen it the same way the geometry is
+    // widened, with the missing axes left fixed.
+    const n = Math.round(Math.sqrt(matrix.length));
+    let flat: ArrayLike<number> = matrix;
+    if (n < 4) {
+      const wide = new Float64Array(16);
+      wide[15] = 1;
+      for (let i = 0; i < 4; ++i) if (i >= n) wide[i * 4 + i] = 1;
+      for (let i = 0; i < n; ++i) for (let j = 0; j < n; ++j) wide[i * 4 + j] = matrix[i * n + j];
+      flat = wide;
+    }
+    (this.material.uniforms.uTwistMat.value as THREE.Matrix4).fromArray(Array.from(flat));
   }
 
   /** Clear the animation. Call once the move has been applied to the puzzle state. */

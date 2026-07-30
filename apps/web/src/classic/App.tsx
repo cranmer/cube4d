@@ -59,6 +59,9 @@ export function App() {
     assetBase,
     { id: DEFAULT_PUZZLE_ID, path: '4-3-3_3.mc4dpz' },
     handlers,
+    // Four-dimensional only. The catalog also holds 3D solids, which have their own app: this one's
+    // viewpoint controls would rotate one out of the hyperplane its rendering depends on.
+    (entry) => entry.nDims === 4,
   );
   const { session, actions } = usePuzzleSession(puzzle.getViews, puzzle.geometry);
   actionsRef.current = actions;

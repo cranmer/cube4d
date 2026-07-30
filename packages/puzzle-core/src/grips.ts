@@ -174,7 +174,25 @@ export function is2x2x2Cell(
  * Candidates are filtered to the clicked cell and to the grip dimension the piece type implies,
  * then the nearest grip centre wins.
  */
-export function gripForPick(geo: PuzzleGeometry, stickerIndex: number, polyIndex: number): PickInfo {
+export function gripForPick(
+  geo: PuzzleGeometry,
+  stickerIndex: number,
+  polyIndex: number,
+  /**
+   * Override the axis dimension the colour count would have chosen.
+   *
+   * The inference is convenient and occasionally cannot express what you want. A 2×2×2 has nothing
+   * but corners, so every click asks for a vertex axis and — below four dimensions — a vertex axis
+   * can only turn the whole solid, leaving the puzzle with no moves at all. The same shape of gap
+   * appears on the pocket hypercube and the simplex; see docs/three-d.md §13.
+   *
+   * Rather than special-case those puzzles, the interface offers a way to say what you meant: hold a
+   * key and ask for the facet axis directly — the move the missing centre sticker would have given.
+   * It generalises because it adds a way to *name* an axis rather than a rule about which puzzles
+   * are odd.
+   */
+  axisDim?: number,
+): PickInfo {
   const n = geo.nDims;
   const faceIndex = geo.sticker2face[stickerIndex];
 
@@ -185,7 +203,9 @@ export function gripForPick(geo: PuzzleGeometry, stickerIndex: number, polyIndex
   const twoByTwo = is2x2x2Cell(polyCenter, stickerCenter, faceCenter, n);
 
   let gripDim: number;
-  if (twoByTwo) {
+  if (axisDim !== undefined) {
+    gripDim = axisDim;
+  } else if (twoByTwo) {
     gripDim = 2;
   } else {
     const colors = numColorsForCubie(geo, geo.sticker2cubie[stickerIndex]);

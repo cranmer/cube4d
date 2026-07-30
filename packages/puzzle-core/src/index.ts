@@ -87,6 +87,7 @@ export {
   describeShape,
   findEntry,
   formatBytes,
+  catalogOfDimension,
   groupByFamily,
   isPlayable,
 } from './catalog.js';
