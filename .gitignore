@@ -12,5 +12,6 @@ tools/exporter/.gradle/
 *.class
 
 # Generated puzzle assets (built in CI, published to Pages; manifest is committed)
-packages/app/public/assets/*.mc4dpz
-packages/app/public/assets/*.mc4dpz.gz
+# Path updated when the app moved to apps/web -- the stale rule let 128 of these get committed.
+apps/web/public/assets/*.mc4dpz
+apps/web/public/assets/*.mc4dpz.gz

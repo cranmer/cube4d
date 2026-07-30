@@ -37,7 +37,37 @@ export interface PuzzleBuffers {
  * are shared within a sticker but never between stickers, which is exactly the sharing the GPU
  * wants — no duplication is needed.
  */
-export function buildBuffers(geo: PuzzleGeometry): PuzzleBuffers {
+/**
+ * Present a puzzle of fewer than four dimensions as a four-dimensional one, flat in the extra axes.
+ *
+ * The renderer is `vec4` throughout — a GPU fact rather than a fact about the puzzle — while an asset
+ * is honest about its own dimension. Rather than teach every reader of the per-vertex arrays about
+ * `nDims`, they are padded once, here, and everything downstream carries on believing in four.
+ *
+ * The padding is zero, which makes the projection stage vanish rather than misbehave: it divides by
+ * `eyeW - w`, so `w = 0` gives a factor of exactly one and the 4D→3D step passes `xyz` straight
+ * through. What it does *not* survive is the front-cell cull, which is why that is switched off
+ * separately. See docs/three-d.md §4.
+ */
+export function widenTo4D(geo: PuzzleGeometry): PuzzleGeometry {
+  if (geo.nDims >= 4) return geo;
+  const pad = (src: Float32Array, count: number): Float32Array => {
+    const out = new Float32Array(count * 4);
+    for (let i = 0; i < count; ++i) {
+      for (let k = 0; k < geo.nDims; ++k) out[i * 4 + k] = src[i * geo.nDims + k];
+    }
+    return out;
+  };
+  return {
+    ...geo,
+    nDims: 4,
+    vertsMinusStickerCenters: pad(geo.vertsMinusStickerCenters, geo.nVerts),
+    stickerCenterMinusFaceCenter: pad(geo.stickerCenterMinusFaceCenter, geo.nStickers),
+    faceCenters: pad(geo.faceCenters, geo.nFaces),
+  };
+}
+
+export function buildBuffers(geo: PuzzleGeometry, cull = true): PuzzleBuffers {
   const vertToSticker = vertexToSticker(geo);
 
   const positions = new Float32Array(geo.nVerts * 4);
@@ -84,7 +114,7 @@ export function buildBuffers(geo: PuzzleGeometry): PuzzleBuffers {
   // unset one makes it compute a bogus sphere from the offset attribute.
   geometry.boundingSphere = new THREE.Sphere(new THREE.Vector3(), Number.POSITIVE_INFINITY);
 
-  const { texture, array, width } = buildStickerTexture(geo);
+  const { texture, array, width } = buildStickerTexture(geo, cull);
   return {
     geometry,
     stickerData: texture,
@@ -100,12 +130,14 @@ export function buildBuffers(geo: PuzzleGeometry): PuzzleBuffers {
   };
 }
 
-function buildStickerTexture(geo: PuzzleGeometry): {
+function buildStickerTexture(geo: PuzzleGeometry, cull: boolean): {
   texture: THREE.DataTexture;
   array: Float32Array;
   width: number;
 } {
-  const witnesses = cullWitnesses(geo);
+  // A flat puzzle has one polygon per sticker, so there is no tetrahedron to take a volume of and
+  // nothing to cull. Asking for witnesses would throw, which is the pipeline being honest.
+  const witnesses = cull ? cullWitnesses(geo) : null;
   const vertToSticker = vertexToSticker(geo);
 
   const texelCount = geo.nStickers * TEXELS_PER_STICKER;
@@ -124,13 +156,15 @@ function buildStickerTexture(geo: PuzzleGeometry): {
 
     // The four cull witnesses, stored the same way a vertex is: as an offset from the sticker
     // centre, so the shader can push them through the identical shrink.
-    for (let k = 0; k < 4; ++k) {
-      const v = witnesses[s * 4 + k];
-      if (vertToSticker[v] !== s) {
-        throw new Error(`cull witness ${v} for sticker ${s} belongs to sticker ${vertToSticker[v]}`);
-      }
-      for (let i = 0; i < 4; ++i) {
-        array[texel(STICKER_TEXEL.witness0 + k) + i] = geo.vertsMinusStickerCenters[v * 4 + i];
+    if (witnesses) {
+      for (let k = 0; k < 4; ++k) {
+        const v = witnesses[s * 4 + k];
+        if (vertToSticker[v] !== s) {
+          throw new Error(`cull witness ${v} for sticker ${s} belongs to sticker ${vertToSticker[v]}`);
+        }
+        for (let i = 0; i < 4; ++i) {
+          array[texel(STICKER_TEXEL.witness0 + k) + i] = geo.vertsMinusStickerCenters[v * 4 + i];
+        }
       }
     }
 

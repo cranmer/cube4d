@@ -1,6 +1,7 @@
 export { PuzzleRenderer, type RendererOptions } from './PuzzleRenderer.js';
 export {
   buildBuffers,
+  widenTo4D,
   buildFaceColorTexture,
   buildPickGeometry,
   setTwistingSlice,

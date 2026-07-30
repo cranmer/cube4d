@@ -42,6 +42,16 @@ export interface DragOptions {
   readonly shift: boolean;
   /** Scales rotation per pixel; the original's `dragfactor` preference. */
   readonly dragFactor?: number;
+  /**
+   * The puzzle's own dimension, when it is fewer than four.
+   *
+   * A three-dimensional puzzle is drawn flat in W, and every stage of the pipeline depends on that:
+   * the projection is the identity only while `w = 0`. Rotating in a plane that contains W would tilt
+   * the puzzle out of its hyperplane and start foreshortening a solid that has no fourth extent. So
+   * for such a puzzle the W planes are simply not offered — shift-drag does nothing rather than
+   * something wrong. See docs/three-d.md §4.
+   */
+  readonly dims?: number;
 }
 
 /**
@@ -63,7 +73,9 @@ export function drag(state: RotationState, dx: number, dy: number, options: Drag
     spin[j * N + i] -= v;
   };
 
-  if (options.button === 'left' && !options.shift) {
+  // A puzzle flat in W may only be turned within XYZ.
+  const flat = (options.dims ?? 4) < 4;
+  if (options.button === 'left' && (!options.shift || flat)) {
     set(0, 2, dx);
     set(1, 2, dy);
   } else if (options.button === 'left' && options.shift) {
@@ -71,7 +83,7 @@ export function drag(state: RotationState, dx: number, dy: number, options: Drag
     set(1, 3, -dy);
   } else if (options.button === 'right') {
     set(0, 1, dx);
-    set(3, 2, -dy);
+    if (!flat) set(3, 2, -dy);
   } else {
     return state;
   }

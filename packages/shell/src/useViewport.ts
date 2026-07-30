@@ -290,8 +290,10 @@ export function useViewport(
       rotationRef.current = drag(rotationRef.current, dx, dy, {
         button,
         // Shift switches from the XZ/YZ rotation that reads as a 3D trackball to the XW/YW one
-        // that turns the puzzle through the fourth dimension.
+        // that turns the puzzle through the fourth dimension — which a 3D puzzle does not have, so
+        // it passes its own dimension and the W planes are withheld.
         shift: event.shiftKey,
+        dims: geometry.nDims,
       });
       rendererRef.current?.setRotation(rotationRef.current.mat);
     };

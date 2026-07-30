@@ -56,6 +56,11 @@ uniform float uStickerShrink;
 uniform mat4 uTwistMat;
 uniform float uTwisting;
 
+// Whether to cull the cell facing the 4D eye. Off for puzzles that are genuinely three-dimensional:
+// their stickers are flat polygons, so the four cull witnesses are coplanar, the determinant below is
+// exactly zero, and the test would discard every sticker on the puzzle. See docs/three-d.md §4.
+uniform bool uCull;
+
 vec4 fetchSticker(int stickerId, int texel) {
   int index = stickerId * ${TEXELS_PER_STICKER} + texel;
   return texelFetch(uStickerData, ivec2(index % uStickerTexWidth, index / uStickerTexWidth), 0);
@@ -110,7 +115,7 @@ void main() {
   vec3 p = project(place(aVertMinusStickerCenter, centerMinusFace, faceCenter, meta.z));
   vPos3 = p;
 
-  if (cellVolume(stickerId, centerMinusFace, faceCenter, meta.z) >= 0.0) {
+  if (uCull && cellVolume(stickerId, centerMinusFace, faceCenter, meta.z) >= 0.0) {
     // Facing the 4D eye: collapse it outside the clip volume so nothing is rasterised.
     gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
     return;
@@ -209,7 +214,7 @@ void main() {
   vPickPoly = aPolyId;
 
   vec3 p = project(place(aVertMinusStickerCenter, centerMinusFace, faceCenter, meta.z));
-  if (cellVolume(stickerId, centerMinusFace, faceCenter, meta.z) >= 0.0) {
+  if (uCull && cellVolume(stickerId, centerMinusFace, faceCenter, meta.z) >= 0.0) {
     gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
     return;
   }

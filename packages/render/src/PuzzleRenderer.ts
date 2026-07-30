@@ -11,6 +11,7 @@ import type { PuzzleGeometry } from '@mc4d/puzzle-core';
 
 import {
   buildBuffers,
+  widenTo4D,
   buildFaceColorTexture,
   buildPickGeometry,
   setTwistingSlice,
@@ -66,6 +67,8 @@ export class PuzzleRenderer {
   private radius = 1;
   private zoom = 1;
   private opacity = 1;
+  /** True for puzzles of fewer than four dimensions, drawn flat in the axes they lack. */
+  private flat = false;
   private palette: Palette = paletteById(DEFAULT_PALETTE_ID);
   private sortScratch: { sticker: number; depth: number }[] = [];
 
@@ -102,8 +105,13 @@ export class PuzzleRenderer {
   /** Swap in a puzzle. Disposes whatever was there before. */
   setPuzzle(geo: PuzzleGeometry, palette: Palette = paletteById(DEFAULT_PALETTE_ID)): void {
     this.disposePuzzle();
-    this.geo = geo;
-    this.buffers = buildBuffers(geo);
+    // A puzzle of fewer than four dimensions is drawn flat in the ones it does not have. Widening it
+    // once here means every reader downstream — the buffer builders and the CPU mirror alike — can go
+    // on assuming four. The front-cell cull is the one stage that cannot: see docs/three-d.md §4.
+    this.flat = geo.nDims < 4;
+    this.geo = widenTo4D(geo);
+    geo = this.geo;
+    this.buffers = buildBuffers(geo, !this.flat);
     this.palette = palette;
     this.faceColorTexture = buildFaceColorTexture(
       assignFaceColors(geo.nFaces, geo.face2OppositeFace, palette),
@@ -133,6 +141,7 @@ export class PuzzleRenderer {
         uTwisting: { value: 0 },
         uHighlightSticker: { value: -1 },
         uHighlightCubie: { value: -1 },
+        uCull: { value: !this.flat },
       },
     });
     this.applyOpacity();

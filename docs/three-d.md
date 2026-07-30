@@ -186,10 +186,10 @@ a cuber means by it. That needs checking against a render rather than reasoning 
 | `.mc4dpz`, decoder, `applyTwist` | ✅ already dimension-generic |
 | Exporter emitting 3D entries | ✅ `Expand3D.java`; behind `--include-3d` until the apps can use them |
 | Twist permutations proven bijective in TS | ✅ 66 tests in `threeD.test.ts` |
-| Renderer: pad to `w = 0`, disable the cull | ⬜ |
-| `gripForPick`: face-of-sticker rule for 3D | ⬜ |
-| Drag: keep to the 3D planes | ⬜ |
-| The app itself, with a slice-count choice | ⬜ |
+| Renderer: pad to `w = 0`, disable the cull | ✅ `widenTo4D` + `uCull` |
+| `gripForPick`: face-of-sticker rule for 3D | ✅ |
+| Drag: keep to the 3D planes | ✅ `DragOptions.dims` |
+| The app itself, with a slice-count choice | ⬜ blocked on §9 |
 | Direction convention checked against a render | ⬜ |
 
 ---
@@ -229,3 +229,53 @@ there and does here.
 
 Applied only for 3D. Renumbering 4D vertices would change a wire format, and the check that matters
 is that it did not: **all 128 4D assets export byte-identical** by sha256 after the change.
+
+---
+
+## 9. Open bug: half the expanded vertices land on the wrong face
+
+The renderer now draws a 3D cube, and it is recognisably a cube — six faces, nine stickers each, the
+right colours. It is also wrong, and measurement says where.
+
+Reconstructing each sticker's rest vertices from the asset and comparing against the sticker's own
+face plane:
+
+```
+bad vertices: 102 of 216;  stickers affected: 30 of 54
+affected stickers by face: 0:6  1:6  2:3  3:3  4:9  5:3
+```
+
+The bad ones are off by exactly **2.0** — the distance from one side of the cube to the other. They
+are landing on the opposite face.
+
+What is *not* at fault, checked rather than assumed:
+
+- **The twist algebra.** All 66 tests still pass, including every permutation being a bijection. The
+  twist path reads `stickerCenters` and the grip matrices, not the vertex offsets, so it is untouched
+  by this.
+- **`stickerCenterMinusFaceCenter`.** Exact for all 54 stickers, and every sticker centre lies on its
+  own face's plane. The per-sticker half of the decomposition is right.
+- **The counts.** 56 shared vertices expanding to 216 is exactly right: a 3×3×3's surface has
+  8 + 12×2 + 6×4 = 56 distinct vertices, and 54 quads × 4 = 216 copies.
+
+So the fault is in `vertsMinusStickerCenters` — the per-vertex offsets `Expand3D` writes — and
+specifically in the absolute position it reconstructs before re-measuring. The reconstruction is
+`vertsMinusStickerCenters[v] + vertStickerCentersMinusFaceCenters[v] + vertFaceCenters[v]`, and the
+original fills all three from the same sticker in one guarded block, so they ought to be internally
+consistent for every vertex, shared or not:
+
+```java
+if(vertsMinusStickerCenters[iVert] == null) {
+    vertsMinusStickerCenters[iVert] = doubleToFloat(vmv(restVerts[iVert], stickerCentersD[iSticker]));
+    vertStickerCentersMinusFaceCenters[iVert] = stickerCentersMinusFaceCentersF[iSticker];
+    vertFaceCenters[iVert] = faceCenters[iFace];
+}
+```
+
+That they are apparently not is the thing to chase. The decisive next measurement is inside the
+exporter rather than in TypeScript: compare the reconstruction against `restVerts` directly for every
+vertex. `restVerts` is a local rather than a field, so this needs either the sliced polytope's own
+coordinates through CSG, or the comparison done where the array is still in scope.
+
+Worth noting what this rules in: **an error of exactly 2.0 is a sign error or a wrong face, not
+floating-point drift.** Whatever it is, it will be a discrete mistake with a single cause.
