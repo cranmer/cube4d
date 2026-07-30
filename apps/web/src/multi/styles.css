@@ -417,7 +417,11 @@ button:disabled:hover { background: #21262d; }
 .stage.panes-2 { grid-template-columns: 1fr 1fr; }
 .stage.panes-3 { grid-template-columns: 1fr 1fr 1fr; }
 
+/* A container, so the controls below can size themselves against the *pane* rather than the window.
+   The two are not the same thing here: three panes on a desktop are each as narrow as one pane on a
+   phone, and a viewport media query would leave the desktop case wrapping. */
 .pane {
+  container-type: inline-size;
   position: relative;
   min-width: 0;
   min-height: 0;
@@ -495,6 +499,23 @@ button:disabled:hover { background: #21262d; }
 .counter { display: flex; gap: 12px; align-items: baseline; font-size: 13px; color: var(--dim); }
 .counter b { font-size: 15px; color: var(--text); font-variant-numeric: tabular-nums; }
 .counter .won { color: #7ee787; font-weight: 600; }
+
+/* Narrow pane: tighten everything until the four controls fit on one line again. Wrapping put Reset
+   on a row of its own, which read as though it belonged to something else. */
+@container (max-width: 470px) {
+  .pane-controls { column-gap: 8px; row-gap: 8px; padding: 8px 6px 10px; }
+  .pane-controls .pad + .pad { margin-left: 4px; }
+  .pane-controls button { padding: 5px 6px; gap: 4px; font-size: 10px; }
+  .pane-controls .pad span { font-size: 9.5px; letter-spacing: 0.03em; padding: 0; }
+}
+
+/* Narrower still: the words go and the icons carry it, since two icons either side of a gap are
+   already the affordance and the labels are only naming them. */
+@container (max-width: 330px) {
+  .pane-controls .pad span,
+  .pane-controls .flip span { display: none; }
+  .pane-controls .pad + .pad { margin-left: 8px; }
+}
 
 @media (max-width: 900px) {
   .stage.panes-2,
