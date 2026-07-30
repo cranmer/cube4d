@@ -335,3 +335,47 @@ never the vertex offsets, so this was invisible to all 66 of them. It took a pic
 | The app itself, with a slice-count choice | ⬜ |
 | Direction convention checked against a render | ⬜ |
 | 3D assets shipped by default | ⬜ still behind `--include-3d` |
+
+---
+
+## 11. Does this actually teach the 4D interface?
+
+Honestly: **less than it was meant to.** Worth writing down while the reasoning is fresh, because the
+answer decides what the app is for.
+
+What was hoped: learn the grip taxonomy — corner means a 120° turn, edge means 180°, centre means 90°
+— on a shape whose solved state you can already picture, then carry that to the hypercube.
+
+What actually transfers:
+
+| | 3D cube | 4D hypercube |
+|---|---|---|
+| Hover a sticker, see the piece light up | ✅ | ✅ |
+| Which axis a click means, from the piece's colour count | ✅ | ✅ |
+| Layer selection 1–n, direction toggle, right-click to reverse | ✅ | ✅ |
+| Drag to rotate, with momentum | ✅ | ✅ |
+| **Corner click turns a layer** | ❌ whole solid only | ✅ |
+| **Edge click turns a layer** | ❌ whole solid only | ✅ |
+| **Centre sticker does nothing** | ❌ it is the face turn | ✅ dead |
+
+The mechanics transfer completely. The *taxonomy* — the distinctive part, the thing a newcomer finds
+strange — is exactly where the two disagree, and it disagrees in both directions at once: the two
+piece types that would demonstrate it are inert in 3D, and the one type that is inert in 4D is the
+useful one in 3D.
+
+**And the engine cannot produce a 3D puzzle where they would work.** Every cut it makes is parallel
+to a face (`faceCutOffsets` is indexed by face), so no corner-turning solid — a Skewb, a Dino cube —
+is expressible here. This is not a gap to be filled later; it follows from how the slicing is defined.
+
+So the 3D cube is a good on-ramp for the *mechanics* and a poor teacher of the *idea*. Three ways to
+take that, none yet chosen:
+
+1. **Keep it, and say what it is.** An on-ramp for hover/click/layers/direction/drag, plus a genuinely
+   interesting exhibit: a Rubik's cube has no corner move, and here is the dimension count that says
+   why. Curiosity rather than pedagogy.
+2. **Teach on a small 4D puzzle instead.** The taxonomy only exists in 4D, so the tutorial arguably
+   belongs on `{4,3,3} 2` or `{3,3,3} 3`, where there are few enough pieces to see what is happening.
+3. **Split the tutorial.** Mechanics on the cube, taxonomy on the hypercube, with the disagreement
+   itself as the bridge — "here is why the corner does nothing on a cube, and everything here."
+
+The third is the only one that uses what was learned rather than working around it.

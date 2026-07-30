@@ -22,10 +22,13 @@ const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 const catalog = JSON.parse(readFileSync(`${ROOT}fixtures/manifest.json`, 'utf8')) as Catalog;
 
 describe('the manifest', () => {
-  it('lists every puzzle the original ships', () => {
-    // 21 families at their legal lengths. The original's catalog has 24 entries but three are
-    // commented out or are the "invent your own" placeholder.
-    expect(catalog.puzzles).toHaveLength(128);
+  it('lists every puzzle the original ships, plus the 3D ones it could not build', () => {
+    // 21 four-dimensional families at their legal lengths — the original's catalog has 24 entries
+    // but three are commented out or are the "invent your own" placeholder — and two 3D families
+    // the original never generated axes for. See docs/three-d.md.
+    const threeD = catalog.puzzles.filter((p) => p.schlafli === '{4,3}' || p.schlafli === '{5,3}');
+    expect(threeD).toHaveLength(8);
+    expect(catalog.puzzles).toHaveLength(136);
     expect(catalog.assetsVersion).toMatch(/^\d{4}\.\d{2}\.\d+$/);
   });
 
@@ -65,7 +68,7 @@ describe('grouping', () => {
   const families = groupByFamily(catalog);
 
   it('collects lengths under their family', () => {
-    expect(families).toHaveLength(21);
+    expect(families).toHaveLength(23);
     const hypercube = families.find((f) => f.schlafli === '{4,3,3}')!;
     expect(hypercube.name).toBe('Hypercube');
     expect(hypercube.entries.map((e) => e.length)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
