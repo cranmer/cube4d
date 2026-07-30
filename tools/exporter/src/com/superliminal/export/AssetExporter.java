@@ -79,6 +79,10 @@ public class AssetExporter {
      * {3,3} and {3,4} are absent because they fail inside the CSG for unrelated reasons: an
      * orientation assertion and an unimplemented Schlafli case. The 3D family here is cubes and
      * dodecahedra.
+     *
+     * Exported only with --include-3d, and off by default until it works: 3D stickers share vertices
+     * where 4D stickers do not, which the asset format's index encoding relies on. See
+     * docs/three-d.md section 8. Leaving these in the default catalog broke the deploy.
      */
     private static final String[][] PUZZLES_3D = {
         { "{4,3}", "2,3,4,5,6,7", "Cube" },
@@ -89,9 +93,11 @@ public class AssetExporter {
         File outDir = new File(args.length > 0 ? args[0] : "build/assets");
         String only = null;
         boolean goldens = false;
+        boolean include3d = false;
         for(int i = 1; i < args.length; ++i) {
             if("--only".equals(args[i]) && i + 1 < args.length) only = args[++i];
             else if("--goldens".equals(args[i])) goldens = true;
+            else if("--include-3d".equals(args[i])) include3d = true;
         }
         outDir.mkdirs();
 
@@ -101,8 +107,9 @@ public class AssetExporter {
         List<String[]> catalog = new ArrayList<String[]>();
         for(String[] entry : MagicCube.SUPPORTED_PUZZLES)
             catalog.add(entry);
-        for(String[] entry : PUZZLES_3D)
-            catalog.add(entry);
+        if(include3d)
+            for(String[] entry : PUZZLES_3D)
+                catalog.add(entry);
 
         for(String[] entry : catalog) {
             String schlafli = entry[0];

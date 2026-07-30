@@ -184,7 +184,7 @@ a cuber means by it. That needs checking against a render rather than reasoning 
 | Polytope, slicing, cubies, stickers | ✅ works unmodified |
 | Twist axes for `nDims == 3` | ✅ `Grips3D.java`, verified orthonormal |
 | `.mc4dpz`, decoder, `applyTwist` | ✅ already dimension-generic |
-| Exporter emitting 3D entries | ⚠️ blocked — see §8 |
+| Exporter emitting 3D entries | ⚠️ blocked — see §8. Behind `--include-3d`, off by default |
 | Twist permutations proven bijective in TS | ⬜ |
 | Renderer: pad to `w = 0`, disable the cull | ⬜ |
 | `gripForPick`: face-of-sticker rule for 3D | ⬜ |
