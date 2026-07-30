@@ -464,6 +464,10 @@ button:disabled:hover { background: #21262d; }
   background: linear-gradient(to top, rgba(10, 13, 18, 0.9), rgba(10, 13, 18, 0));
 }
 .pane-controls .pad { display: flex; align-items: center; gap: 3px; }
+/* Turn and Tip are each a labelled trio, and 14px between them was not enough to stop the trios
+   reading as one row of six buttons. The extra margin applies only between adjacent pads, so Flip
+   and Reset keep the ordinary spacing. */
+.pane-controls .pad + .pad { margin-left: 12px; }
 .pane-controls .pad span {
   font-size: 10.5px;
   letter-spacing: 0.06em;
