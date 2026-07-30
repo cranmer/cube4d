@@ -10,16 +10,25 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { type Catalog, type CatalogEntry, type PuzzleGeometry } from '@mc4d/puzzle-core';
 
-import { sharedKey } from './storage.js';
+import { appKey } from './storage.js';
 import { loadPuzzle } from './usePuzzle.js';
 import { DEFAULT_CONTROLS, DEFAULT_CONTROLS_3D, type ViewControls } from './viewControls.js';
 
-// Shared across apps: partly a taste, partly an accessibility need, and asking twice is a defect.
-const PALETTE_KEY = sharedKey('palette');
+// Per app, not per person. The palette was shared at first, on the reasoning that someone who needs
+// a high-contrast one needs it everywhere. That reasoning survives — see the note in storage.ts —
+// but it collided with something more basic: the classic app is meant to look like the original and
+// the multi-view app is meant to be legible in three small panes at once, and those are different
+// pictures. A shared key made the app you opened last decide what the next one looked like.
+//
+// Resolved on each call rather than once at module load: the app names itself at startup, which
+// happens after this module is imported.
+function paletteKey(): string {
+  return appKey('palette');
+}
 
 function readStoredPalette(): string | null {
   try {
-    return globalThis.localStorage?.getItem(PALETTE_KEY) ?? null;
+    return globalThis.localStorage?.getItem(paletteKey()) ?? null;
   } catch {
     // Storage can be unavailable in private modes and inside sandboxed frames.
     return null;
@@ -28,7 +37,7 @@ function readStoredPalette(): string | null {
 
 function storePalette(id: string): void {
   try {
-    globalThis.localStorage?.setItem(PALETTE_KEY, id);
+    globalThis.localStorage?.setItem(paletteKey(), id);
   } catch {
     /* not worth surfacing */
   }
@@ -88,8 +97,8 @@ export function usePuzzleAsset(
   acceptsRef.current = options.accepts;
   const [controls, setControlsState] = useState<ViewControls>(() => ({
     ...DEFAULT_CONTROLS,
-    // The palette is a taste and an accessibility choice, so it should survive a reload. A stored
-    // choice beats the app's default, which is only where a visitor who has never chosen starts.
+    // A choice made in this app survives a reload. Failing that, the app's own default — which is
+    // where someone who has never chosen starts.
     paletteId: readStoredPalette() ?? options.defaultPaletteId ?? DEFAULT_CONTROLS.paletteId,
   }));
 

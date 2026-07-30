@@ -84,13 +84,19 @@ Four unnamespaced keys:
 |---|---|---|
 | `mc4d.session` | `autosave.ts` | **per app** — apps have different notions of a session |
 | `mc4d.sections` | `Section.tsx` | **per app** — section ids only mean something within a layout |
-| `mc4d.palette` | `usePuzzleAsset.ts` | **shared** — a taste, and partly an accessibility need |
+| `mc4d.<app>.palette` | `usePuzzleAsset.ts` | **per app** — the apps are meant to look different from each other |
 | `mc4d.playbackSpeed` | `usePuzzle.ts` | **shared** — a preference about pace, not about layout |
 
-An app may name its own *starting* palette (`PuzzleAssetOptions.defaultPaletteId`) without
-breaking that: the classic app opens in Classic, on the original's sky, because looking like the
-original is its whole character. A stored choice still wins everywhere, so the default is only ever
-what a visitor who has never chosen sees.
+The palette moved from the second group to the first, and the reasoning is worth keeping because
+the original reasoning was also good. Sharing it was an accessibility argument: someone who needs a
+high-contrast palette needs it everywhere. What beat that is that these apps are deliberately not
+alike — the classic app opens in Classic, on the original's sky, because looking like the original
+is its entire character, while the multi-view app opens in Vivid because three small panes at once
+have to be legible at a glance. Shared, the app you opened last decided what the next one looked
+like. Each app now names its starting palette with `PuzzleAssetOptions.defaultPaletteId` and
+remembers what you chose *in that app*. The accessibility cost is real and unpaid: a high-contrast
+palette must now be picked per app. The fix for that is a preference of its own, not a shared
+palette again.
 
 Two apps on one origin share localStorage. Left alone, opening the hypercube app would silently
 overwrite the classic app's autosaved solve. This is the cheapest thing on the list to fix and the

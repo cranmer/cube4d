@@ -7,9 +7,15 @@
  *   - **Properties of the app** — an autosaved session, which panel sections are open. A different
  *     layout reading these would at best find them meaningless and at worst overwrite a solve in
  *     progress. These are namespaced per app.
- *   - **Properties of the person** — colour palette, playback speed. Someone who needs a
- *     high-contrast palette needs it in every app, and being asked twice would be a defect. These
- *     are deliberately shared.
+ *   - **Properties of the person** — playback speed. A preference about pace means the same thing
+ *     in every app, and being asked twice would be a defect. These are deliberately shared.
+ *
+ * The palette began in the second group and ended in the first. The argument for sharing it was
+ * accessibility, and it is a good argument; what beat it is that these apps are meant to look
+ * different from each other, so the app opened last decided what the next one looked like. The cost
+ * is real and is the one to watch: someone who needs a high-contrast palette now picks it in each
+ * app. If that ever needs fixing, fix it as an accessibility preference in its own right rather
+ * than by making the palette shared again.
  *
  * An app declares its id once at startup. This module is the only thing that knows the difference
  * between the two cases, which keeps the rest of the shell honestly ignorant of who is using it.
