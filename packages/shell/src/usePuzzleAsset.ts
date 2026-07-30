@@ -12,7 +12,7 @@ import { type Catalog, type PuzzleGeometry } from '@mc4d/puzzle-core';
 
 import { sharedKey } from './storage.js';
 import { loadPuzzle } from './usePuzzle.js';
-import { DEFAULT_CONTROLS, type ViewControls } from './viewControls.js';
+import { DEFAULT_CONTROLS, DEFAULT_CONTROLS_3D, type ViewControls } from './viewControls.js';
 
 // Shared across apps: partly a taste, partly an accessibility need, and asking twice is a defect.
 const PALETTE_KEY = sharedKey('palette');
@@ -95,6 +95,7 @@ export function usePuzzleAsset(
     let cancelled = false;
     const cached = geometryCache.get(target.id);
     if (cached) {
+      adoptShapeDefaults(cached);
       setGeometry(cached);
       setLoading(false);
       setLoadingId(null);
@@ -106,6 +107,7 @@ export function usePuzzleAsset(
       .then((geo) => {
         geometryCache.set(target.id, geo);
         if (!cancelled) {
+          adoptShapeDefaults(geo);
           setGeometry(geo);
           setLoading(false);
           setLoadingId(null);
@@ -122,6 +124,23 @@ export function usePuzzleAsset(
       cancelled = true;
     };
   }, [assetBase, target]);
+
+  /**
+   * Reframe when crossing between a solid and a hypercube.
+   *
+   * Shape settings that suit one are wrong for the other — 0.4 face shrink separates a hypercube's
+   * cells so you can see inside, and blows a cube apart into six floating sheets. Only the shape
+   * settings move; palette and opacity are about taste and stay where they were put.
+   */
+  const adoptShapeDefaults = useCallback((geo: PuzzleGeometry) => {
+    setControlsState((current) => {
+      const wanted = geo.nDims < 4 ? DEFAULT_CONTROLS_3D : DEFAULT_CONTROLS;
+      if (current.faceShrink === wanted.faceShrink && current.stickerShrink === wanted.stickerShrink) {
+        return current;
+      }
+      return { ...current, faceShrink: wanted.faceShrink, stickerShrink: wanted.stickerShrink };
+    });
+  }, []);
 
   const setControls = useCallback((next: Partial<ViewControls>) => {
     setControlsState((current) => {

@@ -42,4 +42,4 @@ export {
   type ViewportHandlers,
   type ViewSnapshot,
 } from './useViewport.js';
-export { DEFAULT_CONTROLS, type ViewControls } from './viewControls.js';
+export { DEFAULT_CONTROLS, DEFAULT_CONTROLS_3D, type ViewControls } from './viewControls.js';

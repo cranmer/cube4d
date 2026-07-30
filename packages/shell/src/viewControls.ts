@@ -24,3 +24,16 @@ export const DEFAULT_CONTROLS: ViewControls = {
   opacity: 1,
   paletteId: DEFAULT_PALETTE_ID,
 };
+
+/**
+ * Defaults for a puzzle of fewer than four dimensions.
+ *
+ * The 4D numbers pull the cells apart, which is the whole reason the hypercube is legible: without
+ * that separation you would see only the outermost cell. A solid needs the opposite — its faces
+ * belong where they are, and the stickers want the narrow seams a real cube has.
+ */
+export const DEFAULT_CONTROLS_3D: ViewControls = {
+  ...DEFAULT_CONTROLS,
+  faceShrink: 1,
+  stickerShrink: 0.9,
+};

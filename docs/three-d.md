@@ -232,50 +232,69 @@ is that it did not: **all 128 4D assets export byte-identical** by sha256 after 
 
 ---
 
-## 9. Open bug: half the expanded vertices land on the wrong face
+## 9. The bug that was: two orderings that are not the same order
 
-The renderer now draws a 3D cube, and it is recognisably a cube — six faces, nine stickers each, the
-right colours. It is also wrong, and measurement says where.
+The first render was a recognisable cube and completely wrong — 102 of 216 vertices off by exactly
+2.0, the width of the cube, landing on the opposite face. The cause is worth recording because
+nothing about it is visible in either piece of code alone.
 
-Reconstructing each sticker's rest vertices from the asset and comparing against the sticker's own
-face plane:
-
-```
-bad vertices: 102 of 216;  stickers affected: 30 of 54
-affected stickers by face: 0:6  1:6  2:3  3:3  4:9  5:3
-```
-
-The bad ones are off by exactly **2.0** — the distance from one side of the cube to the other. They
-are landing on the opposite face.
-
-What is *not* at fault, checked rather than assumed:
-
-- **The twist algebra.** All 66 tests still pass, including every permutation being a bijection. The
-  twist path reads `stickerCenters` and the grip matrices, not the vertex offsets, so it is untouched
-  by this.
-- **`stickerCenterMinusFaceCenter`.** Exact for all 54 stickers, and every sticker centre lies on its
-  own face's plane. The per-sticker half of the decomposition is right.
-- **The counts.** 56 shared vertices expanding to 216 is exactly right: a 3×3×3's surface has
-  8 + 12×2 + 6×4 = 56 distinct vertices, and 54 quads × 4 = 216 copies.
-
-So the fault is in `vertsMinusStickerCenters` — the per-vertex offsets `Expand3D` writes — and
-specifically in the absolute position it reconstructs before re-measuring. The reconstruction is
-`vertsMinusStickerCenters[v] + vertStickerCentersMinusFaceCenters[v] + vertFaceCenters[v]`, and the
-original fills all three from the same sticker in one guarded block, so they ought to be internally
-consistent for every vertex, shared or not:
+`stickerInds` and `stickerCentersD` are **not indexed the same way in 3D.** In 4D `stickerInds` is
+built by concatenating one `Poly` per sticker, so its order *is* the sticker order:
 
 ```java
-if(vertsMinusStickerCenters[iVert] == null) {
-    vertsMinusStickerCenters[iVert] = doubleToFloat(vmv(restVerts[iVert], stickerCentersD[iSticker]));
-    vertStickerCentersMinusFaceCenters[iVert] = stickerCentersMinusFaceCentersF[iSticker];
-    vertFaceCenters[iVert] = faceCenters[iFace];
-}
+Poly stickerPolys[] = new Poly[nStickers];
+for(int iSticker = 0; ...) stickerPolys[iSticker] = PolyCSG.PolyFromPolytope(stickers[iSticker]);
+Poly slicedPoly = Poly.concat(stickerPolys);
 ```
 
-That they are apparently not is the thing to chase. The decisive next measurement is inside the
-exporter rather than in TypeScript: compare the reconstruction against `restVerts` directly for every
-vertex. `restVerts` is a local rather than a field, so this needs either the sliced polytope's own
-coordinates through CSG, or the comparison done where the array is still in scope.
+In 3D it is the sliced solid's own face list, reinterpreted:
 
-Worth noting what this rules in: **an error of exactly 2.0 is a sign error or a wrong face, not
-floating-point drift.** Whatever it is, it will be a discrete mistake with a single cause.
+```java
+Poly slicedPoly = PolyCSG.PolyFromPolytope(slicedPolytope.p);
+stickerInds = (int[][][]) slicedPoly.inds;   // one contour per face, read as one face per sticker
+```
+
+That order has no reason to agree with the order `stickerCentersD`, `sticker2face` and the twist
+permutations use, and it does not. Measuring the centroid of each polygon against the sticker centres
+showed every one of the 54 matching a *different* sticker, at distance exactly zero — which is the
+signature of a permutation rather than of arithmetic being wrong. The reconstruction was right all
+along.
+
+The fix pairs them by geometry rather than assuming: a polygon's vertices centre on its own sticker's
+centre and on no other's, so matching centroids identifies each. `Expand3D` insists the match be exact
+and that no sticker be claimed twice, so if the assumption ever stops holding it will say so rather
+than draw a subtly wrong cube.
+
+Verified afterwards, using each face's own normal from the asset rather than assuming faces are
+axis-aligned — which matters for the dodecahedron, and which made my first check report a false
+failure on it:
+
+```
+4-3_2   worst out-of-plane: 0.00e+0      4-3_5   5.96e-8
+4-3_3   worst out-of-plane: 5.96e-8      4-3_7   5.96e-8
+4-3_4   worst out-of-plane: 0.00e+0      5-3_3   1.19e-7
+```
+
+Every vertex lies in its own face's plane to float32 precision. The twist tests were passing
+throughout, and would have gone on passing: the twist path reads sticker centres and grip matrices,
+never the vertex offsets, so this was invisible to all 66 of them. It took a picture.
+
+---
+
+## 10. Checklist
+
+| Piece | Status |
+|---|---|
+| Polytope, slicing, cubies, stickers | ✅ works unmodified |
+| Twist axes for `nDims == 3` | ✅ `Grips3D.java` |
+| `.mc4dpz`, decoder, `applyTwist` | ✅ already dimension-generic |
+| Exporter emitting 3D entries | ✅ `Expand3D.java`, behind `--include-3d` |
+| Twist permutations proven bijective | ✅ 66 tests |
+| Vertex geometry proven planar | ✅ to float32 precision, all six puzzles |
+| Renderer: pad to `w = 0`, disable the cull | ✅ `widenTo4D` + `uCull` |
+| `gripForPick`: face-of-sticker rule | ✅ clicking any sticker turns its face |
+| Drag: keep to the 3D planes | ✅ `DragOptions.dims` |
+| Framing defaults for a solid | ✅ `DEFAULT_CONTROLS_3D` |
+| The app itself, with a slice-count choice | ⬜ |
+| Direction convention checked against a render | ⬜ |
+| 3D assets shipped by default | ⬜ still behind `--include-3d` |
