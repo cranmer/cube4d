@@ -61,7 +61,7 @@ export function isPlayable(entry: CatalogEntry): boolean {
  * 4-polytopes, so those come first and the duoprisms — of which there are many, all similar —
  * follow. Everything not named keeps its catalog position.
  */
-const FAMILY_ORDER = ['{4,3,3}', '{5,3,3}', '{3,3,3}', '{5,3}x{}'];
+const FAMILY_ORDER = ['{4,3,3}', '{4,3}', '{5,3,3}', '{3,3,3}', '{5,3}', '{5,3}x{}'];
 
 /**
  * Group the catalog by Schläfli symbol.
@@ -111,6 +111,10 @@ export function describeShape(schlafli: string): string {
     '{4,3,3}': 'The four-dimensional cube',
     '{5,3,3}': '120-cell — built from 120 dodecahedra',
     '{5,3}x{}': 'A dodecahedron extruded into 4D',
+    // Three-dimensional, and said plainly: the point of these is that they are the shape you
+    // already know, so the description should not make them sound exotic.
+    '{4,3}': 'An ordinary cube — three-dimensional',
+    '{5,3}': 'A dodecahedron — three-dimensional',
   };
   if (known[schlafli]) return known[schlafli];
 

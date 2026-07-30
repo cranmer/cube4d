@@ -16,7 +16,7 @@ fi
 [[ -x "${JAVA_HOME:-}/bin/java" ]] || { echo "error: no JDK 21 found; set JAVA_HOME" >&2; exit 1; }
 
 "$JAVA_HOME/bin/java" -Xmx8g -Djava.awt.headless=true \
-  -cp "$HERE/bin" com.superliminal.export.AssetExporter "$OUT" --goldens
+  -cp "$HERE/bin" com.superliminal.export.AssetExporter "$OUT" --goldens --include-3d
 
 # Assets for the puzzles with golden permutations are committed (gzipped) so the TypeScript test
 # suite runs without a JDK or a prior export.
