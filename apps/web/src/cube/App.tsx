@@ -61,7 +61,7 @@ function readShown(): boolean[] {
 export function App() {
   const assetBase = `${import.meta.env.BASE_URL}assets/`;
   // Three-dimensional only, so switching between apps cannot leave one showing the other's puzzle.
-  const asset = usePuzzleAsset(assetBase, DEFAULT, (entry) => entry.nDims === 3);
+  const asset = usePuzzleAsset(assetBase, DEFAULT, { accepts: (entry) => entry.nDims === 3 });
 
   const [shown, setShown] = useState<boolean[]>(readShown);
   const visibleCount = shown.filter(Boolean).length;

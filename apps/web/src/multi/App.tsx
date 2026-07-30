@@ -68,7 +68,7 @@ export function App() {
   const asset = usePuzzleAsset(
     assetBase,
     { id: DEFAULT_PUZZLE_ID, path: '4-3-3_3.mc4dpz' },
-    (entry) => entry.nDims === 4,
+    { accepts: (entry) => entry.nDims === 4 },
   );
   const [shown, setShown] = useState<boolean[]>(readShown);
   const visibleCount = shown.filter(Boolean).length;

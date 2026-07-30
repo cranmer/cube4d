@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { CANONICAL_VIEWS, DEFAULT_PUZZLE_ID, findEntry } from '@mc4d/puzzle-core';
+import { DEFAULT_PUZZLE_ID, findEntry } from '@mc4d/puzzle-core';
 
 import { PALETTES, paletteSwatches } from '@mc4d/render';
 import type { PuzzleRenderer } from '@mc4d/render';
@@ -62,17 +62,20 @@ export function App() {
     assetBase,
     { id: DEFAULT_PUZZLE_ID, path: '4-3-3_3.mc4dpz' },
     handlers,
-    // Four-dimensional only. The catalog also holds 3D solids, which have their own app: this one's
-    // viewpoint controls would rotate one out of the hyperplane its rendering depends on.
-    (entry) => entry.nDims === 4,
+    {
+      // Four-dimensional only. The catalog also holds 3D solids, which have their own app: their
+      // flat geometry is not what this one's projection controls are for.
+      accepts: (entry) => entry.nDims === 4,
+      // This app is the one that looks like the original, so it opens in the original's colours.
+      // Only a starting point — a palette chosen here or in any other app still wins.
+      defaultPaletteId: 'classic',
+    },
   );
   const { session, actions } = usePuzzleSession(puzzle.getViews, puzzle.geometry);
   actionsRef.current = actions;
 
   const { controls, setControls } = puzzle;
   const sliceLabel = describeSlices(session.slicemask);
-  const viewpointLabel =
-    CANONICAL_VIEWS.find((v) => v.id === puzzle.canonicalView)?.name ?? 'Free';
   const [axisHints, setAxisHints] = useState(() => {
     try {
       return globalThis.localStorage?.getItem(appKey('axisHints')) !== 'off';
@@ -114,24 +117,6 @@ export function App() {
     say,
     base: import.meta.env.BASE_URL,
   });
-
-  // --- stepping between named viewpoints
-  const { stepCanonicalView, tip, turnQuarter } = puzzle;
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.metaKey || event.ctrlKey || event.altKey) return;
-      // Brackets sit next to each other and mean nothing else here. Sliders answer to the arrow
-      // keys, so leave those alone.
-      if (event.key === ']') stepCanonicalView(1);
-      else if (event.key === '[') stepCanonicalView(-1);
-      else if (event.key === '.') turnQuarter(1);
-      else if (event.key === ',') turnQuarter(-1);
-      else if (event.key === "'") tip(1);
-      else if (event.key === ';') tip(-1);
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [stepCanonicalView, tip, turnQuarter]);
 
   // --- opening a permalink
   const [hash, setHash] = useState(() => globalThis.location?.hash ?? '');
@@ -266,28 +251,6 @@ export function App() {
 
         {axisHints && <AxisInset getRotation={puzzle.getRotation} colors={axisColors} />}
 
-        {/* An experiment, deliberately duplicating the panel controls rather than moving them: are
-            motion controls better placed next to the thing they move? See docs/view-controls.md. */}
-        <div className="viewpad left">
-          {/* The same pair of icons as Turn: in the overlay the two controls are told apart by
-              their label and their corner, so matching icons is the experiment. */}
-          <button onClick={() => puzzle.tip(-1)} title="Tip the view back (;)">
-            <TurnIcon clockwise={false} />
-          </button>
-          <button onClick={() => puzzle.tip(1)} title="Tip the view forward (')">
-            <TurnIcon clockwise />
-          </button>
-          <span>Tip</span>
-        </div>
-        <div className="viewpad right">
-          <button onClick={() => puzzle.turnQuarter(-1)} title="Turn the view anticlockwise (,)">
-            <TurnIcon clockwise={false} />
-          </button>
-          <button onClick={() => puzzle.turnQuarter(1)} title="Turn the view clockwise (.)">
-            <TurnIcon clockwise />
-          </button>
-          <span>Turn</span>
-        </div>
       </div>
 
       <aside className="panel">
@@ -441,64 +404,6 @@ export function App() {
           </p>
         </Section>
 
-        {/* Its own section, directly below the twist controls: which way you are looking is a
-            different question from what a click does, and both want to stay open while playing. */}
-        <Section id="viewpoint" title="Viewpoint control" defaultOpen badge={viewpointLabel}>
-          {/* Named orientations, so there is always a way back from a 4D rotation that got away
-              from you. Cycling with [ and ] is the fastest way to see how they relate. */}
-          <div className="viewpoints">
-            {CANONICAL_VIEWS.map((view) => (
-              <button
-                key={view.id}
-                className={view.id === puzzle.canonicalView ? 'viewpoint selected' : 'viewpoint'}
-                onClick={() => puzzle.goToCanonicalView(view.id)}
-                title={view.hint}
-              >
-                {view.name}
-              </button>
-            ))}
-          </div>
-          {/* A quarter turn about the screen's vertical axis. The default view is oblique so that
-              seven cells are visible at once, and it is one of four equally good corners — this is
-              how you reach the other three without dragging until it looks about right. It leaves
-              the centred cell alone, so it composes with the viewpoint above rather than fighting
-              it. */}
-          <div className="turnview">
-            <button onClick={() => puzzle.turnQuarter(-1)} title="Turn the view a quarter anticlockwise">
-              <TurnIcon clockwise={false} />
-            </button>
-            <span>Turn view</span>
-            <button onClick={() => puzzle.turnQuarter(1)} title="Turn the view a quarter clockwise">
-              <TurnIcon clockwise />
-            </button>
-          </div>
-          {/* The complement of Turn: where that spins the ring and leaves the middle alone, this
-              swings a ring cell into the middle, brings the hidden cell up to the top, and drops
-              the top one into the ring. A three-cycle, so three presses return you home. */}
-          <div className="turnview">
-            <button onClick={() => puzzle.tip(-1)} title="Tip the view back">
-              <TipIcon forward={false} />
-            </button>
-            <span>Tip view</span>
-            <button onClick={() => puzzle.tip(1)} title="Tip the view forward">
-              <TipIcon forward />
-            </button>
-          </div>
-          <p className="hint">
-            Viewpoints bring one direction to the centre of the picture; step through them with{' '}
-            <kbd>[</kbd> and <kbd>]</kbd>. <b>Turn</b> (<kbd>,</kbd> <kbd>.</kbd>) keeps that
-            direction centred and moves you to the next corner. <b>Tip</b> (<kbd>;</kbd>{' '}
-            <kbd>'</kbd>) changes which direction is centred: a ring cell swings into the middle,
-            the hidden cell comes up to the top, and the top one drops into the ring. Dragging
-            leaves the viewpoint behind, which is what a blank label means.
-          </p>
-
-          <label className="check">
-            <input type="checkbox" checked={axisHints} onChange={toggleAxisHints} />
-            <span>Show axis hints in the corner</span>
-          </label>
-        </Section>
-
         <Section id="controls" title="Instructions">
           <dl className="help">
             <dt>Click a sticker</dt>
@@ -531,6 +436,11 @@ export function App() {
         </Section>
 
         <Section id="view" title="View controls">
+          <label className="check">
+            <input type="checkbox" checked={axisHints} onChange={toggleAxisHints} />
+            <span>Show axis hints in the corner</span>
+          </label>
+
           <h3 className="subhead">Colors</h3>
           <div className="palettes">
             {PALETTES.map((palette) => (
@@ -678,17 +588,6 @@ function StopIcon() {
  * system fonts to render as a dot, which is worse than no icon at all. One is the mirror of the
  * other, so the same path serves both.
  */
-/** An arc over the top, to read as tumbling towards or away from you rather than spinning flat. */
-function TipIcon({ forward }: { forward: boolean }) {
-  return (
-    <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor"
-      strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
-      style={{ transform: forward ? undefined : 'scaleX(-1)' }}>
-      <path d="M3 10.5a5 5 0 0 1 10 0" />
-      <path d="M13 6.6v3.9h-3.6" />
-    </svg>
-  );
-}
 
 function TurnIcon({ clockwise }: { clockwise: boolean }) {
   // An arc that runs into a right-angled tail. A filled arrowhead was the first attempt and read

@@ -58,15 +58,24 @@ export interface PuzzleAsset {
   reportError(message: string): void;
 }
 
-export function usePuzzleAsset(
-  assetBase: string,
-  initial: { id: string; path: string },
+export interface PuzzleAssetOptions {
   /**
    * Which puzzles this app is for. Applied to the catalog as it arrives, so the picker, permalinks
    * and any restored session all see the same set — an app cannot be talked into loading a puzzle it
    * was not built to draw. Omit to accept everything.
    */
-  accepts?: (entry: CatalogEntry) => boolean,
+  accepts?: (entry: CatalogEntry) => boolean;
+  /**
+   * Which palette this app opens with, for an app whose character calls for a different one. Only a
+   * default: a palette the visitor has actually chosen still wins, here and everywhere else.
+   */
+  defaultPaletteId?: string;
+}
+
+export function usePuzzleAsset(
+  assetBase: string,
+  initial: { id: string; path: string },
+  options: PuzzleAssetOptions = {},
 ): PuzzleAsset {
   const [geometry, setGeometry] = useState<PuzzleGeometry | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -75,12 +84,13 @@ export function usePuzzleAsset(
   const [catalog, setCatalog] = useState<Catalog | null>(null);
   const [target, setTarget] = useState(initial);
   // Held in a ref so passing an inline predicate does not refetch the catalog every render.
-  const acceptsRef = useRef(accepts);
-  acceptsRef.current = accepts;
+  const acceptsRef = useRef(options.accepts);
+  acceptsRef.current = options.accepts;
   const [controls, setControlsState] = useState<ViewControls>(() => ({
     ...DEFAULT_CONTROLS,
-    // The palette is a taste and an accessibility choice, so it should survive a reload.
-    paletteId: readStoredPalette() ?? DEFAULT_CONTROLS.paletteId,
+    // The palette is a taste and an accessibility choice, so it should survive a reload. A stored
+    // choice beats the app's default, which is only where a visitor who has never chosen starts.
+    paletteId: readStoredPalette() ?? options.defaultPaletteId ?? DEFAULT_CONTROLS.paletteId,
   }));
 
   useEffect(() => {

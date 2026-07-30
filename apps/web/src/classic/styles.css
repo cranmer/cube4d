@@ -142,34 +142,6 @@ button:disabled:hover { background: #21262d; }
 .check { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--dim); }
 .check input { accent-color: #5b9dff; }
 
-/* Duplicated view controls, floated in the viewport's lower corners. Faded until the pointer is
-   near them, so they stay out of the way of the puzzle itself. */
-.viewpad {
-  position: absolute;
-  bottom: 14px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  opacity: 0.45;
-  transition: opacity 140ms ease;
-}
-.viewpad:hover { opacity: 1; }
-.viewpad.left { left: 14px; }
-.viewpad.right { right: 14px; flex-direction: row-reverse; }
-.viewpad button {
-  display: inline-flex;
-  padding: 8px 11px;
-  background: rgba(22, 27, 34, 0.82);
-  backdrop-filter: blur(3px);
-}
-.viewpad span {
-  font-size: 11px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--dim);
-}
-
-/* Top-left rather than bottom-left: the lower corners now belong to the view controls. */
 .hud {
   position: absolute;
   left: 14px;
@@ -210,17 +182,6 @@ button:disabled:hover { background: #21262d; }
 .palette .swatches { display: flex; border-radius: 3px; overflow: hidden; flex: none; }
 .palette .swatches i { display: block; width: 9px; height: 16px; }
 .palette .name { font-size: 12.5px; }
-
-/* Three across: the names are short, and a grid keeps opposite pairs adjacent so the structure of
-   the four axes is visible rather than just a list. */
-/* Four columns, positives on the top row: the vertical pairing shows the four opposite pairs. */
-.viewpoints { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
-.viewpoint { padding: 6px 4px; font-size: 12.5px; }
-.viewpoint.selected { border-color: #5b9dff; background: #1b2430; }
-
-.turnview { display: flex; align-items: center; gap: 6px; margin-top: 6px; }
-.turnview span { flex: 1; text-align: center; font-size: 12.5px; color: var(--dim); }
-.turnview button { padding: 6px 12px; display: inline-flex; }
 
 .masthead { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .masthead .sub { margin-bottom: 0; }
@@ -401,4 +362,4 @@ button:disabled:hover { background: #21262d; }
 .palettes + .subhead,
 .hint + .subhead,
 .chips + .subhead,
-.turnview + .subhead { margin-top: 18px; }
+.check + .subhead { margin-top: 18px; }

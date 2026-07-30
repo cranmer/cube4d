@@ -84,8 +84,13 @@ Four unnamespaced keys:
 |---|---|---|
 | `mc4d.session` | `autosave.ts` | **per app** — apps have different notions of a session |
 | `mc4d.sections` | `Section.tsx` | **per app** — section ids only mean something within a layout |
-| `mc4d.palette` | `usePuzzleCanvas.ts` | **shared** — a taste, and partly an accessibility need |
+| `mc4d.palette` | `usePuzzleAsset.ts` | **shared** — a taste, and partly an accessibility need |
 | `mc4d.playbackSpeed` | `usePuzzle.ts` | **shared** — a preference about pace, not about layout |
+
+An app may name its own *starting* palette (`PuzzleAssetOptions.defaultPaletteId`) without
+breaking that: the classic app opens in Classic, on the original's sky, because looking like the
+original is its whole character. A stored choice still wins everywhere, so the default is only ever
+what a visitor who has never chosen sees.
 
 Two apps on one origin share localStorage. Left alone, opening the hypercube app would silently
 overwrite the classic app's autosaved solve. This is the cheapest thing on the list to fix and the

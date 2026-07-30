@@ -38,7 +38,7 @@ export {
   type SessionState,
 } from './usePuzzle.js';
 export { usePuzzleCanvas, type CanvasHandlers, type PuzzleCanvas } from './usePuzzleCanvas.js';
-export { usePuzzleAsset, type PuzzleAsset } from './usePuzzleAsset.js';
+export { usePuzzleAsset, type PuzzleAssetOptions, type PuzzleAsset } from './usePuzzleAsset.js';
 export {
   useViewport,
   type Viewport,
