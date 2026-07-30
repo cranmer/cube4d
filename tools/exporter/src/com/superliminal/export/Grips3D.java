@@ -8,26 +8,45 @@ import java.lang.reflect.Field;
 /**
  * Twist axes for three-dimensional puzzles, which the original does not generate.
  *
- * `PolytopePuzzleDescription` wraps its grip construction in `if(nDims == 4)`, above a comment where
- * the author starts to handle 3D, notices the cell/facet analogy does not transfer, and says so.
- * Everything else about a 3D puzzle already works: `{4,3} 3` builds with 26 cubies and 54 stickers
- * from the unmodified engine, and the slicing, sticker derivation and state model are all
- * dimension-generic. Only the axes are missing.
+ * `PolytopePuzzleDescription` wraps grip construction in `if(nDims == 4)`, above a comment where the
+ * author starts on 3D, decides the analogy does not transfer, and stops. Everything else about a 3D
+ * puzzle already works from the unmodified engine — slicing, cubies, stickers, the state model, all
+ * dimension-generic. Only the axes were missing.
  *
- * The analogue turns out to fit the existing machinery exactly. In 4D a twist rotates a *cell* about
- * one of its sub-elements; in 3D it rotates the *whole polytope* about one of its sub-elements — and
- * `CSG.calcRotationGroupOrder` requires its `cell3d` argument to have dimension 3, which the whole
- * polytope does. Called that way it returns order 4 for each face of a cube and order 5 for each
- * face of a dodecahedron: exactly R, L, U, D, F, B and their megaminx equivalents.
+ * **The analogy is one level down from where that comment looks for it.** In 4D a grip is a pair: a
+ * *cell* and a sub-element of that cell. Eight cells times 27 elements each — 8 vertices, 12 edges,
+ * 6 faces and the cell's own centre — gives the hypercube's 216. The comment looks for elements of
+ * the whole polytope, notices a 3D solid has no cells, and concludes there is nothing there. But the
+ * right correspondence is *facet* and sub-element-of-that-facet: in 4D the facets are cells, and in
+ * 3D they are faces. Six faces times 9 elements each — 4 vertices, 4 edges and the face's own centre
+ * — gives 54.
  *
- * **Face grips only, deliberately.** The same call also gives order-3 vertex axes and order-2 edge
- * axes, which are real rotations of the solid — but a grip carries the face its slices are measured
- * from (`grip2face`), and a vertex or edge belongs to no single face, so the slicemask machinery has
- * nothing to measure against. Corner- and edge-turning puzzles are a different puzzle rather than a
- * missing feature here, and a cube whose axes are its faces is the cube everyone means.
+ * Constructed that way the interface transfers exactly, which is the entire point of building a 3D
+ * puzzle on this engine. The pick rule infers which axis you meant from how many colours the piece
+ * carries, `gripDim = nDims − colours`, and in three dimensions that gives:
+ *
+ *   corner, 3 colours  →  dim 0, a vertex  →  order 3, a 120° turn
+ *   edge,   2 colours  →  dim 1, an edge   →  order 2, a 180° turn
+ *   centre, 1 colour   →  dim 2, the face  →  order 4, the ordinary 90° face turn
+ *
+ * with no special case anywhere. Measured on `{4,3} 3`: 24 vertex axes of order 3, 24 edge axes of
+ * order 2, 6 face axes of order 4. A dodecahedron gives 12 faces of 11 elements, the face axes of
+ * order 5.
+ *
+ * One difference is worth knowing rather than smoothing over. In 4D the last case, `nDims − 1 = 3`,
+ * asks for a rotation about the *cell itself*, which does not exist — which is why the centre cubie
+ * of a hypercube cell cannot be clicked and does nothing. In 3D the same arithmetic asks for a
+ * rotation about the *face*, which does exist and is the familiar face turn. So the middle sticker
+ * of a face is live here and dead there, and that falls out of the construction rather than needing
+ * an exception.
+ *
+ * Each grip carries the face its slices are measured from, exactly as a 4D grip carries its cell, so
+ * the slicemask machinery needs nothing new. A vertex shared by three faces yields three grips with
+ * the same axis and different slice references — again mirroring 4D, where a vertex shared by four
+ * cells yields four.
  *
  * Nothing in the legacy source is modified: this reads the description through the same reflection
- * the exporter already uses for the 4D fields.
+ * the exporter already uses for the 4D grip fields.
  */
 final class Grips3D {
     final int nGrips;
@@ -38,11 +57,12 @@ final class Grips3D {
     final int[] grip2face;
 
     /**
-     * How far a grip's centre is nudged from its face's centre towards the middle of the puzzle.
+     * How far a grip's centre is nudged from its element's centre towards its face's centre.
      *
-     * Copied from the 4D path, where it exists to keep two grips on the same cubie from landing on
-     * the same point. With one grip per face there is nothing to separate, but matching the
-     * convention costs nothing and keeps the picking code comparing like with like.
+     * Copied from the 4D path, where it exists so that two grips on the same cubie do not land on
+     * the same point — the pick resolves a click by finding the nearest grip centre, and coincident
+     * centres would make that a coin toss. The same hazard exists here for a corner shared by three
+     * faces, so the same remedy applies.
      */
     private static final double NUDGE = 0.01;
 
@@ -53,35 +73,48 @@ final class Grips3D {
 
         CSG.SPolytope original = (CSG.SPolytope) read(p, "originalPolytope");
         CSG.Polytope whole = original.p;
-        // Face indices in the asset are positions in this array — the description derives its own
+        // Face indices in the asset are positions in this array -- the description derives its own
         // the same way (`originalElements[nDims-1]`), which is a local there rather than a field.
         CSG.Polytope[] faces = whole.getAllElements()[nDims - 1];
 
-        // The whole solid is what a 3D twist turns, so it plays the part the cell plays in 4D.
+        // calcRotationGroupOrder wants a 3-dimensional argument to rotate; in 4D that is the cell,
+        // and here it is the solid itself. Passing a face instead is what fails its precondition.
         if(whole.dim != 3)
             throw new IllegalStateException("expected a 3-dimensional polytope, got dim=" + whole.dim);
 
-        double[] puzzleCenter = new double[nDims];
-        CSG.cgOfVerts(puzzleCenter, whole);
+        int count = 0;
+        for(CSG.Polytope face : faces) {
+            CSG.Polytope[][] elements = face.getAllElements();
+            for(int dim = 0; dim <= nDims - 1; ++dim)
+                count += elements[dim].length;
+        }
 
-        nGrips = faces.length;
+        nGrips = count;
         gripSymmetryOrders = new int[nGrips];
         gripUsefulMats = new double[nGrips][nDims][nDims];
         gripCenters = new float[nGrips][];
         gripDims = new int[nGrips];
         grip2face = new int[nGrips];
 
+        double[] faceCenter = new double[nDims];
         double[] center = new double[nDims];
-        for(int f = 0; f < nGrips; ++f) {
+        int g = 0;
+        for(int f = 0; f < faces.length; ++f) {
             CSG.Polytope face = faces[f];
-            gripSymmetryOrders[f] = CSG.calcRotationGroupOrder(whole, whole, face, gripUsefulMats[f]);
-            CSG.cgOfVerts(center, face);
-            VecMath.lerp(center, center, puzzleCenter, NUDGE);
-            gripCenters[f] = VecMath.doubleToFloat(center);
-            // A face of a 3-polytope is 2-dimensional, and the pick code derives the dimension it
-            // wants from the piece's colour count, so this has to be the real thing.
-            gripDims[f] = face.dim;
-            grip2face[f] = f;
+            CSG.cgOfVerts(faceCenter, face);
+            CSG.Polytope[][] elements = face.getAllElements();
+            for(int dim = 0; dim <= nDims - 1; ++dim) {
+                for(CSG.Polytope element : elements[dim]) {
+                    gripSymmetryOrders[g] =
+                        CSG.calcRotationGroupOrder(whole, whole, element, gripUsefulMats[g]);
+                    CSG.cgOfVerts(center, element);
+                    VecMath.lerp(center, center, faceCenter, NUDGE);
+                    gripCenters[g] = VecMath.doubleToFloat(center);
+                    gripDims[g] = dim;
+                    grip2face[g] = f;
+                    g++;
+                }
+            }
         }
     }
 

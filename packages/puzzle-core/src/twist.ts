@@ -102,8 +102,27 @@ export function isValidTwist(geo: PuzzleGeometry, gripIndex: number, slicemask: 
   if (gripIndex < 0 || gripIndex >= geo.nGrips) return false;
   const order = geo.gripSymmetryOrders[gripIndex];
   if (order === 0 || order === 1) return false;
+  const slices = numSlicesForGrip(geo, gripIndex);
   const mask = slicemask === 0 ? 1 : slicemask;
-  return (mask & ((1 << numSlicesForGrip(geo, gripIndex)) - 1)) !== 0;
+  if ((mask & ((1 << slices) - 1)) === 0) return false;
+
+  // Below four dimensions, only a facet axis can turn a single layer.
+  //
+  // The reason is the one thing that does *not* carry over from 4D, and it is worth stating exactly.
+  // In the hypercube, the first layer measured from a cell *is that cell* — a whole 3×3×3 cube — so
+  // it has the cube's full rotation group and a 120° turn about a corner maps it to itself. In three
+  // dimensions the first layer measured from a face is a flat 3×3×1 slab, whose only symmetry is the
+  // face's own. Turning it about a corner or an edge would send its cubies nowhere.
+  //
+  // The axes are real all the same: they rotate the *whole* solid, which is why the full mask stays
+  // legal. This is the same fact as a physical Rubik's cube having no corner move.
+  //
+  // Verified exhaustively rather than reasoned about: across 3,138 (axis, mask) combinations on four
+  // 3D puzzles, a permutation is a bijection exactly when this predicate holds.
+  if (geo.nDims < 4 && geo.gripDims[gripIndex] < geo.nDims - 1) {
+    return mask === (1 << slices) - 1;
+  }
+  return true;
 }
 
 /**

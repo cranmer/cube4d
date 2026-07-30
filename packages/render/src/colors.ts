@@ -156,7 +156,16 @@ export function assignFaceColors(
     }
   }
 
-  const pairs = groups.length <= palette.pairs.length ? palette.pairs : generatePairs(groups.length);
+  // A puzzle with exactly three opposite pairs is a solid with six faces — an ordinary cube. Give it
+  // the three a cuber expects (white/yellow, green/blue, red/orange) rather than the first three in
+  // the list, whose leading pair exists for the fourth axis a solid does not have. Skipping it costs
+  // nothing: the pairs are in a fixed role order precisely so a subset can be taken meaningfully.
+  const traditional = groups.length === 3 && palette.pairs.length >= 4;
+  const pairs = traditional
+    ? palette.pairs.slice(1, 4)
+    : groups.length <= palette.pairs.length
+      ? palette.pairs
+      : generatePairs(groups.length);
 
   const out: Rgb[] = new Array(nFaces);
   for (let g = 0; g < groups.length; ++g) {

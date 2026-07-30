@@ -178,27 +178,6 @@ export function gripForPick(geo: PuzzleGeometry, stickerIndex: number, polyIndex
   const n = geo.nDims;
   const faceIndex = geo.sticker2face[stickerIndex];
 
-  // Three dimensions: turn the face the sticker belongs to.
-  //
-  // The heuristic below exists to choose between the many grips on a 4D cell, using the piece's
-  // colour count. A 3D puzzle has exactly one axis per face, so there is nothing to choose, and
-  // applying the rule anyway would make the puzzle almost unclickable: `nDims − colours` sends a
-  // 3-colour corner to a vertex axis and a 2-colour edge to an edge axis, neither of which is
-  // generated, leaving only the single centre sticker of each face able to turn anything.
-  //
-  // Taking the face directly is also how every 3D cube interface has ever worked, and it sidesteps
-  // the `is2x2x2Cell` test below, whose hardcoded 0.75 and 1.5 describe a 2×2×2 cell of a *4D*
-  // puzzle. See docs/three-d.md §5.
-  if (n === 3) {
-    let grip = -1;
-    for (let g = 0; g < geo.nGrips; ++g) {
-      if (geo.grip2face[g] === faceIndex) {
-        grip = g;
-        break;
-      }
-    }
-    return { stickerIndex, polyIndex, faceIndex, gripIndex: grip, is2x2x2Cell: false };
-  }
   const polyCenter = polygonCenter(geo, stickerIndex, polyIndex);
   const stickerCenter = stickerPickCenter(geo, stickerIndex);
   const faceCenter = geo.faceCenters.subarray(faceIndex * n, faceIndex * n + n);

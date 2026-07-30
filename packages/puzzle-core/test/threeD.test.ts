@@ -14,15 +14,18 @@ import { describe, expect, it } from 'vitest';
 import { loadGeometry } from './fixtures.js';
 import { applyTwist, isValidTwist, numSlicesForGrip, permutationFor } from '../src/twist.js';
 import { isSolved, solvedState, stateHash } from '../src/state.js';
+import { gripForPick, numColorsForCubie } from '../src/grips.js';
 
 /** What the original reports for these, measured before any of this was written. */
 const PUZZLES = [
-  { id: '{4,3} 2', file: '4-3_2', cubies: 8, stickers: 24, order: 4, slices: 2 },
-  { id: '{4,3} 3', file: '4-3_3', cubies: 26, stickers: 54, order: 4, slices: 3 },
-  { id: '{4,3} 4', file: '4-3_4', cubies: 56, stickers: 96, order: 4, slices: 4 },
-  { id: '{4,3} 5', file: '4-3_5', cubies: 98, stickers: 150, order: 4, slices: 5 },
-  { id: '{4,3} 7', file: '4-3_7', cubies: 218, stickers: 294, order: 4, slices: 7 },
-  { id: '{5,3} 3', file: '5-3_3', cubies: 62, stickers: 132, order: 5, slices: 3 },
+  // `perFace` is the element count of one facet: a square has 4 vertices, 4 edges and itself; a
+  // pentagon 5, 5 and itself. `order` is the face turn — 90° on a cube, 72° on a dodecahedron.
+  { id: '{4,3} 2', file: '4-3_2', cubies: 8, stickers: 24, order: 4, slices: 2, perFace: 9 },
+  { id: '{4,3} 3', file: '4-3_3', cubies: 26, stickers: 54, order: 4, slices: 3, perFace: 9 },
+  { id: '{4,3} 4', file: '4-3_4', cubies: 56, stickers: 96, order: 4, slices: 4, perFace: 9 },
+  { id: '{4,3} 5', file: '4-3_5', cubies: 98, stickers: 150, order: 4, slices: 5, perFace: 9 },
+  { id: '{4,3} 7', file: '4-3_7', cubies: 218, stickers: 294, order: 4, slices: 7, perFace: 9 },
+  { id: '{5,3} 3', file: '5-3_3', cubies: 62, stickers: 132, order: 5, slices: 3, perFace: 11 },
 ] as const;
 
 describe.each(PUZZLES)('$id', (puzzle) => {
@@ -34,13 +37,32 @@ describe.each(PUZZLES)('$id', (puzzle) => {
     expect(new Set(geo.sticker2cubie).size).toBe(puzzle.cubies);
   });
 
-  it('has one axis per face, of the face gonality', () => {
-    // Not one per face *element* as in 4D: a 3D twist turns the whole solid about a face, so the
-    // axes are the faces and nothing else. See docs/three-d.md §3.
-    expect(geo.nGrips).toBe(geo.nFaces);
+  it('has one axis per (face, element) pair, as 4D has one per (cell, element)', () => {
+    expect(geo.nGrips).toBe(geo.nFaces * puzzle.perFace);
+    const orders = { 0: new Set<number>(), 1: new Set<number>(), 2: new Set<number>() };
     for (let g = 0; g < geo.nGrips; ++g) {
-      expect(geo.gripSymmetryOrders[g], `grip ${g} order`).toBe(puzzle.order);
-      expect(geo.grip2face[g], `grip ${g} face`).toBe(g);
+      expect(geo.grip2face[g], `grip ${g} must name the face its slices are measured from`)
+        .toBeGreaterThanOrEqual(0);
+      orders[geo.gripDims[g] as 0 | 1 | 2].add(geo.gripSymmetryOrders[g]);
+    }
+    // Vertices turn by a third, edges by a half, and a face by its own gonality.
+    expect([...orders[0]]).toEqual([3]);
+    expect([...orders[1]]).toEqual([2]);
+    expect([...orders[2]]).toEqual([puzzle.order]);
+  });
+
+  it('sends each kind of sticker to the axis its colour count implies', () => {
+    // The whole reason for a 3D puzzle on this engine: the pick heuristic is the interface being
+    // taught, and it has to behave here exactly as it does on the hypercube. See docs/three-d.md §5.
+    const wanted: Record<number, number> = { 3: 3, 2: 2, 1: puzzle.order };
+    for (let s = 0; s < geo.nStickers; ++s) {
+      const colours = numColorsForCubie(geo, geo.sticker2cubie[s]);
+      const { gripIndex } = gripForPick(geo, s, 0);
+      if (wanted[colours] === undefined) continue;
+      expect(gripIndex, `sticker ${s} (${colours} colours) resolves to no axis`).toBeGreaterThanOrEqual(0);
+      expect(geo.gripDims[gripIndex], `sticker ${s} axis dimension`).toBe(3 - colours);
+      expect(geo.gripSymmetryOrders[gripIndex], `sticker ${s} turn order`).toBe(wanted[colours]);
+      expect(numSlicesForGrip(geo, gripIndex), `sticker ${s} layers`).toBe(puzzle.slices);
     }
   });
 
@@ -60,18 +82,31 @@ describe.each(PUZZLES)('$id', (puzzle) => {
     expect(isSolved(geo, solvedState(geo))).toBe(true);
   });
 
-  it('offers the expected number of layers', () => {
+  it('offers the expected number of layers on every axis', () => {
+    // A corner turn can take one layer or all of them, exactly as a face turn can.
     for (let g = 0; g < geo.nGrips; ++g) {
       expect(numSlicesForGrip(geo, g), `grip ${g}`).toBe(puzzle.slices);
     }
   });
 
-  it('every permutation is a bijection', () => {
+  it('lets only a face axis turn one layer', () => {
+    // The one thing that does not carry over from four dimensions. See isValidTwist.
+    for (let g = 0; g < geo.nGrips; ++g) {
+      const all = (1 << numSlicesForGrip(geo, g)) - 1;
+      const facet = geo.gripDims[g] === geo.nDims - 1;
+      expect(isValidTwist(geo, g, all), `grip ${g} whole-solid`).toBe(true);
+      expect(isValidTwist(geo, g, 1), `grip ${g} single layer`).toBe(facet);
+    }
+  });
+
+  it('every legal permutation is a bijection', () => {
     // The canary. The fuzzy point hash uses absolute epsilons, so a wrong twist matrix — or a
     // vertex expansion that moved a sticker — makes lookups miss, and two slots end up reading the
-    // same source.
+    // same source. Illegal combinations are excluded by isValidTwist, which is where the rule that
+    // a corner axis can only turn the whole solid lives.
     for (let g = 0; g < geo.nGrips; ++g) {
       for (let mask = 1; mask < 1 << numSlicesForGrip(geo, g); ++mask) {
+        if (!isValidTwist(geo, g, mask)) continue;
         for (const dir of [1, -1] as const) {
           const perm = permutationFor(geo, g, dir, mask);
           const seen = new Uint8Array(geo.nStickers);
@@ -85,11 +120,15 @@ describe.each(PUZZLES)('$id', (puzzle) => {
     }
   });
 
-  it('applying a face turn four times (five for a dodecahedron) returns to the start', () => {
+  it('applying a turn its own order many times returns to the start', () => {
+    // 120° three times for a corner, 180° twice for an edge, 90° four times for a face. Corners and
+    // edges turn the whole solid, so they are exercised with every layer selected.
     const start = solvedState(geo);
     for (let g = 0; g < geo.nGrips; ++g) {
       const state = Int32Array.from(start);
-      for (let i = 0; i < puzzle.order; ++i) applyTwist(geo, state, g, 1, 1);
+      const mask =
+        geo.gripDims[g] === geo.nDims - 1 ? 1 : (1 << numSlicesForGrip(geo, g)) - 1;
+      for (let i = 0; i < geo.gripSymmetryOrders[g]; ++i) applyTwist(geo, state, g, 1, mask);
       expect(stateHash(state), `grip ${g}`).toBe(stateHash(start));
     }
   });
@@ -98,6 +137,7 @@ describe.each(PUZZLES)('$id', (puzzle) => {
     const start = solvedState(geo);
     for (let g = 0; g < geo.nGrips; ++g) {
       for (let mask = 1; mask < 1 << numSlicesForGrip(geo, g); ++mask) {
+        if (!isValidTwist(geo, g, mask)) continue;
         const state = Int32Array.from(start);
         applyTwist(geo, state, g, 1, mask);
         applyTwist(geo, state, g, -1, mask);
@@ -110,7 +150,7 @@ describe.each(PUZZLES)('$id', (puzzle) => {
     const state = solvedState(geo);
     const before = new Map<number, number>();
     for (const c of state) before.set(c, (before.get(c) ?? 0) + 1);
-    for (let g = 0; g < geo.nGrips; ++g) applyTwist(geo, state, g, 1, 1);
+    for (let g = 0; g < geo.nGrips; ++g) if (isValidTwist(geo, g, 1)) applyTwist(geo, state, g, 1, 1);
     const after = new Map<number, number>();
     for (const c of state) after.set(c, (after.get(c) ?? 0) + 1);
     expect([...after.entries()].sort()).toEqual([...before.entries()].sort());
@@ -134,6 +174,7 @@ describe.each(PUZZLES)('$id', (puzzle) => {
       const g = next() % geo.nGrips;
       const d = next() % 2 === 0 ? 1 : -1;
       const s = 1 + (next() % ((1 << numSlicesForGrip(geo, g)) - 1));
+      if (!isValidTwist(geo, g, s)) continue;
       moves.push({ g, d: d as 1 | -1, s });
       applyTwist(geo, state, g, d as 1 | -1, s);
     }

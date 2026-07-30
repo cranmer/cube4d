@@ -126,37 +126,71 @@ puzzle.
 
 ---
 
-## 5. Picking: the heuristic does not transfer
+## 5. Picking: the heuristic is the point, and it transfers
 
-In 4D you never choose a grip directly. You click a sticker, and the program infers which of the many
-grips on that cell you meant, from the piece's *type*: a 4-colour corner implies a rotation about a
-vertex, a 3-colour edge piece about an edge, a 2-colour face piece about a face. Concretely
-`gripDim = nDims − colours`, then the nearest grip on that cell with that dimension wins.
+In 4D you never choose an axis directly. You click a sticker, and the program infers which of the
+many axes on that cell you meant from the piece's *type*: `gripDim = nDims − colours`, then the
+nearest axis of that dimension on that cell. A 4-colour corner asks for a rotation about a vertex, a
+3-colour piece about an edge, a 2-colour piece about a face.
 
-**On a 3D cube that rule makes the puzzle almost unclickable.** Work it through:
+**That heuristic is not plumbing. It is the interface a 3D puzzle exists to teach.** An earlier draft
+of this document argued the opposite — that the rule solves a disambiguation problem 3D does not
+have, so a 3D puzzle should simply turn the face you clicked. That produces a working cube and
+destroys the entire reason for building it: a learner would practise an interface that appears
+nowhere else.
 
-| Piece | Colours | `3 − colours` | Wants an axis at a… |
-|---|---|---|---|
-| corner | 3 | 0 | vertex — *not generated* |
-| edge | 2 | 1 | edge — *not generated* |
-| face centre | 1 | 2 | face ✅ |
+The rule transfers exactly, once the axes are constructed per (face, element) as in §3:
 
-Only the single centre sticker of each face would resolve to an axis. Every other click would do
-nothing.
+| Piece | Colours | `3 − colours` | Axis | Turn |
+|---|---|---|---|---|
+| corner | 3 | 0 | a vertex of that face | order 3 — **120°** |
+| edge | 2 | 1 | an edge of that face | order 2 — **180°** |
+| centre | 1 | 2 | the face itself | order 4 — **90°** |
 
-The fix is not to generate the missing axes — see §3 — but to notice that **the heuristic exists to
-solve a problem 3D does not have.** It is there because a 4D cell carries 27 grips and a click has to
-choose between them. A 3D puzzle has exactly one axis per face, so there is nothing to disambiguate,
-and the rule collapses to:
+Measured on `{4,3} 3`: 24 corner stickers → dimension 0, order 3; 24 edge stickers → dimension 1,
+order 2; 6 centre stickers → dimension 2, order 4. No special case in `gripForPick` at all.
 
-> **Turn the face the clicked sticker belongs to.**
+**The centre sticker is live here and dead on the hypercube**, and that falls out rather than being
+arranged. The last case asks for a rotation about an element of dimension `nDims − 1`. In 4D that is
+the cell itself, which has no rotation — which is why a hypercube's centre cubie cannot be clicked
+and does nothing. In 3D it is the face, which rotates by a quarter turn. Same arithmetic, opposite
+outcome, because the dimensions differ.
 
-Which is how every 3D cube interface has ever worked, and needs no explaining to anyone.
+---
 
-This is a `nDims === 3` branch in `gripForPick`, and it also sidesteps a hazard: the 4D path first
-tests `is2x2x2Cell`, which compares squared distances against the hardcoded constants `0.75` and
-`1.5` with a tolerance of `0.1`. Those numbers describe a 2×2×2 *cell of a 4D puzzle*; whether some
-3D puzzle at some edge length happens to satisfy them is not a question worth leaving open.
+## 5a. The one thing that does *not* transfer: which layers may turn
+
+The axes are right and the pick rule is right. What is not is the assumption that any of them can
+turn a *single layer*.
+
+Exhaustively, over every (axis, layer-mask) combination on four 3D puzzles:
+
+```
+corner axes   single layer: 0 of 24 give a valid permutation      all layers: 24 of 24 ✓
+edge axes     single layer: 0 of 24                               all layers: 24 of 24 ✓
+face axes     single layer: 6 of 6 ✓                              all layers:  6 of 6 ✓
+```
+
+The rule is exact — 3,138 combinations across `{4,3} 2,3,5` and `{5,3} 3`, zero exceptions:
+
+> **Below four dimensions, only a facet axis can turn one layer. A corner or edge axis is legal only
+> with every layer selected — that is, as a rotation of the whole solid.**
+
+The reason is a dimension counting argument, and it is the real content of the original author's
+aborted comment. In the hypercube, the first layer measured from a cell **is that cell** — a whole
+3×3×3 cube — so it carries the cube's entire rotation group, and a 120° turn about one of its corners
+maps its 27 cubies onto themselves. In three dimensions the first layer measured from a face is a
+flat 3×3×1 slab, whose only symmetry is the face's own four-fold one. Turn it about a corner and its
+cubies have nowhere to go.
+
+This is the same fact as a physical Rubik's cube having no corner move. It is not a defect of the
+port; it is what three dimensions are like.
+
+`isValidTwist` now encodes it, so a corner click on a single layer is refused rather than producing
+nonsense. The pedagogical consequence is worth stating: on a 3D cube, hovering a corner shows you a
+real axis, and clicking it **reorients the whole cube by 120°**. That is honest, and arguably the
+clearest possible demonstration of what a corner axis *is* — before you meet one in 4D that can turn
+a layer.
 
 ---
 
@@ -292,7 +326,10 @@ never the vertex offsets, so this was invisible to all 66 of them. It took a pic
 | Twist permutations proven bijective | ✅ 66 tests |
 | Vertex geometry proven planar | ✅ to float32 precision, all six puzzles |
 | Renderer: pad to `w = 0`, disable the cull | ✅ `widenTo4D` + `uCull` |
-| `gripForPick`: face-of-sticker rule | ✅ clicking any sticker turns its face |
+| Grips per (face, element), as 4D has per (cell, element) | ✅ 54 for a cube, 132 for a dodecahedron |
+| `gripForPick` unchanged — the 4D heuristic transfers | ✅ corner 120°, edge 180°, centre 90° |
+| `isValidTwist`: only facet axes turn one layer | ✅ verified over 3,138 combinations |
+| Traditional colours for a six-faced puzzle | ✅ white/yellow, green/blue, red/orange |
 | Drag: keep to the 3D planes | ✅ `DragOptions.dims` |
 | Framing defaults for a solid | ✅ `DEFAULT_CONTROLS_3D` |
 | The app itself, with a slice-count choice | ⬜ |
