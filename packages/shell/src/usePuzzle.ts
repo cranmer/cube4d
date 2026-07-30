@@ -175,12 +175,18 @@ export function usePuzzleSession(
   views: () => readonly PuzzleRenderer[],
   geometry: PuzzleGeometry | null,
 ): { session: PuzzleSession; actions: PuzzleActions } {
+  // Held in a ref so that *which* viewports exist can change without any of this hook's effects
+  // treating it as a reason to re-run. An app that lets you open and close panes changes the getter's
+  // identity every time you do, and one of the effects below resets the puzzle.
+  const viewsRef = useRef(views);
+  viewsRef.current = views;
+
   /** Apply something to every viewport. */
   const each = (fn: (view: PuzzleRenderer) => void) => {
-    for (const view of views()) fn(view);
+    for (const view of viewsRef.current()) fn(view);
   };
   /** True when at least one viewport exists to draw into. */
-  const anyView = () => views().length > 0;
+  const anyView = () => viewsRef.current().length > 0;
   const stateRef = useRef<Int32Array | null>(null);
   const historyRef = useRef<History>(emptyHistory);
   const animationRef = useRef<Animation | null>(null);
@@ -264,6 +270,14 @@ export function usePuzzleSession(
     setScrambled(false);
     setUndoable(false);
     setRedoable(false);
+    // Deliberately *not* keyed on `views`. Opening or closing a viewport is not a new puzzle, and
+    // keying on it meant toggling a pane silently threw away the solve in progress.
+  }, [geometry]);
+
+  // --- a viewport that has just appeared is showing a solved puzzle, whatever the real state is
+  useEffect(() => {
+    if (!geometry || !stateRef.current) return;
+    each((v) => v.setState(stateRef.current!));
   }, [geometry, views]);
 
   const refreshFlags = useCallback(() => {
