@@ -184,8 +184,8 @@ a cuber means by it. That needs checking against a render rather than reasoning 
 | Polytope, slicing, cubies, stickers | ✅ works unmodified |
 | Twist axes for `nDims == 3` | ✅ `Grips3D.java`, verified orthonormal |
 | `.mc4dpz`, decoder, `applyTwist` | ✅ already dimension-generic |
-| Exporter emitting 3D entries | ⚠️ blocked — see §8. Behind `--include-3d`, off by default |
-| Twist permutations proven bijective in TS | ⬜ |
+| Exporter emitting 3D entries | ✅ `Expand3D.java`; behind `--include-3d` until the apps can use them |
+| Twist permutations proven bijective in TS | ✅ 66 tests in `threeD.test.ts` |
 | Renderer: pad to `w = 0`, disable the cull | ⬜ |
 | `gripForPick`: face-of-sticker rule for 3D | ⬜ |
 | Drag: keep to the 3D planes | ⬜ |
@@ -215,7 +215,17 @@ ill-defined. The shrink decomposition keeps `vertsMinusStickerCenters` **per ver
 vertex belongs to one sticker and so has one centre to be measured from. A shared corner belongs to
 three stickers with three different centres, and no single value is right for all of them.
 
-The fix is to stop sharing: give each 3D sticker its own copy of the vertices it uses, and compute the
-decomposition per copy from absolute positions. Twenty-four quads becomes 96 vertices instead of 26 —
-irrelevant at these sizes, and it restores the invariant the format is built on rather than weakening
-it. That expansion is the next piece of work.
+**Done**, in `Expand3D.java`. Each 3D sticker gets private copies of the vertices it uses, so the runs
+are contiguous by construction and each copy's offset is measured from the sticker that actually owns
+it. A pocket cube goes from 26 vertices to 96 — nothing at these sizes.
+
+Absolute positions turn out to be recoverable exactly, which is what makes this arithmetic rather than
+guesswork, and the mechanism is cleaner than expected. Alongside the two arrays the exporter already
+read, the description keeps a third — `vertFaceCenters` — holding the face centre of whichever sticker
+first claimed each vertex. The three sum to the true rest position for every vertex, shared or not.
+The 4D path had been reconstructing through the *per-face* centre instead, which is correct only
+because 4D vertices are never shared; using the per-vertex one is the distinction that does not matter
+there and does here.
+
+Applied only for 3D. Renumbering 4D vertices would change a wire format, and the check that matters
+is that it did not: **all 128 4D assets export byte-identical** by sha256 after the change.

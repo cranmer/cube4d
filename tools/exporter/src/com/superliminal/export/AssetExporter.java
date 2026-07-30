@@ -126,14 +126,16 @@ public class AssetExporter {
                 System.out.print(id + "\t");
                 System.out.flush();
                 PolytopePuzzleDescription p = new PolytopePuzzleDescription(schlafli, length, null);
-                byte[] asset = new Extractor(p, schlafli, length).build();
+                Extractor extractor = new Extractor(p, schlafli, length);
+                byte[] asset = extractor.build();
 
                 String file = fileName(schlafli, length);
                 writeFile(new File(outDir, file), asset);
                 byte[] gz = gzip(asset);
                 writeFile(new File(outDir, file + ".gz"), gz);
 
-                manifest.add(manifestEntry(p, schlafli, length, id, displayName, file, asset, gz));
+                manifest.add(manifestEntry(p, extractor, schlafli, length, id, displayName, file,
+                    asset, gz));
                 System.out.println(kb(asset.length) + " raw, " + kb(gz.length) + " gzipped");
                 built++;
 
@@ -161,6 +163,11 @@ public class AssetExporter {
         final int nDims, nFaces, nStickers, nGrips, nVerts;
         /** Non-null only for 3D puzzles, whose axes the original does not generate. */
         final Grips3D grips3d;
+        /**
+         * Vertices actually written, which differs from p.nVerts() for 3D: expansion gives each
+         * sticker private copies. Set by build(), so read it afterwards.
+         */
+        int nVertsWritten;
 
         Extractor(PolytopePuzzleDescription p, String schlafli, double length) throws Exception {
             this.p = p;
@@ -178,15 +185,22 @@ public class AssetExporter {
         byte[] build() throws Exception {
             int[][][] stickerInds = p.getStickerInds();
 
+            // 3D stickers are polygons on a shared surface mesh rather than solids with private
+            // vertices, so they are expanded first -- see Expand3D and docs/three-d.md section 8.
+            // Only for 3D: renumbering 4D vertices would change a wire format.
+            Expand3D expanded = nDims == 3 ? new Expand3D(p) : null;
+
             // -------- vertex ranges
             // Each sticker owns a private, contiguous block of vertices -- PolyFromPolytope is run
             // per sticker and Poly.concat copies the blocks in order, so there is no sharing. The
             // asset relies on this to store polygon indices sticker-locally in one byte. Verify it
             // rather than trust it.
-            int[] vertBegin = new int[nStickers];
-            int[] vertCount = new int[nStickers];
+            int[] vertBegin = expanded != null ? expanded.vertBegin : new int[nStickers];
+            int[] vertCount = expanded != null ? expanded.vertCount : new int[nStickers];
+            int nVertsOut = expanded != null ? expanded.nVerts : nVerts;
+            nVertsWritten = nVertsOut;
             int expectedNext = 0;
-            for(int s = 0; s < nStickers; ++s) {
+            for(int s = 0; expanded == null && s < nStickers; ++s) {
                 int lo = Integer.MAX_VALUE, hi = Integer.MIN_VALUE;
                 for(int[] poly : stickerInds[s])
                     for(int v : poly) {
@@ -203,8 +217,16 @@ public class AssetExporter {
                     "sticker " + s + " spans " + vertCount[s] + " vertices; u8 local indices overflow");
                 expectedNext = hi + 1;
             }
-            Blocks.require(expectedNext == nVerts,
-                "sticker vertex ranges cover " + expectedNext + " of " + nVerts + " vertices");
+            if(expanded == null)
+                Blocks.require(expectedNext == nVerts,
+                    "sticker vertex ranges cover " + expectedNext + " of " + nVerts + " vertices");
+            // The expansion establishes the same invariant by construction, so check it holds.
+            for(int s = 0; expanded != null && s < nStickers; ++s) {
+                Blocks.require(vertBegin[s] == (s == 0 ? 0 : vertBegin[s - 1] + vertCount[s - 1]),
+                    "expanded sticker " + s + " does not follow its predecessor");
+                Blocks.require(vertCount[s] <= 256,
+                    "expanded sticker " + s + " spans " + vertCount[s] + " vertices; u8 overflows");
+            }
 
             // -------- polygon topology, indices made sticker-local
             int nPolys = 0, sumPolyVerts = 0;
@@ -213,11 +235,11 @@ public class AssetExporter {
                 for(int[] poly : sticker)
                     sumPolyVerts += poly.length;
             }
-            int[] stickerPolyCount = new int[nStickers];
-            int[] polyVertCount = new int[nPolys];
-            int[] polyIndsLocal = new int[sumPolyVerts];
+            int[] stickerPolyCount = expanded != null ? expanded.stickerPolyCount : new int[nStickers];
+            int[] polyVertCount = expanded != null ? expanded.polyVertCount : new int[nPolys];
+            int[] polyIndsLocal = expanded != null ? expanded.polyIndsLocal : new int[sumPolyVerts];
             int ip = 0, ii = 0;
-            for(int s = 0; s < nStickers; ++s) {
+            for(int s = 0; expanded == null && s < nStickers; ++s) {
                 stickerPolyCount[s] = stickerInds[s].length;
                 for(int[] poly : stickerInds[s]) {
                     polyVertCount[ip++] = poly.length;
@@ -236,8 +258,15 @@ public class AssetExporter {
                 (float[][]) field("vertStickerCentersMinusFaceCenters");
             float[][] faceCenters = (float[][]) field("faceCenters");
 
-            float[][] stickerCenterMinusFaceCenter = new float[nStickers][];
-            for(int s = 0; s < nStickers; ++s)
+            // For 3D both of these come from the expansion: the per-vertex arrays the 4D path reads
+            // are relative to whichever sticker claimed each vertex first, which is not necessarily
+            // the sticker asking.
+            if(expanded != null) {
+                vertsMinusStickerCenters = expanded.vertsMinusStickerCenters;
+            }
+            float[][] stickerCenterMinusFaceCenter = expanded != null
+                ? expanded.stickerCenterMinusFaceCenter : new float[nStickers][];
+            for(int s = 0; expanded == null && s < nStickers; ++s)
                 stickerCenterMinusFaceCenter[s] = vertStickerCentersMinusFaceCenters[vertBegin[s]];
 
             // -------- twist-path data. f64 is mandatory here, not a preference.
@@ -281,7 +310,7 @@ public class AssetExporter {
              .scalar("nCubies", p.nCubies())
              .scalar("nStickers", nStickers)
              .scalar("nGrips", nGrips)
-             .scalar("nVerts", nVerts)
+             .scalar("nVerts", nVertsOut)
              .scalar("nPolys", nPolys)
              .scalar("circumRadius", p.circumRadius())
              .scalar("inRadius", p.inRadius());
@@ -411,7 +440,8 @@ public class AssetExporter {
 
     // ============================================================ plumbing
 
-    private static String manifestEntry(PolytopePuzzleDescription p, String schlafli, double length,
+    private static String manifestEntry(PolytopePuzzleDescription p, Extractor extractor,
+        String schlafli, double length,
         String id, String displayName, String file, byte[] raw, byte[] gz) throws Exception
     {
         return "    {\"id\": \"" + id + "\""
@@ -425,8 +455,10 @@ public class AssetExporter {
             + ", \"nFaces\": " + p.nFaces()
             + ", \"nCubies\": " + p.nCubies()
             + ", \"nStickers\": " + p.nStickers()
-            + ", \"nGrips\": " + p.nGrips()
-            + ", \"nVerts\": " + p.nVerts()
+            // From the extractor rather than the description: for 3D the description has no grip
+            // tables at all, and its vertex count predates the expansion.
+            + ", \"nGrips\": " + extractor.nGrips
+            + ", \"nVerts\": " + extractor.nVertsWritten
             + "}";
     }
 
