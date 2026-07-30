@@ -4,12 +4,15 @@ import { DEFAULT_PUZZLE_ID, findEntry } from '@mc4d/puzzle-core';
 import { PALETTES, paletteSwatches } from '@mc4d/render';
 import type { PuzzleRenderer } from '@mc4d/render';
 import {
+  ImportExport,
   PuzzlePicker,
+  RealSolves,
   Section,
   appKey,
   usePuzzleAsset,
   usePuzzleSession,
   useAxisColors,
+  useSolveIO,
   type PuzzleActions,
   type ViewSnapshot,
 } from '@mc4d/shell';
@@ -106,6 +109,33 @@ export function App() {
   const { session, actions } = usePuzzleSession(getViews, asset.geometry);
   actionsRef.current = actions;
 
+  const [notice, setNotice] = useState<string | null>(null);
+  const say = useCallback((message: string) => {
+    setNotice(message);
+    setTimeout(() => setNotice((current) => (current === message ? null : current)), 4000);
+  }, []);
+
+  // Pane A's camera is the one a loaded solve restores into, since a save records one view matrix
+  // and there is no honest way to spread it across three.
+  const primaryRotation = useCallback(
+    () => takeSnapshot.current.get(0)?.().mat4d ?? [],
+    [],
+  );
+  const io = useSolveIO({
+    actions,
+    catalog: asset.catalog,
+    puzzleId: asset.puzzleId,
+    geometry: asset.geometry,
+    selectPuzzle: asset.selectPuzzle,
+    getRotation: () => Array.from(primaryRotation()),
+    setRotation: () => {
+      /* Panes keep their own cameras, and overriding them on load would discard the arrangement
+         that is the reason for using this app. The solve's stored view is deliberately ignored. */
+    },
+    say,
+    base: import.meta.env.BASE_URL,
+  });
+
   const togglePane = useCallback((index: number) => {
     setShown((current) => {
       const next = [...current];
@@ -172,6 +202,7 @@ export function App() {
           />
           ) : null,
         )}
+        {notice && <div className="notice">{notice}</div>}
         {(asset.loading || asset.error) && (
           <div className="overlay">
             {asset.error ? (
@@ -375,6 +406,17 @@ export function App() {
             />
           </Section>
         )}
+
+        <RealSolves session={session} actions={actions} io={io} base={import.meta.env.BASE_URL} />
+
+        <ImportExport
+          session={session}
+          actions={actions}
+          io={io}
+          puzzleId={asset.puzzleId}
+          geometry={asset.geometry}
+          say={say}
+        />
 
         <Section id="startover" title="Start over" defaultOpen>
           <div className="buttons">

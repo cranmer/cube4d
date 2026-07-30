@@ -13,6 +13,8 @@ import {
   download,
   encodePermalink,
   EXAMPLES,
+  ImportExport,
+  RealSolves,
   fromSaveDoc,
   parseDropped,
   PLAYBACK_SPEED_RANGE,
@@ -25,6 +27,7 @@ import {
   toSaveDoc,
   usePuzzleCanvas,
   usePuzzleSession,
+  useSolveIO,
   type Example,
   type PuzzleActions,
 } from '@mc4d/shell';
@@ -90,10 +93,6 @@ export function App() {
     });
   }, []);
   const [notice, setNotice] = useState<string | null>(null);
-  // State, not a ref: a restore has to wait for the right geometry, and setting a ref would not
-  // schedule the effect that consumes it — so a link for the puzzle already on screen would sit
-  // there forever, since nothing else causes a render.
-  const [pendingRestore, setPendingRestore] = useState<ReturnType<typeof fromSaveDoc> | null>(null);
 
   const say = useCallback((message: string) => {
     setNotice(message);
@@ -102,6 +101,19 @@ export function App() {
 
   // One instance for the life of the page: it owns a debounce timer and page-lifecycle listeners.
   const autosave = useMemo(() => new Autosave({ onUnavailable: say }), [say]);
+
+  // Loading and saving solves, shared with the other apps that offer it.
+  const io = useSolveIO({
+    actions,
+    catalog: puzzle.catalog,
+    puzzleId: puzzle.puzzleId,
+    geometry: puzzle.geometry,
+    selectPuzzle: puzzle.selectPuzzle,
+    getRotation: puzzle.getRotation,
+    setRotation: puzzle.setRotation,
+    say,
+    base: import.meta.env.BASE_URL,
+  });
 
   // --- stepping between named viewpoints
   const { stepCanonicalView, tip, turnQuarter } = puzzle;
@@ -142,7 +154,7 @@ export function App() {
       say(`No solve called ${wanted}.`);
       return;
     }
-    void loadExample(example);
+    void io.loadExample(example);
     // Consumed, so a reload does not reload the solve over whatever you have since done.
     history.replaceState(null, '', globalThis.location.pathname);
     setHash('');
@@ -156,7 +168,7 @@ export function App() {
       say(`This link is for ${link.puzzleId}, which is not in the catalog.`);
       return;
     }
-    setPendingRestore({
+    io.restoreLater({
       puzzleId: entry.id,
       schlafli: entry.schlafli,
       length: entry.length,
@@ -171,20 +183,6 @@ export function App() {
   }, [hash, puzzle.catalog]);
 
   // A restore has to wait for the right geometry to finish loading.
-  useEffect(() => {
-    // Guard on the *loaded* geometry, not the requested id. Selecting a puzzle updates the id
-    // immediately while the asset is still downloading, so for a moment the id says one puzzle and
-    // `geometry` is still the previous one — restoring then would apply the moves to the wrong
-    // puzzle and consume the pending restore, leaving nothing to apply when the right one arrives.
-    if (!pendingRestore || !puzzle.geometry) return;
-    if (puzzle.geometry.id !== pendingRestore.puzzleId) return;
-    if (puzzle.puzzleId !== pendingRestore.puzzleId) return;
-    setPendingRestore(null);
-    actions.restore(pendingRestore);
-    // The original stores the camera alongside the moves, so a loaded solve looks as it was left.
-    if (pendingRestore.viewMatrix.length === 16) puzzle.setRotation(pendingRestore.viewMatrix);
-    say(`Loaded ${pendingRestore.history.moves.length} moves.`);
-  }, [pendingRestore, puzzle.geometry, puzzle.puzzleId, actions, say]);
 
   const currentEntry = puzzle.catalog ? findEntry(puzzle.catalog, puzzle.puzzleId) : undefined;
 
@@ -204,37 +202,21 @@ export function App() {
     const snapshot = fromSaveDoc(doc);
     if (entry.id === puzzle.puzzleId) actions.restore(snapshot);
     else {
-      setPendingRestore(snapshot);
+      io.restoreLater(snapshot);
       puzzle.selectPuzzle(entry.id, entry.path);
     }
   }, [autosaveChecked, puzzle.catalog]);
 
-  const buildDoc = useCallback(() => {
-    const state = actions.snapshot();
-    return toSaveDoc(
-      {
-        puzzleId: puzzle.puzzleId,
-        schlafli: currentEntry?.schlafli ?? puzzle.geometry?.schlafli ?? '',
-        length: currentEntry?.length ?? puzzle.geometry?.edgeLength ?? 0,
-        history: state.history,
-        scrambleState: state.scrambleState,
-        ...(state.scramble ? { scramble: state.scramble } : {}),
-        viewMatrix: puzzle.getRotation(),
-        ...(puzzle.catalog ? { assetsVersion: puzzle.catalog.assetsVersion } : {}),
-      },
-      puzzle.geometry,
-    );
-  }, [actions, currentEntry, puzzle.catalog, puzzle.geometry, puzzle.puzzleId]);
 
   // --- keep the autosave current
   useEffect(() => {
     if (!puzzle.geometry || !autosaveChecked) return;
-    const doc = buildDoc();
+    const doc = io.buildDoc();
     // An empty history means a fresh or reset puzzle, and there is nothing worth restoring — so
     // clear rather than store, otherwise Reset would be undone by the next reload.
     if (doc.moves.length === 0) autosave.clear();
     else autosave.schedule(doc);
-  }, [session.revision, puzzle.geometry, autosaveChecked, autosave, buildDoc]);
+  }, [session.revision, puzzle.geometry, autosaveChecked, autosave, io]);
 
   /**
    * Load a real solve and park it at the scramble, so the interesting part is what happens next.
@@ -242,59 +224,7 @@ export function App() {
    * The move list runs scramble → boundary → solution, so seeking to the boundary shows the
    * position the solver actually faced. Play then works through their solution.
    */
-  const loadExample = useCallback(
-    async (example: Example) => {
-      try {
-        const response = await fetch(`${import.meta.env.BASE_URL}examples/${example.file}`);
-        if (!response.ok) throw new Error(`could not load ${example.file}`);
-        const { doc } = parseDropped(example.file, await response.text());
-        const snapshot = fromSaveDoc(doc);
-        const entry = puzzle.catalog ? findEntry(puzzle.catalog, snapshot.puzzleId) : undefined;
-        if (!entry) {
-          say(`${example.file} is for ${snapshot.puzzleId}, which is not in the catalog.`);
-          return;
-        }
-        const boundary = snapshot.history.marks.find((m) => m.kind === 'scramble');
-        const staged = { ...snapshot, history: { ...snapshot.history, index: boundary?.at ?? 0 } };
-        if (entry.id === puzzle.puzzleId) {
-          actions.restore(staged);
-          say(`${example.solver}, ${example.twists.toLocaleString()} twists. Press Play.`);
-        } else {
-          setPendingRestore(staged);
-          puzzle.selectPuzzle(entry.id, entry.path);
-        }
-      } catch (e) {
-        say(e instanceof Error ? e.message : String(e));
-      }
-    },
-    [actions, puzzle, say],
-  );
 
-  const openFile = useCallback(
-    async (file: File) => {
-      try {
-        const { doc, warnings } = parseDropped(file.name, await file.text());
-        const snapshot = fromSaveDoc(doc);
-        const entry = puzzle.catalog ? findEntry(puzzle.catalog, snapshot.puzzleId) : undefined;
-        if (!entry) {
-          say(`${file.name} is for ${snapshot.puzzleId}, which is not in the catalog.`);
-          return;
-        }
-        for (const warning of warnings) say(warning);
-        if (entry.id === puzzle.puzzleId) {
-          actions.restore(snapshot);
-          if (snapshot.viewMatrix.length === 16) puzzle.setRotation(snapshot.viewMatrix);
-          say(`Loaded ${snapshot.history.moves.length} moves from ${file.name}.`);
-        } else {
-          setPendingRestore(snapshot);
-          puzzle.selectPuzzle(entry.id, entry.path);
-        }
-      } catch (e) {
-        say(e instanceof Error ? e.message : String(e));
-      }
-    },
-    [actions, puzzle, say],
-  );
 
   // --- drag and drop, anywhere on the window
   useEffect(() => {
@@ -302,7 +232,7 @@ export function App() {
     const drop = (event: DragEvent) => {
       event.preventDefault();
       const file = event.dataTransfer?.files?.[0];
-      if (file) void openFile(file);
+      if (file) void io.openFile(file);
     };
     window.addEventListener('dragover', over);
     window.addEventListener('drop', drop);
@@ -310,7 +240,7 @@ export function App() {
       window.removeEventListener('dragover', over);
       window.removeEventListener('drop', drop);
     };
-  }, [openFile]);
+  }, [io]);
 
   return (
     <div className="layout">
@@ -663,106 +593,7 @@ export function App() {
           </Section>
         )}
 
-        <Section
-          id="examples"
-          title="Real solves"
-          badge={`${EXAMPLES.length}`}
-        >
-          <p className="hint">
-            Actual solves from the{' '}
-            <a
-              href="https://superliminal.com/cube/halloffame.htm"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              MagicCube4D Hall of Fame
-            </a>
-            . Each loads at the position the solver faced — press Play to watch it come apart, or
-            download the log to keep or to open in the original.
-          </p>
-          {/* A transport for whatever solve is loaded. Step back and forward are undo and redo,
-              named for what you are doing here: reading someone else's moves rather than making
-              your own. */}
-          <div className="transport">
-            <button
-              className="step"
-              disabled={!session.canUndo}
-              onClick={() => actions.undo()}
-              aria-label="Step back one move"
-              title="Step back one move"
-            >
-              <StepIcon direction="back" />
-            </button>
-            <button
-              className="play"
-              disabled={!session.canRedo && !session.playing}
-              onClick={() => actions.setPlaying(!session.playing)}
-            >
-              {session.playing ? <StopIcon /> : <PlayIcon />}
-              <span>{session.playing ? 'Stop' : 'Play'}</span>
-            </button>
-            <button
-              className="step"
-              disabled={!session.canRedo}
-              onClick={() => actions.redo()}
-              aria-label="Step forward one move"
-              title="Step forward one move"
-            >
-              <StepIcon direction="forward" />
-            </button>
-          </div>
-
-          {/* Logarithmic, so 1× sits in the middle and the two extremes are symmetric — a linear
-              track would put the default a fifth of the way along. */}
-          <Slider
-            label="Playback speed"
-            value={Math.log2(session.playbackSpeed)}
-            min={Math.log2(PLAYBACK_SPEED_RANGE.min)}
-            max={Math.log2(PLAYBACK_SPEED_RANGE.max)}
-            step={0.25}
-            format={(v) => `${formatSpeed(2 ** v)}×`}
-            onChange={(v) => actions.setPlaybackSpeed(2 ** v)}
-          />
-
-          <div className="examples">
-            {EXAMPLES.map((example) => (
-              <div key={example.file} className="example">
-                <button className="example-load" onClick={() => void loadExample(example)}>
-                  <span className="who">{example.solver}</span>
-                  <span className="what">
-                    {example.puzzle} · {example.twists.toLocaleString()} twists
-                    {example.note ? ` · ${example.note}` : ''}
-                  </span>
-                </button>
-                {/* The file itself, so it can be kept or opened in the original MagicCube4D.
-                    An anchor rather than a nested button, which would be invalid inside one. */}
-                <a
-                  className="example-download"
-                  href={`${import.meta.env.BASE_URL}examples/${example.file}`}
-                  download={example.file}
-                  title={`Download ${example.file}`}
-                  aria-label={`Download ${example.solver}'s log file`}
-                >
-                  <svg
-                    viewBox="0 0 16 16"
-                    width="14"
-                    height="14"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    aria-hidden="true"
-                  >
-                    <path d="M8 2v8" />
-                    <polyline points="4.5 7 8 10.5 11.5 7" />
-                    <path d="M2.5 13h11" />
-                  </svg>
-                </a>
-              </div>
-            ))}
-          </div>
-        </Section>
+        <RealSolves session={session} actions={actions} io={io} base={import.meta.env.BASE_URL} />
 
         {puzzle.geometry && (
           <Section id="facts" title="This puzzle">
@@ -784,59 +615,14 @@ export function App() {
           </Section>
         )}
 
-        <Section id="solve" title="Import / Export">
-          <div className="buttons">
-            <button
-              onClick={() => download(suggestFilename(puzzle.puzzleId, 'json'), JSON.stringify(buildDoc(), null, 2), 'application/json')}
-              title="Save as JSON — this project's own format"
-            >
-              Save
-            </button>
-            <button
-              onClick={() => download(suggestFilename(puzzle.puzzleId, 'log'), saveDocToLogText(buildDoc()), 'text/plain')}
-              title="Export a MagicCube4D .log file, readable by the original"
-            >
-              Export .log
-            </button>
-          </div>
-          <div className="buttons">
-            <label className="filebutton">
-              Open…
-              <input
-                type="file"
-                accept=".json,.log,application/json,text/plain"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) void openFile(file);
-                  e.target.value = '';
-                }}
-              />
-            </label>
-            <button
-              onClick={async () => {
-                const state = actions.snapshot();
-                const url = `${globalThis.location.origin}${globalThis.location.pathname}#${encodePermalink(
-                  puzzle.puzzleId,
-                  state.history.moves.slice(0, state.history.index),
-                )}`;
-                try {
-                  await navigator.clipboard.writeText(url);
-                  say('Link copied.');
-                } catch {
-                  // Clipboard access needs permission and a secure context; fall back to showing it.
-                  globalThis.prompt?.('Copy this link:', url);
-                }
-              }}
-              title="Copy a link that reproduces this position"
-            >
-              Copy link
-            </button>
-          </div>
-          <p className="hint">
-            Or drop a <code>.json</code> or <code>.log</code> file anywhere on the page. Exported
-            logs open in the original MagicCube4D.
-          </p>
-        </Section>
+        <ImportExport
+          session={session}
+          actions={actions}
+          io={io}
+          puzzleId={puzzle.puzzleId}
+          geometry={puzzle.geometry}
+          say={say}
+        />
 
         {/* Last in the panel on purpose: both of these throw away whatever solve is in progress. */}
         <Section id="startover" title="Start over" defaultOpen>

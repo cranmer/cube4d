@@ -13,6 +13,9 @@ export { AxisInset, useAxisColors } from './AxisInset.js';
 export { Autosave, type AutosaveHandlers } from './autosave.js';
 export { appKey, claimLegacyKey, setAppId, sharedKey } from './storage.js';
 export { EXAMPLES, type Example } from './examples.js';
+export { ImportExport } from './ImportExport.js';
+export { RealSolves } from './RealSolves.js';
+export { useSolveIO, type SolveIO } from './useSolveIO.js';
 export { PuzzlePicker } from './PuzzlePicker.js';
 export { Section } from './Section.js';
 export {

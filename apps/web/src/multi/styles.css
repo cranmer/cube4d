@@ -455,10 +455,13 @@ button:disabled:hover { background: #21262d; }
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  /* Column gap separates the four controls from each other; the larger row gap is what keeps them
+     legible once a narrow pane makes them wrap onto two lines. */
+  column-gap: 14px;
+  row-gap: 10px;
   flex-wrap: wrap;
-  padding: 7px;
-  background: linear-gradient(to top, rgba(10, 13, 18, 0.85), rgba(10, 13, 18, 0));
+  padding: 10px 8px 12px;
+  background: linear-gradient(to top, rgba(10, 13, 18, 0.9), rgba(10, 13, 18, 0));
 }
 .pane-controls .pad { display: flex; align-items: center; gap: 3px; }
 .pane-controls .pad span {
