@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
 import type { PuzzleGeometry } from '@mc4d/puzzle-core';
 import { useViewport, type ViewControls, type ViewportHandlers, type ViewSnapshot } from '@mc4d/shell';
@@ -30,9 +30,13 @@ export function Viewport({
   index: number;
   label: string;
 }) {
+  // The controls sit over the bottom of the canvas, so the puzzle is centred in the space above
+  // them rather than in the whole pane — otherwise the lowest cells hide behind the buttons.
+  const controlsRef = useRef<HTMLDivElement>(null);
   const view = useViewport(geometry, controls, handlers, {
     publishTestHandle: index === 0,
     initial,
+    reserveBelow: controlsRef,
   });
 
   const { getRenderer, snapshot } = view;
@@ -50,7 +54,7 @@ export function Viewport({
       <div className="pane-label">
         <span className="pane-index">{label}</span>
       </div>
-      <div className="pane-controls">
+      <div className="pane-controls" ref={controlsRef}>
         <div className="pad">
           <button onClick={() => view.turnQuarter(-1)} title="Turn a quarter anticlockwise">
             <TurnIcon clockwise={false} />

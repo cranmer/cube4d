@@ -98,6 +98,11 @@ export function useViewport(
     publishTestHandle?: boolean;
     /** Where to start, for a pane being restored rather than opened fresh. Read once, at mount. */
     initial?: ViewSnapshot | undefined;
+    /**
+     * An element drawn over the bottom of the canvas — a strip of controls — whose height should be
+     * kept clear of the puzzle. Watched, so it stays right as the strip grows or shrinks.
+     */
+    reserveBelow?: React.RefObject<HTMLElement | null> | undefined;
   } = {},
 ): Viewport {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -148,13 +153,16 @@ export function useViewport(
     if (initialZoom.current !== 1) renderer.setZoom(initialZoom.current);
 
     const canvas = canvasRef.current;
+    const reserved = optionsRef.current.reserveBelow;
     const resize = () => {
       const rect = canvas.getBoundingClientRect();
       renderer.setSize(Math.max(1, rect.width), Math.max(1, rect.height));
+      renderer.setBottomInset(reserved?.current?.getBoundingClientRect().height ?? 0);
     };
     resize();
     const observer = new ResizeObserver(resize);
     observer.observe(canvas);
+    if (reserved?.current) observer.observe(reserved.current);
 
     // A handle for automated testing: lets a headless browser interrogate the picker and drive the
     // view deterministically, neither of which is reachable through the UI. Only one viewport

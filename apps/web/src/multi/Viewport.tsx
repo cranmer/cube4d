@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
 import { CANONICAL_VIEWS, type PuzzleGeometry } from '@mc4d/puzzle-core';
 import {
@@ -49,11 +49,15 @@ export function Viewport({
   axisColors: readonly (string | null)[] | undefined;
   axisHints: boolean;
 }) {
+  // The controls sit over the bottom of the canvas, so the puzzle is centred in the space above
+  // them rather than in the whole pane — otherwise the lowest cells hide behind the buttons.
+  const controlsRef = useRef<HTMLDivElement>(null);
   const view = useViewport(geometry, controls, handlers, {
     // Only the first pane publishes the test handle, so an automated check always finds a
     // predictable one rather than whichever mounted last.
     publishTestHandle: index === 0,
     initial,
+    reserveBelow: controlsRef,
   });
 
   const { getRenderer, snapshot } = view;
@@ -81,7 +85,7 @@ export function Viewport({
         <span className="pane-index">{label}</span>
         <span className="pane-view">{viewpoint}</span>
       </div>
-      <div className="pane-controls">
+      <div className="pane-controls" ref={controlsRef}>
         <div className="pad">
           <button onClick={() => view.turnQuarter(-1)} title="Turn to the previous corner">
             <TurnIcon clockwise={false} />

@@ -67,6 +67,8 @@ export class PuzzleRenderer {
   private radius = 1;
   private zoom = 1;
   private opacity = 1;
+  private viewHeight = 1;
+  private bottomInset = 0;
   /** True for puzzles of fewer than four dimensions, drawn flat in the axes they lack. */
   private flat = false;
   private palette: Palette = paletteById(DEFAULT_PALETTE_ID);
@@ -409,7 +411,23 @@ export class PuzzleRenderer {
 
   setSize(width: number, height: number): void {
     this.renderer.setSize(width, height, false);
-    this.camera.aspect = width / Math.max(1, height);
+    this.viewHeight = Math.max(1, height);
+    this.camera.aspect = width / this.viewHeight;
+    this.applyCamera();
+  }
+
+  /**
+   * Reserve a strip along the bottom of the canvas, in CSS pixels.
+   *
+   * For controls drawn over the puzzle. Without this the puzzle is centred in the whole canvas and
+   * the lower cells sit behind them; with it the puzzle is centred in what is left, which is where
+   * it should have been all along. The strip is still drawn on and still receives clicks — this only
+   * moves where the puzzle sits.
+   */
+  setBottomInset(pixels: number): void {
+    const next = Math.max(0, pixels);
+    if (next === this.bottomInset) return;
+    this.bottomInset = next;
     this.applyCamera();
   }
 
@@ -439,6 +457,15 @@ export class PuzzleRenderer {
     // Keep the depth range tight around the object; precision is then never an issue.
     this.camera.near = Math.max(0.01, EYE_Z - this.radius * 1.2);
     this.camera.far = EYE_Z + this.radius * 1.2;
+
+    // Lift the puzzle by half the reserved strip, so it centres in the free area rather than in the
+    // canvas. Moving the camera *and* its target together slides the frame without tilting it; a
+    // look-at that stayed at the origin would tilt, and a tilted perspective camera shears the
+    // picture in a way that is immediately visible on a cube.
+    const visibleHeight = 2 * Math.tan(verticalHalfAngle) * EYE_Z;
+    const shift = (this.bottomInset / 2 / this.viewHeight) * visibleHeight;
+    this.camera.position.set(0, -shift, EYE_Z);
+    this.camera.lookAt(0, -shift, 0);
     this.camera.updateProjectionMatrix();
   }
 
