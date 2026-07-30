@@ -46,7 +46,8 @@
       }
       main { width: 100%; max-width: 720px; }
       h1 { font-size: 30px; margin: 0 0 6px; letter-spacing: -0.01em; }
-      .lede { color: var(--dim); margin: 0 0 6px; }
+      .lede { color: var(--dim); margin: 0 0 10px; max-width: 68ch; }
+      .lede b { color: var(--text); font-weight: 600; }
       a { color: var(--link); }
       .apps { display: grid; gap: 14px; margin: 38px 0 0; }
       .apps.second { margin-top: 14px; }
@@ -113,12 +114,24 @@
     <main>
       <h1>MagicCube4D</h1>
       <p class="lede">A four-dimensional Rubik&rsquo;s cube, in your browser.</p>
+      <!-- Two attributions, kept apart on purpose. The one-line version elsewhere reads as though
+           the same people did both, and they did not: the hard part is thirty-odd years old. -->
       <p class="lede">
-        A modern port of
-        <a href="https://superliminal.com/cube/">the original</a>, by
+        This is a modern web port, by
         <a href="https://theoryandpractice.org/">Kyle Cranmer</a> and
-        <a href="https://claude.ai/">Claude</a>. Every one of the 128 puzzles it can build is here,
-        and solve files from the original open and replay unchanged.
+        <a href="https://claude.ai/">Claude</a>, of
+        <a href="https://superliminal.com/cube/">the original MagicCube4D</a>.
+      </p>
+      <p class="lede">
+        <b>Don Hatch</b> and <b>Melinda Green</b> developed that puzzle on and off starting in
+        <b>1988</b>. <b>Jay Berkenbilt</b> and <b>Roice Nelson</b> later joined and made major
+        contributions. Theirs is the work that matters here: the n-dimensional geometry engine
+        underneath, which constructs each puzzle from a Schl&auml;fli symbol rather than hard-coding
+        it, is Don Hatch&rsquo;s.
+      </p>
+      <p class="lede">
+        Every one of the 128 puzzles that engine can build is here, and solve files from the original
+        open and replay unchanged.
       </p>
 
       <!--
@@ -205,7 +218,8 @@
           <a href="https://github.com/cranmer/cube4d">Source and porting log on GitHub</a>
         </p>
         <p>
-          The original MagicCube4D is by Melinda Green, Don Hatch, Jay Berkenbilt and Roice Nelson.
+          MagicCube4D is <a href="https://superliminal.com/cube/">at superliminal.com</a>. This port
+          is a derivative work; see LICENSE.
         </p>
       </footer>
     </main>
