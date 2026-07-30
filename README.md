@@ -80,7 +80,13 @@ apps/
   web/              the deployable: a landing page plus one page per front-end
     index.html        landing page
     classic/          the full-catalog app, closest to the original
+    gallery/          every puzzle, pictured
+    multi/            one hypercube from up to three angles at once
+    cube/             an ordinary Rubik's cube on the same engine
 ```
+
+The 3D puzzles are the one part the original could not build; how they work, and what the interface
+does and does not carry across dimensions, is in [docs/three-d.md](docs/three-d.md).
 
 Several front-ends share one engine rather than one app growing modes; the reasoning is in
 [docs/multi-app.md](docs/multi-app.md).

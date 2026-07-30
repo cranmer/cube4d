@@ -20,9 +20,10 @@ If you want the conclusions rather than the story:
 
 ## Status
 
-**Phases 0–6 of 8 complete.** All 128 puzzles are playable in a browser, solves persist and can be
-saved, shared or exported, the real Hall-of-Fame records replay on demand, and the front-end has been
-split so that alternative layouts are separate apps rather than more controls in one panel.
+**Phases 0–6 and 8 of 8 complete.** All 128 four-dimensional puzzles are playable in a browser,
+solves persist and can be saved, shared or exported, the real Hall-of-Fame records replay on demand,
+the front-end is split so that alternative layouts are separate apps rather than more controls in one
+panel — and the engine now builds three-dimensional puzzles too, which the original never could.
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -34,12 +35,12 @@ split so that alternative layouts are separate apps rather than more controls in
 | 5 | Catalog + persistence | ✅ complete |
 | 6 | Several apps on one engine | ✅ complete |
 | 7 | A hypercube-specific app | next |
-| 8 | 3D puzzles on the same engine | scoped |
+| 8 | 3D puzzles on the same engine | ✅ complete |
 
-What exists today: all 128 puzzles export to binary assets; `@mc4d/puzzle-core` decodes, twists,
+What exists today: all 136 puzzles export to binary assets — 128 four-dimensional and 8 three-dimensional; `@mc4d/puzzle-core` decodes, twists,
 scrambles and tracks history; `@mc4d/legacy-format` reads and writes `.log` files, with an
 `mc4d-convert` CLI; and `@mc4d/render` puts the whole 4D→3D projection into a vertex shader.
-316 tests, plus a headless browser that scrambles and solves the puzzle end to end.
+409 tests, plus a headless browser that scrambles and solves the puzzle end to end.
 
 **Playable at <https://theoryandpractice.org/cube4d/>.**
 

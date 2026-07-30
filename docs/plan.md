@@ -116,7 +116,7 @@ a solve without trusting the client. It costs nothing now and cannot be retrofit
 | **5** | Catalog + persistence | ✅ **done** — all 128 puzzles, save/load/share, autosave |
 | **6** | Several apps on one engine | next — see [`multi-app.md`](multi-app.md) |
 | **7** | A hypercube-specific app | not yet specified |
-| **8** | 3D puzzles on the same engine | scoped — see [`multi-app.md`](multi-app.md) §4.5 |
+| **8** | 3D puzzles on the same engine | ✅ **done** — see [`three-d.md`](three-d.md) |
 
 **Phase 0 — Measure and freeze.** Build every catalog entry, record element counts and exact asset
 sizes, identify anything too large or broken to ship, and acquire a corpus of real `.log` files.

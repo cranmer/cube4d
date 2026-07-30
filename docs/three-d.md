@@ -211,24 +211,7 @@ a cuber means by it. That needs checking against a render rather than reasoning 
 
 ---
 
-## 7. Checklist
-
-| Piece | Status |
-|---|---|
-| Polytope, slicing, cubies, stickers | ✅ works unmodified |
-| Twist axes for `nDims == 3` | ✅ `Grips3D.java`, verified orthonormal |
-| `.mc4dpz`, decoder, `applyTwist` | ✅ already dimension-generic |
-| Exporter emitting 3D entries | ✅ `Expand3D.java`; behind `--include-3d` until the apps can use them |
-| Twist permutations proven bijective in TS | ✅ 66 tests in `threeD.test.ts` |
-| Renderer: pad to `w = 0`, disable the cull | ✅ `widenTo4D` + `uCull` |
-| `gripForPick`: face-of-sticker rule for 3D | ✅ |
-| Drag: keep to the 3D planes | ✅ `DragOptions.dims` |
-| The app itself, with a slice-count choice | ⬜ blocked on §9 |
-| Direction convention checked against a render | ⬜ |
-
----
-
-## 8. The blocker: 3D stickers share vertices
+## 7. The blocker: 3D stickers share vertices
 
 The asset format stores polygon indices *sticker-locally*, in one byte each, which needs every
 sticker to own a private contiguous run of vertices. The 4D path gets that for free, and the exporter
@@ -266,7 +249,7 @@ is that it did not: **all 128 4D assets export byte-identical** by sha256 after 
 
 ---
 
-## 9. The bug that was: two orderings that are not the same order
+## 8. The bug that was: two orderings that are not the same order
 
 The first render was a recognisable cube and completely wrong — 102 of 216 vertices off by exactly
 2.0, the width of the cube, landing on the opposite face. The cause is worth recording because
@@ -315,30 +298,31 @@ never the vertex offsets, so this was invisible to all 66 of them. It took a pic
 
 ---
 
-## 10. Checklist
+## 9. Checklist
 
 | Piece | Status |
 |---|---|
 | Polytope, slicing, cubies, stickers | ✅ works unmodified |
-| Twist axes for `nDims == 3` | ✅ `Grips3D.java` |
+| Twist axes per (face, element) | ✅ `Grips3D.java` — 54 for a cube, 132 for a dodecahedron |
 | `.mc4dpz`, decoder, `applyTwist` | ✅ already dimension-generic |
-| Exporter emitting 3D entries | ✅ `Expand3D.java`, behind `--include-3d` |
-| Twist permutations proven bijective | ✅ 66 tests |
-| Vertex geometry proven planar | ✅ to float32 precision, all six puzzles |
+| Sticker vertices expanded so each owns its own | ✅ `Expand3D.java` |
+| Twist permutations proven bijective | ✅ 66 tests over six puzzles |
+| Vertex geometry proven planar | ✅ to float32 precision |
 | Renderer: pad to `w = 0`, disable the cull | ✅ `widenTo4D` + `uCull` |
-| Grips per (face, element), as 4D has per (cell, element) | ✅ 54 for a cube, 132 for a dodecahedron |
-| `gripForPick` unchanged — the 4D heuristic transfers | ✅ corner 120°, edge 180°, centre 90° |
+| Twist matrix widened so moves animate | ✅ n×n into a `Matrix4` was filling with `undefined` |
+| Pick heuristic unchanged — the 4D rule transfers | ✅ corner 120°, edge 180°, centre 90° |
 | `isValidTwist`: only facet axes turn one layer | ✅ verified over 3,138 combinations |
 | Traditional colours for a six-faced puzzle | ✅ white/yellow, green/blue, red/orange |
-| Drag: keep to the 3D planes | ✅ `DragOptions.dims` |
 | Framing defaults for a solid | ✅ `DEFAULT_CONTROLS_3D` |
-| The app itself, with a slice-count choice | ⬜ |
+| 3D assets shipped by default | ✅ 136 in the catalog, all 128 4D entries byte-identical |
+| The app, with a puzzle list and panes | ✅ `/cube/` |
+| Apps restricted to their own dimension | ✅ `nDims` in the manifest, filtered as the catalog arrives |
+| A general answer to unreachable axes | ⬜ `Ctrl` names the facet axis; §12 is the wider gap |
 | Direction convention checked against a render | ⬜ |
-| 3D assets shipped by default | ⬜ still behind `--include-3d` |
 
 ---
 
-## 11. Does this actually teach the 4D interface?
+## 10. Does this actually teach the 4D interface?
 
 Honestly: **less than it was meant to.** Worth writing down while the reasoning is fresh, because the
 answer decides what the app is for.
@@ -382,7 +366,7 @@ The third is the only one that uses what was learned rather than working around 
 
 ---
 
-## 12. What a twist actually is — and why 120° is physical
+## 11. What a twist actually is — and why 120° is physical
 
 The question that settles §11: are the 120° and 180° twists *physical* in 4D, or do the cubies pass
 through each other? Measured on `{4,3,3} 3`, for the cell at +W:
@@ -437,7 +421,7 @@ Rubik's cube: pick it up and turn it.** What is four-dimensional is that there a
 sharing their pieces — 8 × 27 = 216 sticker slots over 81 cubies — and that turning one rearranges the
 others.
 
-Which rescues §11's conclusion rather than confirming it. The 3D cube is not a poor teacher of the
+Which rescues §10's conclusion rather than confirming it. The 3D cube is not a poor teacher of the
 grip taxonomy; it is a *complete* teacher of one cell of it:
 
 > In four dimensions each of the eight cells is a Rubik's cube in its own right, and a twist turns
@@ -450,7 +434,7 @@ So the corner and edge clicks are not degenerate in 3D after all. They are the h
 
 ---
 
-## 13. Which legal moves a click can actually reach
+## 12. Which legal moves a click can actually reach
 
 Not all of them, in either dimension. Measured by taking every grip a click can produce — over every
 sticker and every polygon of it — and comparing against every move `isValidTwist` allows:
@@ -501,7 +485,7 @@ described at length as the thing he did not want.
 
 ---
 
-## 14. The app
+## 13. The app
 
 `/cube/`, its own front-end rather than a mode of the classic one, because almost every control
 differs. What it shares is everything below the layout — the geometry pipeline, the twist code, the
