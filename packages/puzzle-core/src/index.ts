@@ -49,6 +49,8 @@ export {
 export type { ScrambleOptions } from './scramble.js';
 export { countCubiesWithColors, fullScrambleLength, mulberry32, scramble } from './scramble.js';
 
+export type { NetCell, NetLayout } from './net.js';
+export { netLayout, netTearing } from './net.js';
 export type { CanonicalView } from './canonicalViews.js';
 export {
   CANONICAL_VIEWS,
