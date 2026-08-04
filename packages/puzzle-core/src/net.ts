@@ -161,7 +161,28 @@ export function netLayout(
     offset[reduced(here.axis)] = spacing * width * here.sign;
     cells.push({ face, matrix, offset, role: 'neighbour' });
   }
-  return { cells, droppedAxis: centre.axis, keptAxes };
+  // Recentre. The long arm reaches two cells one way and one the other, so a cross built around the
+  // middle cell sits off to one side of it — which a viewer reads as the whole thing being badly
+  // framed rather than as the shape it is.
+  const lo = [Infinity, Infinity, Infinity];
+  const hi = [-Infinity, -Infinity, -Infinity];
+  for (const cell of cells) {
+    for (let i = 0; i < 3; ++i) {
+      lo[i] = Math.min(lo[i], cell.offset[i]);
+      hi[i] = Math.max(hi[i], cell.offset[i]);
+    }
+  }
+  const middle = [0, 1, 2].map((i) => (lo[i] + hi[i]) / 2);
+  const centred = cells.map((cell) => ({
+    ...cell,
+    offset: cell.offset.map((v, i) => v - middle[i]) as unknown as readonly [
+      number,
+      number,
+      number,
+    ],
+  }));
+
+  return { cells: centred, droppedAxis: centre.axis, keptAxes };
 }
 
 /**

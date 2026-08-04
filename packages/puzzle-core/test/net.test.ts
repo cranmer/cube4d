@@ -119,15 +119,29 @@ describe('the solid cross', () => {
     }
   });
 
-  it('opens gaps when asked, without moving the centre', () => {
-    const tight = place(netLayout(geo, 0, 2, 1));
-    const loose = place(netLayout(geo, 0, 2, 1.5));
-    const centre = netLayout(geo, 0, 2).cells.find((c) => c.role === 'centre')!.face;
-    expect(bounds(loose.get(centre)!.xs).lo).toEqual(bounds(tight.get(centre)!.xs).lo);
+  it('opens gaps when asked', () => {
+    const extent = (spacing: number) => {
+      const all: number[][] = [];
+      for (const { xs } of place(netLayout(geo, 0, 2, spacing)).values()) all.push(...xs);
+      const b = bounds(all);
+      return b.hi.map((h, i) => h - b.lo[i]);
+    };
+    const tight = extent(1);
+    const loose = extent(1.5);
+    for (let i = 0; i < 3; ++i) expect(loose[i]).toBeGreaterThan(tight[i]);
+  });
 
-    const far = netLayout(geo, 0, 2).cells.find((c) => c.role === 'far')!.face;
-    const spread = (m: ReturnType<typeof place>) => Math.max(...bounds(m.get(far)!.xs).hi.map(Math.abs));
-    expect(spread(loose)).toBeGreaterThan(spread(tight));
+  // Off-centre reads as bad framing rather than as the shape it is, since the long arm reaches two
+  // cells one way and one the other.
+  it('centres the cross on the origin, whichever arm is long', () => {
+    for (const arm of [1, 2, 3, 4, 5, 6]) {
+      const all: number[][] = [];
+      for (const { xs } of place(netLayout(geo, 0, arm, 1.35)).values()) all.push(...xs);
+      const b = bounds(all);
+      for (let i = 0; i < 3; ++i) {
+        expect(Math.abs(b.lo[i] + b.hi[i]), `arm ${arm}, axis ${i}`).toBeLessThan(1e-6);
+      }
+    }
   });
 
   it('refuses a far cell that is not beyond a neighbour', () => {

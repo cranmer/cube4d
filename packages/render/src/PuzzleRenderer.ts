@@ -7,7 +7,7 @@
  */
 
 import * as THREE from 'three';
-import type { PuzzleGeometry } from '@mc4d/puzzle-core';
+import type { NetLayout, PuzzleGeometry } from '@mc4d/puzzle-core';
 
 import {
   buildBuffers,
@@ -65,6 +65,8 @@ export class PuzzleRenderer {
 
   private view: ViewParams = { ...DEFAULT_VIEW, mat4d: new Float64Array(16) };
   private radius = 1;
+  /** Set while the puzzle is drawn unfolded, where the projected extent does not describe it. */
+  private unfoldRadius: number | null = null;
   private zoom = 1;
   private opacity = 1;
   private viewHeight = 1;
@@ -144,6 +146,9 @@ export class PuzzleRenderer {
         uHighlightSticker: { value: -1 },
         uHighlightCubie: { value: -1 },
         uCull: { value: !this.flat },
+        uUnfold: { value: false },
+        uCellMat: { value: Array.from({ length: 8 }, () => new THREE.Matrix4()) },
+        uCellOffset: { value: Array.from({ length: 8 }, () => new THREE.Vector3()) },
       },
     });
     this.applyOpacity();
@@ -424,6 +429,57 @@ export class PuzzleRenderer {
    * it should have been all along. The strip is still drawn on and still receives clicks — this only
    * moves where the puzzle sits.
    */
+  /**
+   * Draw the puzzle unfolded into a solid cross, or stop doing so.
+   *
+   * The layout comes from the core, which is where the geometry is worked out and tested. All this
+   * does is get it onto the GPU: for each cell, one matrix carrying it into the shared hyperplane
+   * with the axis-drop folded in, and one translation out to its arm.
+   *
+   * Nothing else about the pipeline changes. The unfolded points land at w = 0, so the perspective
+   * divide is by eyeW/eyeW and the view rotation, the framing and the pick pass all carry on as
+   * they were. The front-cell cull does have to go: it exists to hide the cell nearest the 4D eye,
+   * and unfolded there is no such cell -- every one of the eight is meant to be visible at once,
+   * which is the point of drawing it this way.
+   */
+  setNetLayout(layout: NetLayout | null): void {
+    if (!this.material || !this.geo) return;
+    const uniforms = this.material.uniforms;
+    uniforms.uUnfold.value = layout !== null;
+    uniforms.uCull.value = !this.flat && layout === null;
+    if (!layout) {
+      this.unfoldRadius = null;
+      this.refreshFraming();
+      return;
+    }
+
+    const n = this.geo.nDims;
+    const mats = uniforms.uCellMat.value as THREE.Matrix4[];
+    const offsets = uniforms.uCellOffset.value as THREE.Vector3[];
+    let reach = 0;
+    for (const cell of layout.cells) {
+      // Fold the axis-drop into the matrix so the shader does one multiply and gets (x, y, z, 0).
+      // Row-major, to be read column-major by fromArray: that transpose is what makes GLSL's
+      // column-vector multiply carry out the row-vector one the core uses. Same trick as uRot4d.
+      const rows: number[] = [];
+      for (let i = 0; i < n; ++i) {
+        for (let j = 0; j < 3; ++j) rows.push(cell.matrix[i * n + layout.keptAxes[j]]);
+        rows.push(0);
+      }
+      mats[cell.face].fromArray(rows);
+      offsets[cell.face].set(cell.offset[0], cell.offset[1], cell.offset[2]);
+      reach = Math.max(reach, Math.hypot(...cell.offset));
+    }
+
+    // The shader normalises by circumRadius before projecting, so the framing has to be measured in
+    // those units too. Half a cell beyond the furthest cell centre reaches its outer face.
+    const halfCell = Math.hypot(
+      ...Array.from({ length: n }, (_, i) => this.geo!.faceCenters[layout.cells[0].face * n + i]),
+    );
+    this.unfoldRadius = (reach + halfCell) / this.geo.circumRadius;
+    this.refreshFraming();
+  }
+
   setBottomInset(pixels: number): void {
     const next = Math.max(0, pixels);
     if (next === this.bottomInset) return;
@@ -442,7 +498,11 @@ export class PuzzleRenderer {
    */
   private refreshFraming(): void {
     if (!this.geo) return;
-    this.radius = Math.max(1e-6, projectedRadius(this.geo, this.view));
+    // Unfolded, the puzzle is a cross five cells across rather than a projected ball, and the
+    // projected radius would frame it for the wrong shape entirely. The extent comes from the
+    // layout instead: the far arm reaches two cell widths out, and half a cell more to its far
+    // face, measured in the same units the shader works in.
+    this.radius = this.unfoldRadius ?? Math.max(1e-6, projectedRadius(this.geo, this.view));
     this.applyCamera();
   }
 

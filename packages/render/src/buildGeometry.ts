@@ -171,6 +171,10 @@ function buildStickerTexture(geo: PuzzleGeometry, cull: boolean): {
     // Solved: each sticker shows its own face's colour.
     array[texel(STICKER_TEXEL.meta) + 0] = face;
     array[texel(STICKER_TEXEL.meta) + 1] = geo.sticker2cubie[s];
+    // The cell this sticker's *slot* belongs to, which never changes. Distinct from the colour in
+    // .x, which a twist overwrites: the unfolded layout has to know where a slot lives, not what
+    // colour is currently sitting in it.
+    array[texel(STICKER_TEXEL.meta) + 3] = geo.sticker2face[s];
   }
 
   const texture = new THREE.DataTexture(array, width, height, THREE.RGBAFormat, THREE.FloatType);

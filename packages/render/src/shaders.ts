@@ -23,7 +23,7 @@ export const TEXELS_PER_STICKER = 8;
  *   0      stickerCentre − faceCentre
  *   1      faceCentre
  *   2..5   the four cull witnesses, each as (vertex − stickerCentre)
- *   6      (colourIndex, cubieIndex, inTwistingSlice, unused)
+ *   6      (colourIndex, cubieIndex, inTwistingSlice, homeCell)
  *   7      reserved
  */
 export const STICKER_TEXEL = {
@@ -61,6 +61,17 @@ uniform float uTwisting;
 // exactly zero, and the test would discard every sticker on the puzzle. See docs/three-d.md §4.
 uniform bool uCull;
 
+// The unfolded layout: eight cells laid out as a solid cross instead of projected from 4D. Each
+// cell carries its own rotation into the common hyperplane, with the axis-drop already folded in,
+// so the product lands as (x, y, z, 0) and needs only the translation to its arm of the cross.
+//
+// A w of exactly zero is not incidental. It makes the perspective divide below a division by
+// eyeW/eyeW, so the rest of the pipeline -- the view rotation, the framing, the pick pass -- runs
+// unchanged over an unfolded puzzle. It is the same trick that lets a genuinely 3D puzzle through.
+uniform bool uUnfold;
+uniform mat4 uCellMat[8];
+uniform vec3 uCellOffset[8];
+
 vec4 fetchSticker(int stickerId, int texel) {
   int index = stickerId * ${TEXELS_PER_STICKER} + texel;
   return texelFetch(uStickerData, ivec2(index % uStickerTexWidth, index / uStickerTexWidth), 0);
@@ -72,6 +83,19 @@ vec4 place(vec4 vMinusStickerCenter, vec4 centerMinusFace, vec4 faceCenter, floa
   vec4 v = (vMinusStickerCenter * uStickerShrink + centerMinusFace) * uFaceShrink + faceCenter;
   if (uTwisting > 0.5 && inSlice > 0.5) v = uTwistMat * v;
   return v;
+}
+
+// Between stages 1 and 2 when unfolding: carry the cell into the shared hyperplane and out to its
+// place in the cross. Cells are only ever rotated here, never reflected, which is what keeps the
+// stickers on a cell from coming out mirror-imaged.
+vec4 unfold(vec4 p, int cell) {
+  return vec4((uCellMat[cell] * p).xyz + uCellOffset[cell], 0.0);
+}
+
+/** place(), then the unfolding if there is one. Everything downstream sees a 4D point either way. */
+vec4 placed(vec4 vMinusStickerCenter, vec4 centerMinusFace, vec4 faceCenter, float inSlice, int cell) {
+  vec4 v = place(vMinusStickerCenter, centerMinusFace, faceCenter, inSlice);
+  return uUnfold ? unfold(v, cell) : v;
 }
 
 // Stages 2 and 3: rotate in 4D, normalise scale, then project to 3D from an eye on the W axis.
@@ -112,7 +136,7 @@ void main() {
   vCubie = meta.y;
   vSticker = aStickerId;
 
-  vec3 p = project(place(aVertMinusStickerCenter, centerMinusFace, faceCenter, meta.z));
+  vec3 p = project(placed(aVertMinusStickerCenter, centerMinusFace, faceCenter, meta.z, int(meta.w + 0.5)));
   vPos3 = p;
 
   if (uCull && cellVolume(stickerId, centerMinusFace, faceCenter, meta.z) >= 0.0) {
@@ -213,7 +237,7 @@ void main() {
   vPickSticker = aStickerId;
   vPickPoly = aPolyId;
 
-  vec3 p = project(place(aVertMinusStickerCenter, centerMinusFace, faceCenter, meta.z));
+  vec3 p = project(placed(aVertMinusStickerCenter, centerMinusFace, faceCenter, meta.z, int(meta.w + 0.5)));
   if (uCull && cellVolume(stickerId, centerMinusFace, faceCenter, meta.z) >= 0.0) {
     gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
     return;

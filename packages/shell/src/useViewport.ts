@@ -103,6 +103,14 @@ export function useViewport(
      * kept clear of the puzzle. Watched, so it stays right as the strip grows or shrinks.
      */
     reserveBelow?: React.RefObject<HTMLElement | null> | undefined;
+    /**
+     * How many dimensions a drag may turn through. Defaults to the puzzle's own.
+     *
+     * A viewport showing the puzzle unfolded wants 3 even though the puzzle has 4: the net lies in
+     * one hyperplane, and a rotation that took it out of that hyperplane would project the cells
+     * back into a jumble, undoing the only thing the layout is for.
+     */
+    dragDims?: number | undefined;
   } = {},
 ): Viewport {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -301,7 +309,7 @@ export function useViewport(
         // that turns the puzzle through the fourth dimension — which a 3D puzzle does not have, so
         // it passes its own dimension and the W planes are withheld.
         shift: event.shiftKey,
-        dims: geometry.nDims,
+        dims: optionsRef.current.dragDims ?? geometry.nDims,
       });
       rendererRef.current?.setRotation(rotationRef.current.mat);
     };
