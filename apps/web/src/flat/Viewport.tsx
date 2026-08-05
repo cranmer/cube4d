@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { netLayout, netView, type PuzzleGeometry } from '@mc4d/puzzle-core';
+import { netCompass, netLayout, netView, type PuzzleGeometry } from '@mc4d/puzzle-core';
 import {
+  AxisInset,
   useViewport,
   type ViewControls,
   type ViewportHandlers,
@@ -9,12 +10,22 @@ import {
 } from '@mc4d/shell';
 import type { PuzzleRenderer } from '@mc4d/render';
 
+/** How far round the oblique starts, and how far one press of Turn moves it. */
+const BASE_TURN = 0.52;
+const QUARTER = Math.PI / 2;
+
 /**
  * One pane, drawn either unfolded or projected.
  *
  * The two are the same renderer with one uniform different, which is the reason for showing them
  * side by side: whatever the net has to fake, the projection next to it is doing honestly, and you
  * can watch both at once.
+ *
+ * Their controls differ because their vocabularies do. The projected pane gets the four the
+ * multi-view app settled on — Turn, Tip, Flip, Reset — which move between the eight ways of facing a
+ * hypercube. Unfolded there are no such viewpoints: the net has already chosen a direction to fold
+ * away, so what a viewer wants to change is the cut, and Turn is the only one of the four that
+ * still means anything.
  */
 export function Viewport({
   geometry,
@@ -28,6 +39,14 @@ export function Viewport({
   centreFace,
   armFace,
   spacing,
+  axisHints,
+  axisColors,
+  onCycleFold,
+  onCycleCentre,
+  onCycleArm,
+  foldLabel,
+  centreLabel,
+  armLabel,
 }: {
   geometry: PuzzleGeometry | null;
   controls: ViewControls;
@@ -43,11 +62,20 @@ export function Viewport({
   /** Which of its neighbours the eighth cell is attached beyond. Ignored when projecting. */
   armFace: number;
   spacing: number;
+  axisHints: boolean;
+  axisColors: readonly (string | null)[] | undefined;
+  /** The three cuts, as cyclers: the panel's choices, next to the thing they change. */
+  onCycleFold: () => void;
+  onCycleCentre: () => void;
+  onCycleArm: () => void;
+  foldLabel: string;
+  centreLabel: string;
+  armLabel: string;
 }) {
   const controlsRef = useRef<HTMLDivElement>(null);
   // The two panes want opposite shape settings, so they take them separately while sharing
   // everything else. The projected pane pulls cells in to 40% and cubies to 50%, which is what
-  // opens the gaps you see through into the interior -- the only way a projected hypercube is
+  // opens the gaps you see through into the interior — the only way a projected hypercube is
   // legible at all. Unfolded there is nothing to see into: each cell is meant to read as an
   // ordinary Rubik's cube with narrow seams, and the space between cells comes from the layout.
   const paneControls = useMemo(
@@ -63,7 +91,7 @@ export function Viewport({
     dragDims: unfolded ? 3 : 4,
   });
 
-  const { getRenderer, snapshot } = view;
+  const { getRenderer, snapshot, setRotation, getRotation } = view;
   useEffect(() => {
     onRenderer(index, getRenderer());
     return () => onRenderer(index, null);
@@ -73,38 +101,151 @@ export function Viewport({
     onSnapshot(index, snapshot);
   }, [onSnapshot, index, snapshot]);
 
-  // The layout is rebuilt whenever either arbitrary choice changes, which is what cycling them
-  // amounts to. Keyed on the geometry too, since the renderer is replaced when the puzzle loads.
-  //
-  // Re-cutting the net also stands it back up. Which reduced axis the long arm falls on depends on
-  // which cell is in the middle, so a view left where it was would have the cross lying on its side
-  // as often as not. Only when the cut changes, though: a view the viewer has dragged to is theirs
-  // until they change the cut again.
-  const { setRotation } = view;
   useEffect(() => {
     const renderer = getRenderer();
     if (!renderer || !geometry) return;
     renderer.setNetLayout(unfolded ? netLayout(geometry, centreFace, armFace, spacing) : null);
   }, [getRenderer, geometry, unfolded, centreFace, armFace, spacing]);
 
+  // Turn, unfolded, is a quarter turn about the long arm — the axis the cross already stands on.
+  // It cannot be the projected pane's Turn, which moves between viewpoints of 4-space that the net
+  // does not have; and turning about anything else would lay the cross on its side.
+  const [quarters, setQuarters] = useState(0);
+
   // Deliberately not keyed on spacing: widening the gaps is not a re-cut, and snapping the camera
   // back on every frame of a slider drag would be maddening.
   useEffect(() => {
     if (!geometry || !unfolded) return;
-    setRotation(netView(netLayout(geometry, centreFace, armFace)));
-  }, [setRotation, geometry, unfolded, centreFace, armFace]);
+    const layout = netLayout(geometry, centreFace, armFace);
+    setRotation(netView(layout, BASE_TURN + quarters * QUARTER));
+  }, [setRotation, geometry, unfolded, centreFace, armFace, quarters]);
+
+  // The compass asks where each puzzle axis lands on screen. In a projection that is a row of the
+  // view matrix; unfolded the net has rearranged them, so the matrix is remapped first.
+  const compassRotation = useCallback(() => {
+    const mat = getRotation();
+    if (!unfolded || !geometry) return mat;
+    return netCompass(geometry, netLayout(geometry, centreFace, armFace), centreFace, mat);
+  }, [getRotation, unfolded, geometry, centreFace, armFace]);
 
   return (
     <div className="pane">
       <canvas ref={view.canvasRef} />
+      {axisHints && <AxisInset getRotation={compassRotation} colors={axisColors} />}
       <div className="pane-label">
         <span className="pane-kind">{unfolded ? 'Unfolded' : 'Projected'}</span>
       </div>
       <div className="pane-controls" ref={controlsRef}>
-        <button onClick={view.resetView} title="Back to the opening view">
+        <div className="pad">
+          <button
+            onClick={() => (unfolded ? setQuarters((q) => q - 1) : view.turnQuarter(-1))}
+            title="Turn a quarter, the other way"
+          >
+            <TurnIcon clockwise={false} />
+          </button>
+          <span>Turn</span>
+          <button
+            onClick={() => (unfolded ? setQuarters((q) => q + 1) : view.turnQuarter(1))}
+            title="Turn a quarter"
+          >
+            <TurnIcon clockwise />
+          </button>
+        </div>
+
+        {unfolded ? (
+          // The three arbitrary choices, as cyclers rather than pickers: small enough for a strip,
+          // and next to the cross they re-cut. The panel keeps the full pickers, for when you want
+          // a particular one rather than the next one.
+          <>
+            <button className="cycle" onClick={onCycleFold} title="Fold a different axis away">
+              <span className="cycle-name">Fold</span>
+              <span className="cycle-value">{foldLabel}</span>
+            </button>
+            <button
+              className="cycle"
+              onClick={onCycleCentre}
+              title="Keep the other end of that axis in the middle"
+            >
+              <span className="cycle-name">Middle</span>
+              <span className="cycle-value">{centreLabel}</span>
+            </button>
+            <button className="cycle" onClick={onCycleArm} title="Hang the eighth cell elsewhere">
+              <span className="cycle-name">Arm</span>
+              <span className="cycle-value">{armLabel}</span>
+            </button>
+          </>
+        ) : (
+          <>
+            <div className="pad">
+              <button onClick={() => view.tip(-1)} title="Tip back: another cell to the middle">
+                <TurnIcon clockwise={false} />
+              </button>
+              <span>Tip</span>
+              <button onClick={() => view.tip(1)} title="Tip forward: another cell to the middle">
+                <TurnIcon clockwise />
+              </button>
+            </div>
+            <button
+              className="flip"
+              onClick={view.flip}
+              title="Flip: swap the cell in the middle with the hidden one"
+            >
+              <FlipIcon />
+              <span>Flip</span>
+            </button>
+          </>
+        )}
+
+        <button
+          className="reset"
+          onClick={() => (unfolded ? setQuarters(0) : view.resetView())}
+          title="Back to the opening view"
+        >
           Reset
         </button>
       </div>
     </div>
+  );
+}
+
+function TurnIcon({ clockwise }: { clockwise: boolean }) {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      width="14"
+      height="14"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      style={{ transform: clockwise ? 'scaleX(-1)' : undefined }}
+    >
+      <path d="M3.4 8a4.6 4.6 0 1 0 1.6-3.5" />
+      <path d="M2.2 2.6v3.2h3.2" />
+    </svg>
+  );
+}
+
+/** Two arrows trading places, for the move that swaps the middle cell with the hidden one. */
+function FlipIcon() {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      width="14"
+      height="14"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M2.6 5.6h10.8" />
+      <path d="M10.8 3l2.6 2.6-2.6 2.6" />
+      <path d="M13.4 10.4H2.6" />
+      <path d="M5.2 7.8 2.6 10.4l2.6 2.6" />
+    </svg>
   );
 }

@@ -11,7 +11,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { loadGeometry } from './fixtures.js';
-import { cellName, netLayout, netTearing, netView } from '../src/net.js';
+import { cellAxis, cellName, netCompass, netLayout, netTearing, netView } from '../src/net.js';
 import { isValidTwist, numSlicesForGrip, permutationFor } from '../src/twist.js';
 import { vxm } from '../src/vecmath.js';
 
@@ -262,5 +262,52 @@ describe('naming cells', () => {
       expect(other.slice(1)).toBe(names[f].slice(1));
       expect(other[0]).not.toBe(names[f][0]);
     }
+  });
+});
+
+describe('the compass, unfolded', () => {
+  // Six of the eight cells sit along their own signed axis, so the spoke for that axis must point
+  // at the cell. This is the part that is right by accident when the folded axis is W and wrong for
+  // every other choice, which is the whole reason the remap exists.
+  it('points each kept axis at the cell that sits on it', () => {
+    for (const centre of [0, 2, 5, 7]) {
+      const arm = [0, 1, 2, 3, 4, 5, 6, 7].find(
+        (f) => f !== centre && f !== geo.face2OppositeFace[centre],
+      )!;
+      const layout = netLayout(geo, centre, arm, 1.35);
+      const view = netView(layout);
+      const compass = netCompass(geo, layout, centre, view);
+
+      for (const cell of layout.cells) {
+        if (cell.role !== 'neighbour') continue;
+        const { axis, sign } = cellAxis(geo, cell.face);
+        // Where the compass sends this cell's axis, on screen.
+        const spoke = [0, 1].map((j) => sign * compass[axis * 4 + j]);
+        // Where the cell actually is, on screen -- measured from the middle cell, not from the
+        // origin. Recentring the cross moves the middle cell off the origin, so a neighbour's raw
+        // offset carries a component along the long arm that has nothing to do with its own axis.
+        const from = layout.cells.find((c) => c.role === 'centre')!.offset;
+        const at = [0, 1].map((j) =>
+          [0, 1, 2].reduce((sum, i) => sum + (cell.offset[i] - from[i]) * view[i * 4 + j], 0),
+        );
+        const dot = spoke[0] * at[0] + spoke[1] * at[1];
+        const norms = Math.hypot(...spoke) * Math.hypot(...at);
+        // Same direction, allowing for the spoke being a unit vector and the cell being further out.
+        expect(dot / norms, `cell ${cellName(geo, cell.face)} of centre ${centre}`).toBeCloseTo(1, 6);
+      }
+    }
+  });
+
+  it('aims the folded-away axis at the viewer, surviving end at the middle cell', () => {
+    const layout = netLayout(geo, 0, 2, 1.35);
+    const compass = netCompass(geo, layout, 0, netView(layout));
+    const { axis, sign } = cellAxis(geo, 0);
+    expect(axis).toBe(layout.droppedAxis);
+    // The compass fades a spoke by `1 - w`. The middle cell must survive; its opposite must not.
+    expect(sign * compass[axis * 4 + 3]).toBeCloseTo(-1, 9);
+    expect(-sign * compass[axis * 4 + 3]).toBeCloseTo(1, 9);
+    // And it has no screen direction at all, which is what puts it in the middle.
+    expect(compass[axis * 4]).toBeCloseTo(0, 9);
+    expect(compass[axis * 4 + 1]).toBeCloseTo(0, 9);
   });
 });

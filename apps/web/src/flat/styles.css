@@ -522,3 +522,25 @@ button.wide { width: 100%; margin-top: 8px; }
   text-transform: uppercase;
   color: var(--dim);
 }
+
+
+/* The cross's three choices, in the strip under the pane. A cycler rather than a picker: it names
+   what it is and what it is currently set to, and one press moves to the next. */
+.cycle {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 4px 9px;
+  line-height: 1.15;
+}
+.cycle-name {
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+.cycle-value { font-size: 12.5px; font-variant-numeric: tabular-nums; }
+
+/* Two compasses, one per pane, so each is positioned within its own pane rather than the stage. */
+.pane { position: relative; }

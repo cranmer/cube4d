@@ -313,3 +313,40 @@ function rotationTaking(from: readonly number[], to: readonly number[]): number[
     y + k * x * z, -x + k * y * z, 1 - k * (x * x + y * y),
   ];
 }
+
+/**
+ * The view matrix a 4-space compass should read when the puzzle is drawn unfolded.
+ *
+ * The compass works by asking where each puzzle axis lands on screen, which in a projection is
+ * simply a row of the view matrix. Unfolded it is not: the net lays its cells out along the three
+ * axes it kept, in *reduced* coordinates, so the axis a cell belongs to and the direction it sits
+ * in are related by the layout rather than by identity. When the folded-away axis is W they happen
+ * to coincide, which makes this look unnecessary until someone folds away X instead.
+ *
+ * Six of the eight cells sit exactly along their own signed axis, so their spokes point straight at
+ * them. The remaining two are the pair on the folded-away axis, and are handled by pointing that
+ * axis at the viewer: the compass already draws such an axis collapsed in the middle at the end
+ * that faces away, and hides the end that faces you. Aimed so that the surviving end is the cell in
+ * the middle of the cross — which is exactly where the compass draws it — the far cell's label is
+ * the one dropped, and that is the honest outcome, since it is the one cell that does not lie along
+ * any axis from the middle.
+ */
+export function netCompass(
+  geo: PuzzleGeometry,
+  layout: NetLayout,
+  centreFace: number,
+  viewMat: readonly number[],
+): number[] {
+  const n = 4;
+  const out = new Array(n * n).fill(0);
+  for (let axis = 0; axis < n; ++axis) {
+    if (axis === layout.droppedAxis) {
+      // Straight at the viewer, oriented so the end that survives is the middle cell.
+      out[axis * n + 3] = -cellAxis(geo, centreFace).sign;
+      continue;
+    }
+    const reduced = layout.keptAxes.indexOf(axis);
+    for (let j = 0; j < 3; ++j) out[axis * n + j] = viewMat[reduced * n + j];
+  }
+  return out;
+}

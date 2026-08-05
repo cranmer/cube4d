@@ -4,6 +4,8 @@ import { AXIS_NAMES, cellAxis, cellName, DEFAULT_PUZZLE_ID } from '@mc4d/puzzle-
 import type { PuzzleRenderer } from '@mc4d/render';
 import {
   Section,
+  appKey,
+  useAxisColors,
   usePuzzleAsset,
   usePuzzleSession,
   type PuzzleActions,
@@ -49,6 +51,23 @@ export function App() {
   const [centreFace, setCentreFace] = useState(DEFAULT_CENTRE);
   const [armFace, setArmFace] = useState(DEFAULT_ARM);
   const [spacing, setSpacing] = useState(1.35);
+  const [axisHints, setAxisHints] = useState(() => {
+    try {
+      return globalThis.localStorage?.getItem(appKey('axisHints')) !== 'off';
+    } catch {
+      return true;
+    }
+  });
+  const toggleAxisHints = useCallback(() => {
+    setAxisHints((on) => {
+      try {
+        globalThis.localStorage?.setItem(appKey('axisHints'), on ? 'off' : 'on');
+      } catch {
+        /* a forgotten preference is not worth surfacing */
+      }
+      return !on;
+    });
+  }, []);
 
   const renderers = useRef<(PuzzleRenderer | null)[]>([]);
   const onRenderer = useCallback((index: number, renderer: PuzzleRenderer | null) => {
@@ -115,6 +134,22 @@ export function App() {
     [geometry, armFace],
   );
 
+  const axisColors = useAxisColors(geometry, controls.paletteId);
+  const centre = geometry ? cellAxis(geometry, centreFace) : { axis: 3, sign: -1 };
+
+  const cycleFold = useCallback(
+    () => recut((centre.axis + 1) % AXIS_NAMES.length, centre.sign),
+    [recut, centre.axis, centre.sign],
+  );
+  const cycleCentre = useCallback(
+    () => recut(centre.axis, -centre.sign),
+    [recut, centre.axis, centre.sign],
+  );
+  const cycleArm = useCallback(() => {
+    const at = arms.indexOf(armFace);
+    if (arms.length) setArmFace(arms[(at + 1) % arms.length]);
+  }, [arms, armFace]);
+
   return (
     <div className="layout">
       <div className="stage">
@@ -132,6 +167,14 @@ export function App() {
             centreFace={centreFace}
             armFace={armFace}
             spacing={spacing}
+            axisHints={axisHints}
+            axisColors={axisColors}
+            onCycleFold={cycleFold}
+            onCycleCentre={cycleCentre}
+            onCycleArm={cycleArm}
+            foldLabel={AXIS_NAMES[centre.axis]}
+            centreLabel={geometry ? cellName(geometry, centreFace) : ''}
+            armLabel={geometry ? cellName(geometry, armFace) : ''}
           />
         ))}
       </div>
@@ -226,6 +269,18 @@ export function App() {
           <p className="hint">
             At 1× the cells touch, which is a true unfolding. Wider opens the gaps, so the cell in
             the middle stops being hidden by the six around it.
+          </p>
+        </Section>
+
+        <Section id="view" title="View">
+          <label className="check">
+            <input type="checkbox" checked={axisHints} onChange={toggleAxisHints} />
+            <span>Show axis hints in the corner</span>
+          </label>
+          <p className="hint">
+            A compass per pane, since the panes point different ways. In the projection it says where
+            the four axes went; unfolded it points at six of the eight cells, which do sit along
+            their own axis — the folded-away axis collapses to the middle, where its cell is.
           </p>
         </Section>
 
