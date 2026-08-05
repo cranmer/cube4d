@@ -11,7 +11,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { loadGeometry } from './fixtures.js';
-import { cellAxis, cellName, netCompass, netLayout, netTearing, netView } from '../src/net.js';
+import { cellAxis, cellName, faceOnAxis, netCompass, netLayout, netTearing, netView } from '../src/net.js';
 import { isValidTwist, numSlicesForGrip, permutationFor } from '../src/twist.js';
 import { vxm } from '../src/vecmath.js';
 import { interpolateRotation } from '../src/so4.js';
@@ -253,6 +253,16 @@ describe('standing the cross up', () => {
 });
 
 describe('naming cells', () => {
+  it('round-trips a cell through its signed axis', () => {
+    for (let f = 0; f < geo.nFaces; ++f) {
+      const { axis, sign } = cellAxis(geo, f);
+      expect(faceOnAxis(geo, axis, sign)).toBe(f);
+    }
+    // A hypercube has a cell on every signed axis, and nothing anywhere else.
+    expect(faceOnAxis(geo, 3, 1)).toBeGreaterThanOrEqual(0);
+    expect(faceOnAxis(loadGeometry('4-3_3'), 3, 1)).toBe(-1);
+  });
+
   it('gives each cell its signed axis, all eight distinct', () => {
     const names = Array.from({ length: geo.nFaces }, (_, f) => cellName(geo, f));
     expect(new Set(names).size).toBe(8);

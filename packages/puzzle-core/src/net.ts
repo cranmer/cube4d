@@ -224,6 +224,21 @@ export function netTearing(
 /** Axis names, in the order the puzzle's coordinates come in. */
 export const AXIS_NAMES = ['X', 'Y', 'Z', 'W'] as const;
 
+/**
+ * Which cell sits on a signed axis, or -1.
+ *
+ * The inverse of `cellAxis`. Callers that think in axes — which is everything a person operates,
+ * since `+X` means something and "face 3" does not — need this to get back to the index the
+ * geometry is keyed by.
+ */
+export function faceOnAxis(geo: PuzzleGeometry, axis: number, sign: number): number {
+  for (let face = 0; face < geo.nFaces; ++face) {
+    const a = cellAxis(geo, face);
+    if (a.axis === axis && a.sign === sign) return face;
+  }
+  return -1;
+}
+
 /** A cell's name as a signed axis: the label a person can match against what they are looking at. */
 export function cellName(geo: PuzzleGeometry, face: number): string {
   const { axis, sign } = cellAxis(geo, face);

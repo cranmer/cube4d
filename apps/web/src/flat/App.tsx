@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 
-import { AXIS_NAMES, cellAxis, cellName, DEFAULT_PUZZLE_ID } from '@mc4d/puzzle-core';
+import { AXIS_NAMES, cellName, DEFAULT_PUZZLE_ID, faceOnAxis } from '@mc4d/puzzle-core';
 import type { PuzzleRenderer } from '@mc4d/render';
 import {
   Section,
@@ -31,9 +31,18 @@ import { Viewport } from './Viewport.js';
  * Hypercube only. The layout is the hypercube's own net; there is no solid cross for a simplex.
  */
 
-/** Which cell sits at the middle of the cross, and which neighbour the eighth is attached beyond. */
-const DEFAULT_CENTRE = 0;
-const DEFAULT_ARM = 2;
+/**
+ * The cut the app opens on, chosen to line up with the projected pane beside it.
+ *
+ * −W in the middle is the cell the projection centres by default, and hanging the long arm off −Z
+ * puts +Z above the middle and −Z below it — which is where the projection puts them too. The two
+ * panes then agree about up and down, and a cell you find in one is where you expect in the other.
+ *
+ * Held as signed axes rather than face indices: an axis is what the controls offer and what the
+ * labels say, and a bare index would have to be trusted to be the cell you meant.
+ */
+const DEFAULT_CENTRE = { axis: 3, sign: -1 };
+const DEFAULT_ARM = { axis: 2, sign: -1 };
 
 export function App() {
   const assetBase = `${import.meta.env.BASE_URL}assets/`;
@@ -48,8 +57,8 @@ export function App() {
     },
   );
 
-  const [centreFace, setCentreFace] = useState(DEFAULT_CENTRE);
-  const [armFace, setArmFace] = useState(DEFAULT_ARM);
+  const [centre, setCentre] = useState(DEFAULT_CENTRE);
+  const [arm, setArm] = useState(DEFAULT_ARM);
   const [spacing, setSpacing] = useState(1.35);
   const [axisHints, setAxisHints] = useState(() => {
     try {
@@ -100,55 +109,42 @@ export function App() {
   actionsRef.current = actions;
 
   const { controls, geometry } = asset;
-  const opposite = geometry ? geometry.face2OppositeFace[centreFace] : -1;
-  const arms = geometry
-    ? Array.from({ length: geometry.nFaces }, (_, f) => f).filter(
-        (f) => f !== centreFace && f !== opposite,
-      )
-    : [];
+  const centreFace = geometry ? faceOnAxis(geometry, centre.axis, centre.sign) : 0;
+  const armFace = geometry ? faceOnAxis(geometry, arm.axis, arm.sign) : 0;
+
+  /** The six signed axes the long arm can hang from: everything off the folded-away axis. */
+  const arms = AXIS_NAMES.flatMap((_, axis) =>
+    axis === centre.axis ? [] : [1, -1].map((sign) => ({ axis, sign })),
+  );
 
   /**
    * Re-cut the net so the given signed axis is the cell in the middle.
    *
-   * The long arm has to be checked as well as set: it hangs off one of the middle cell's
-   * neighbours, and the cell that was serving as that neighbour may have just become the middle
-   * cell itself, or its opposite, either of which has nowhere to hang from.
+   * The long arm has to be moved with it when its axis is the one being folded away: it hangs off
+   * one of the middle cell's neighbours, and both cells on the folded axis are the middle cell and
+   * the one with nowhere to attach.
    */
   const recut = useCallback(
     (axis: number, sign: number) => {
-      if (!geometry) return;
-      const wanted = Array.from({ length: geometry.nFaces }, (_, f) => f).find((f) => {
-        const a = cellAxis(geometry, f);
-        return a.axis === axis && a.sign === sign;
-      });
-      if (wanted === undefined) return;
-      setCentreFace(wanted);
-      const stillLegal = armFace !== wanted && armFace !== geometry.face2OppositeFace[wanted];
-      if (!stillLegal) {
-        const next = Array.from({ length: geometry.nFaces }, (_, f) => f).find(
-          (f) => f !== wanted && f !== geometry.face2OppositeFace[wanted],
-        );
-        if (next !== undefined) setArmFace(next);
-      }
+      setCentre({ axis, sign });
+      setArm((current) =>
+        current.axis === axis ? { axis: (axis + 1) % AXIS_NAMES.length, sign: -1 } : current,
+      );
     },
-    [geometry, armFace],
+    [],
   );
 
   const axisColors = useAxisColors(geometry, controls.paletteId);
-  const centre = geometry ? cellAxis(geometry, centreFace) : { axis: 3, sign: -1 };
 
   const cycleFold = useCallback(
     () => recut((centre.axis + 1) % AXIS_NAMES.length, centre.sign),
     [recut, centre.axis, centre.sign],
   );
-  const cycleCentre = useCallback(
-    () => recut(centre.axis, -centre.sign),
-    [recut, centre.axis, centre.sign],
-  );
+  const cycleCentre = useCallback(() => recut(centre.axis, -centre.sign), [recut, centre.axis, centre.sign]);
   const cycleArm = useCallback(() => {
-    const at = arms.indexOf(armFace);
-    if (arms.length) setArmFace(arms[(at + 1) % arms.length]);
-  }, [arms, armFace]);
+    const at = arms.findIndex((a) => a.axis === arm.axis && a.sign === arm.sign);
+    if (arms.length) setArm(arms[(at + 1) % arms.length]);
+  }, [arms, arm.axis, arm.sign]);
 
   return (
     <div className="layout">
@@ -204,8 +200,8 @@ export function App() {
             {AXIS_NAMES.map((name, axis) => (
               <button
                 key={name}
-                className={geometry && cellAxis(geometry, centreFace).axis === axis ? 'chip on' : 'chip'}
-                onClick={() => geometry && recut(axis, cellAxis(geometry, centreFace).sign)}
+                className={centre.axis === axis ? 'chip on' : 'chip'}
+                onClick={() => recut(axis, centre.sign)}
               >
                 {name}
               </button>
@@ -218,17 +214,16 @@ export function App() {
 
           <h3 className="subhead">Cell in the middle</h3>
           <div className="chips">
-            {geometry &&
-              [1, -1].map((sign) => (
-                <button
-                  key={sign}
-                  className={cellAxis(geometry, centreFace).sign === sign ? 'chip on' : 'chip'}
-                  onClick={() => recut(cellAxis(geometry, centreFace).axis, sign)}
-                >
-                  {sign > 0 ? '+' : '\u2212'}
-                  {AXIS_NAMES[cellAxis(geometry, centreFace).axis]}
-                </button>
-              ))}
+            {[1, -1].map((sign) => (
+              <button
+                key={sign}
+                className={centre.sign === sign ? 'chip on' : 'chip'}
+                onClick={() => recut(centre.axis, sign)}
+              >
+                {sign > 0 ? '+' : '\u2212'}
+                {AXIS_NAMES[centre.axis]}
+              </button>
+            ))}
           </div>
           <p className="hint">
             Either end of that axis will do. The other end is the cell with nowhere to attach, and
@@ -237,13 +232,14 @@ export function App() {
 
           <h3 className="subhead">Long arm</h3>
           <div className="chips">
-            {arms.map((f) => (
+            {arms.map((a) => (
               <button
-                key={f}
-                className={f === armFace ? 'chip on' : 'chip'}
-                onClick={() => setArmFace(f)}
+                key={`${a.axis}:${a.sign}`}
+                className={a.axis === arm.axis && a.sign === arm.sign ? 'chip on' : 'chip'}
+                onClick={() => setArm(a)}
               >
-                {geometry ? cellName(geometry, f) : f}
+                {a.sign > 0 ? '+' : '\u2212'}
+                {AXIS_NAMES[a.axis]}
               </button>
             ))}
           </div>

@@ -10,8 +10,15 @@ import {
 } from '@mc4d/shell';
 import type { PuzzleRenderer } from '@mc4d/render';
 
-/** How far round the oblique starts, and how far one press of Turn moves it. */
-const BASE_TURN = 0.52;
+/**
+ * How far round the oblique starts, and how far one press of Turn moves it.
+ *
+ * The starting quarter is chosen so that the two panes agree about left and right: −X and −Y fall to
+ * the left of the middle cell and +X and +Y to the right, which is how the projection beside it
+ * groups them. A cell you find in one pane is then on the same side in the other — and with −Z as
+ * the long arm the vertical agrees too, +Z above the middle and −Z below.
+ */
+const BASE_TURN = 0.52 - Math.PI / 2;
 const QUARTER = Math.PI / 2;
 
 /**

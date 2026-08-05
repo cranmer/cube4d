@@ -50,7 +50,7 @@ export type { ScrambleOptions } from './scramble.js';
 export { countCubiesWithColors, fullScrambleLength, mulberry32, scramble } from './scramble.js';
 
 export type { NetCell, NetLayout } from './net.js';
-export { AXIS_NAMES, cellAxis, cellName, netCompass, netLayout, netTearing, netView } from './net.js';
+export { AXIS_NAMES, cellAxis, cellName, faceOnAxis, netCompass, netLayout, netTearing, netView } from './net.js';
 export type { CanonicalView } from './canonicalViews.js';
 export {
   CANONICAL_VIEWS,
