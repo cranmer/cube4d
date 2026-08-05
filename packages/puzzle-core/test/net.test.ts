@@ -11,7 +11,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { loadGeometry } from './fixtures.js';
-import { netLayout, netTearing } from '../src/net.js';
+import { cellName, netLayout, netTearing, netView } from '../src/net.js';
 import { isValidTwist, numSlicesForGrip, permutationFor } from '../src/twist.js';
 import { vxm } from '../src/vecmath.js';
 
@@ -208,3 +208,59 @@ function isOrthogonal(m: Float64Array): boolean {
   }
   return true;
 }
+
+describe('standing the cross up', () => {
+  // The far cell belongs at the loose end of the long arm, and the long arm belongs vertical --
+  // which reduced axis it falls on depends on which cell is in the middle, so the view has to come
+  // from the layout. Checked for every legal combination, since a wrong sign would only show as a
+  // cross lying on its side for some of them.
+  it('puts the long arm straight down the screen, whichever cell is centred', () => {
+    for (const centre of [0, 1, 2, 3, 4, 5, 6, 7]) {
+      for (const arm of [0, 1, 2, 3, 4, 5, 6, 7]) {
+        if (arm === centre || arm === geo.face2OppositeFace[centre]) continue;
+        const layout = netLayout(geo, centre, arm, 1.35);
+        const view = netView(layout);
+
+        const screen = (offset: readonly [number, number, number]) => {
+          const v = [offset[0], offset[1], offset[2], 0];
+          return [0, 1, 2].map((j) => [0, 1, 2, 3].reduce((sum, i) => sum + v[i] * view[i * 4 + j], 0));
+        };
+        const middle = screen(layout.cells.find((c) => c.role === 'centre')!.offset);
+        const far = screen(layout.cells.find((c) => c.role === 'far')!.offset);
+
+        const label = `centre ${centre}, arm ${arm}`;
+        // Straight down: no sideways drift at all, and below the middle rather than above it.
+        expect(Math.abs(far[0] - middle[0]), `${label} drifts sideways`).toBeLessThan(1e-9);
+        expect(far[1] - middle[1], `${label} puts the far cell above the middle`).toBeLessThan(0);
+      }
+    }
+  });
+
+  it('is a rotation, so the cells are not mirrored by the view either', () => {
+    const view = netView(netLayout(geo, 0, 2, 1.35));
+    expect(determinant4(Float64Array.from(view))).toBeCloseTo(1, 9);
+    expect(isOrthogonal(Float64Array.from(view))).toBe(true);
+  });
+
+  it('leaves the fourth coordinate alone, since the net has none', () => {
+    const view = netView(netLayout(geo, 0, 2, 1.35));
+    for (let i = 0; i < 4; ++i) {
+      expect(view[i * 4 + 3]).toBeCloseTo(i === 3 ? 1 : 0, 12);
+      expect(view[3 * 4 + i]).toBeCloseTo(i === 3 ? 1 : 0, 12);
+    }
+  });
+});
+
+describe('naming cells', () => {
+  it('gives each cell its signed axis, all eight distinct', () => {
+    const names = Array.from({ length: geo.nFaces }, (_, f) => cellName(geo, f));
+    expect(new Set(names).size).toBe(8);
+    expect(names.every((n) => /^[+\u2212][XYZW]$/.test(n))).toBe(true);
+    // Opposite cells differ only in sign, which is what makes the names worth showing.
+    for (let f = 0; f < geo.nFaces; ++f) {
+      const other = cellName(geo, geo.face2OppositeFace[f]);
+      expect(other.slice(1)).toBe(names[f].slice(1));
+      expect(other[0]).not.toBe(names[f][0]);
+    }
+  });
+});

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react';
 
-import { netLayout, type PuzzleGeometry } from '@mc4d/puzzle-core';
+import { netLayout, netView, type PuzzleGeometry } from '@mc4d/puzzle-core';
 import {
   useViewport,
   type ViewControls,
@@ -75,13 +75,24 @@ export function Viewport({
 
   // The layout is rebuilt whenever either arbitrary choice changes, which is what cycling them
   // amounts to. Keyed on the geometry too, since the renderer is replaced when the puzzle loads.
+  //
+  // Re-cutting the net also stands it back up. Which reduced axis the long arm falls on depends on
+  // which cell is in the middle, so a view left where it was would have the cross lying on its side
+  // as often as not. Only when the cut changes, though: a view the viewer has dragged to is theirs
+  // until they change the cut again.
+  const { setRotation } = view;
   useEffect(() => {
     const renderer = getRenderer();
     if (!renderer || !geometry) return;
-    renderer.setNetLayout(
-      unfolded ? netLayout(geometry, centreFace, armFace, spacing) : null,
-    );
+    renderer.setNetLayout(unfolded ? netLayout(geometry, centreFace, armFace, spacing) : null);
   }, [getRenderer, geometry, unfolded, centreFace, armFace, spacing]);
+
+  // Deliberately not keyed on spacing: widening the gaps is not a re-cut, and snapping the camera
+  // back on every frame of a slider drag would be maddening.
+  useEffect(() => {
+    if (!geometry || !unfolded) return;
+    setRotation(netView(netLayout(geometry, centreFace, armFace)));
+  }, [setRotation, geometry, unfolded, centreFace, armFace]);
 
   return (
     <div className="pane">

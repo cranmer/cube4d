@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 
-import { DEFAULT_PUZZLE_ID } from '@mc4d/puzzle-core';
+import { AXIS_NAMES, cellAxis, cellName, DEFAULT_PUZZLE_ID } from '@mc4d/puzzle-core';
 import type { PuzzleRenderer } from '@mc4d/render';
 import {
   Section,
@@ -88,6 +88,33 @@ export function App() {
       )
     : [];
 
+  /**
+   * Re-cut the net so the given signed axis is the cell in the middle.
+   *
+   * The long arm has to be checked as well as set: it hangs off one of the middle cell's
+   * neighbours, and the cell that was serving as that neighbour may have just become the middle
+   * cell itself, or its opposite, either of which has nowhere to hang from.
+   */
+  const recut = useCallback(
+    (axis: number, sign: number) => {
+      if (!geometry) return;
+      const wanted = Array.from({ length: geometry.nFaces }, (_, f) => f).find((f) => {
+        const a = cellAxis(geometry, f);
+        return a.axis === axis && a.sign === sign;
+      });
+      if (wanted === undefined) return;
+      setCentreFace(wanted);
+      const stillLegal = armFace !== wanted && armFace !== geometry.face2OppositeFace[wanted];
+      if (!stillLegal) {
+        const next = Array.from({ length: geometry.nFaces }, (_, f) => f).find(
+          (f) => f !== wanted && f !== geometry.face2OppositeFace[wanted],
+        );
+        if (next !== undefined) setArmFace(next);
+      }
+    },
+    [geometry, armFace],
+  );
+
   return (
     <div className="layout">
       <div className="stage">
@@ -120,33 +147,50 @@ export function App() {
 
         <Section id="fold" title="The cross" defaultOpen>
           <p className="hint">
-            Both choices below are arbitrary — a cube's net can be cut a dozen ways, and so can a
-            hypercube's. Changing them re-cuts it.
+            A cube's net can be cut a dozen ways and so can a hypercube's. All three choices below
+            are arbitrary; changing any of them re-cuts it.
+          </p>
+
+          {/* The flattening direction and the middle cell are one choice in the geometry -- the net
+              lies in the hyperplane perpendicular to the middle cell's normal, so picking that cell
+              fixes the direction too. They are asked separately because they are separate questions
+              to a person: which axis gets folded away, and then which of its two ends you keep in
+              your hand. */}
+          <h3 className="subhead">Flattened direction</h3>
+          <div className="chips">
+            {AXIS_NAMES.map((name, axis) => (
+              <button
+                key={name}
+                className={geometry && cellAxis(geometry, centreFace).axis === axis ? 'chip on' : 'chip'}
+                onClick={() => geometry && recut(axis, cellAxis(geometry, centreFace).sign)}
+              >
+                {name}
+              </button>
+            ))}
+          </div>
+          <p className="hint">
+            The axis folded away. The other three are the ones you can still see, and the cross is
+            built in them.
           </p>
 
           <h3 className="subhead">Cell in the middle</h3>
           <div className="chips">
             {geometry &&
-              Array.from({ length: geometry.nFaces }, (_, f) => (
+              [1, -1].map((sign) => (
                 <button
-                  key={f}
-                  className={f === centreFace ? 'chip on' : 'chip'}
-                  onClick={() => {
-                    setCentreFace(f);
-                    // The eighth cell hangs off a neighbour, and the old arm may have become the
-                    // new centre or its opposite. Pick the first that is still legal.
-                    if (f === armFace || geometry.face2OppositeFace[f] === armFace) {
-                      const next = Array.from({ length: geometry.nFaces }, (_, g) => g).find(
-                        (g) => g !== f && g !== geometry.face2OppositeFace[f],
-                      );
-                      if (next !== undefined) setArmFace(next);
-                    }
-                  }}
+                  key={sign}
+                  className={cellAxis(geometry, centreFace).sign === sign ? 'chip on' : 'chip'}
+                  onClick={() => recut(cellAxis(geometry, centreFace).axis, sign)}
                 >
-                  {f}
+                  {sign > 0 ? '+' : '\u2212'}
+                  {AXIS_NAMES[cellAxis(geometry, centreFace).axis]}
                 </button>
               ))}
           </div>
+          <p className="hint">
+            Either end of that axis will do. The other end is the cell with nowhere to attach, and
+            hangs off the bottom of the long arm.
+          </p>
 
           <h3 className="subhead">Long arm</h3>
           <div className="chips">
@@ -156,10 +200,14 @@ export function App() {
                 className={f === armFace ? 'chip on' : 'chip'}
                 onClick={() => setArmFace(f)}
               >
-                {f}
+                {geometry ? cellName(geometry, f) : f}
               </button>
             ))}
           </div>
+          <p className="hint">
+            Which neighbour the eighth cell hangs beyond. It is drawn straight down, so the long arm
+            is always the vertical one.
+          </p>
 
           <label className="slider">
             <span className="row">

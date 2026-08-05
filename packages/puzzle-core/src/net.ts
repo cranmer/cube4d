@@ -44,14 +44,21 @@ export interface NetCell {
 
 export interface NetLayout {
   readonly cells: readonly NetCell[];
+  /** The reduced axis the long arm runs along, and which way along it the far cell lies. */
+  readonly arm: { readonly axis: number; readonly sign: number };
   /** The axis dropped when reducing 4D to 3D: every cell lands at a constant value of it. */
   readonly droppedAxis: number;
   /** Index into a cell's 4D coordinates for each of the three reduced ones. */
   readonly keptAxes: readonly [number, number, number];
 }
 
-/** Which coordinate axis a cell's normal lies on, and which way it points. */
-function normalAxis(geo: PuzzleGeometry, face: number): { axis: number; sign: number } {
+/**
+ * Which coordinate axis a cell's normal lies on, and which way it points.
+ *
+ * The hypercube's eight cells sit one on each signed axis, so this is how a cell gets a name a
+ * person can use — `+X`, `−W` — instead of the index it happens to have in the asset.
+ */
+export function cellAxis(geo: PuzzleGeometry, face: number): { axis: number; sign: number } {
   const n = geo.nDims;
   let axis = -1;
   let sign = 0;
@@ -120,8 +127,8 @@ export function netLayout(
     throw new Error('the far cell must be attached beyond one of the centre cell\'s neighbours');
   }
 
-  const centre = normalAxis(geo, centreFace);
-  const arm = normalAxis(geo, armFace);
+  const centre = cellAxis(geo, centreFace);
+  const arm = cellAxis(geo, armFace);
   const keptAxes = [0, 1, 2, 3].filter((a) => a !== centre.axis) as unknown as [
     number,
     number,
@@ -156,7 +163,7 @@ export function netLayout(
       cells.push({ face, matrix, offset, role: 'far' });
       continue;
     }
-    const here = normalAxis(geo, face);
+    const here = cellAxis(geo, face);
     const matrix = quarterOnto(n, here.axis, here.sign, centre.axis, centre.sign);
     offset[reduced(here.axis)] = spacing * width * here.sign;
     cells.push({ face, matrix, offset, role: 'neighbour' });
@@ -182,7 +189,12 @@ export function netLayout(
     ],
   }));
 
-  return { cells: centred, droppedAxis: centre.axis, keptAxes };
+  return {
+    cells: centred,
+    arm: { axis: reduced(arm.axis), sign: arm.sign },
+    droppedAxis: centre.axis,
+    keptAxes,
+  };
 }
 
 /**
@@ -207,4 +219,97 @@ export function netTearing(
     if (geo.sticker2face[source] !== geo.sticker2face[destination]) crossed++;
   }
   return { moved, crossed };
+}
+
+/** Axis names, in the order the puzzle's coordinates come in. */
+export const AXIS_NAMES = ['X', 'Y', 'Z', 'W'] as const;
+
+/** A cell's name as a signed axis: the label a person can match against what they are looking at. */
+export function cellName(geo: PuzzleGeometry, face: number): string {
+  const { axis, sign } = cellAxis(geo, face);
+  return `${sign > 0 ? '+' : '\u2212'}${AXIS_NAMES[axis]}`;
+}
+
+/**
+ * A view that stands the cross up, with the long arm vertical and the far cell at the bottom.
+ *
+ * The cross has one arm longer than the others, and it reads as a shape rather than as a heap when
+ * that arm is the vertical one — the same reason a cube's net is drawn as an upright cross rather
+ * than lying on its side. Which reduced axis the arm happens to fall on depends on which cell the
+ * viewer put in the middle, so the view has to be derived from the layout rather than fixed.
+ *
+ * The two oblique turns afterwards are what make the cells read as cubes rather than as squares.
+ * Both are about screen axes, and neither disturbs the vertical: a turn about the screen's vertical
+ * axis leaves it alone outright, and a turn about the horizontal one foreshortens it but still
+ * projects it straight up and down.
+ *
+ * Row-major, row-vector, ready for `setRotation`.
+ */
+export function netView(layout: NetLayout, turn = 0.52, tilt = 0.28): number[] {
+  const n = 4;
+  // Down the screen, so the long arm hangs rather than towers: the far cell is the odd one out and
+  // belongs at the loose end.
+  const target = [0, -1, 0];
+  const from = [0, 0, 0];
+  from[layout.arm.axis] = layout.arm.sign;
+
+  const align = rotationTaking(from, target);
+  const oblique = mxm3(rotation3(1, turn), rotation3(0, tilt));
+  const r3 = mxm3(align, oblique);
+
+  const out = new Array(n * n).fill(0);
+  for (let i = 0; i < 3; ++i) for (let j = 0; j < 3; ++j) out[i * n + j] = r3[i * 3 + j];
+  out[15] = 1;
+  return out;
+}
+
+/** A rotation about coordinate axis `axis`, row-vector convention. */
+function rotation3(axis: number, angle: number): number[] {
+  const c = Math.cos(angle);
+  const s = Math.sin(angle);
+  const i = (axis + 1) % 3;
+  const j = (axis + 2) % 3;
+  const m = [1, 0, 0, 0, 1, 0, 0, 0, 1];
+  m[i * 3 + i] = c;
+  m[i * 3 + j] = s;
+  m[j * 3 + i] = -s;
+  m[j * 3 + j] = c;
+  return m;
+}
+
+function mxm3(a: readonly number[], b: readonly number[]): number[] {
+  const out = new Array(9).fill(0);
+  for (let i = 0; i < 3; ++i) {
+    for (let j = 0; j < 3; ++j) {
+      let sum = 0;
+      for (let k = 0; k < 3; ++k) sum += a[i * 3 + k] * b[k * 3 + j];
+      out[i * 3 + j] = sum;
+    }
+  }
+  return out;
+}
+
+/** The shortest rotation carrying one unit vector onto another, row-vector convention. */
+function rotationTaking(from: readonly number[], to: readonly number[]): number[] {
+  const dot = from[0] * to[0] + from[1] * to[1] + from[2] * to[2];
+  if (dot > 1 - 1e-9) return [1, 0, 0, 0, 1, 0, 0, 0, 1];
+  if (dot < -1 + 1e-9) {
+    // Antiparallel: a half turn about any perpendicular axis will do, so pick one that exists.
+    const axis = Math.abs(from[0]) < 0.9 ? 0 : 1;
+    return rotation3(axis, Math.PI);
+  }
+  const v = [
+    from[1] * to[2] - from[2] * to[1],
+    from[2] * to[0] - from[0] * to[2],
+    from[0] * to[1] - from[1] * to[0],
+  ];
+  // Rodrigues, transposed into the row-vector convention the rest of this file uses. Written the
+  // usual way round it turns the arm the other way, which puts the far cell at the top.
+  const k = 1 / (1 + dot);
+  const [x, y, z] = v;
+  return [
+    1 - k * (y * y + z * z), z + k * x * y, -y + k * x * z,
+    -z + k * x * y, 1 - k * (x * x + z * z), x + k * y * z,
+    y + k * x * z, -x + k * y * z, 1 - k * (x * x + y * y),
+  ];
 }
