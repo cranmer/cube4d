@@ -14,6 +14,7 @@ import { loadGeometry } from './fixtures.js';
 import { cellAxis, cellName, netCompass, netLayout, netTearing, netView } from '../src/net.js';
 import { isValidTwist, numSlicesForGrip, permutationFor } from '../src/twist.js';
 import { vxm } from '../src/vecmath.js';
+import { interpolateRotation } from '../src/so4.js';
 
 const geo = loadGeometry('4-3-3_3');
 const N = 4;
@@ -309,5 +310,54 @@ describe('the compass, unfolded', () => {
     // And it has no screen direction at all, which is what puts it in the middle.
     expect(compass[axis * 4]).toBeCloseTo(0, 9);
     expect(compass[axis * 4 + 1]).toBeCloseTo(0, 9);
+  });
+});
+
+describe('gliding a Turn', () => {
+  // The unfolded view eases between quarter turns through SO(4), the same interpolation the named
+  // viewpoints use. Both ends fix the fourth axis, and the concern is whether the path between them
+  // does: any W leaking in mid-glide would give the perspective divide something to divide by, and
+  // the whole cross would swell and shrink as it turned. It should not -- rotations fixing an axis
+  // form a subgroup, and a bi-invariant geodesic between two of its members stays inside it -- but
+  // "should not" and "does not" are different claims about a shipped animation.
+  it('never leaves the hyperplane the net lies in', () => {
+    const layout = netLayout(geo, 0, 2, 1.35);
+    for (let quarter = 1; quarter <= 4; ++quarter) {
+      const from = Float64Array.from(netView(layout, 0.52 + (quarter - 1) * (Math.PI / 2)));
+      const to = Float64Array.from(netView(layout, 0.52 + quarter * (Math.PI / 2)));
+      for (let step = 0; step <= 20; ++step) {
+        const mat = interpolateRotation(from, to, step / 20);
+        for (let i = 0; i < 4; ++i) {
+          expect(Math.abs(mat[i * 4 + 3] - (i === 3 ? 1 : 0)), `quarter ${quarter} at ${step}/20`)
+            .toBeLessThan(1e-9);
+          expect(Math.abs(mat[3 * 4 + i] - (i === 3 ? 1 : 0)), `quarter ${quarter} at ${step}/20`)
+            .toBeLessThan(1e-9);
+        }
+      }
+    }
+  });
+
+  it('takes the short way round, so a quarter turn looks like a quarter turn', () => {
+    const layout = netLayout(geo, 0, 2, 1.35);
+    const from = Float64Array.from(netView(layout, 0.52));
+    const to = Float64Array.from(netView(layout, 0.52 + Math.PI / 2));
+    // The angle swept by a point on the long arm, accumulated over the glide. A path the long way
+    // round would total three quarters rather than one.
+    const arm = layout.cells.find((c) => c.role === 'far')!.offset;
+    let swept = 0;
+    let previous: number[] | null = null;
+    for (let step = 0; step <= 60; ++step) {
+      const mat = interpolateRotation(from, to, step / 60);
+      const at = [0, 1, 2].map((j) =>
+        [0, 1, 2].reduce((sum, i) => sum + arm[i] * mat[i * 4 + j], 0),
+      );
+      if (previous) {
+        const dot = at[0] * previous[0] + at[1] * previous[1] + at[2] * previous[2];
+        const norms = Math.hypot(...at) * Math.hypot(...previous);
+        swept += Math.acos(Math.min(1, Math.max(-1, dot / norms)));
+      }
+      previous = at;
+    }
+    expect(swept).toBeLessThan(Math.PI / 2 + 0.02);
   });
 });

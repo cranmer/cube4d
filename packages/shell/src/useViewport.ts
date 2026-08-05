@@ -74,6 +74,14 @@ export interface Viewport {
   /** The current 4D view rotation, row-major, as `.log` files store it. */
   getRotation(): number[];
   setRotation(mat4d: readonly number[]): void;
+  /**
+   * Ease to a rotation over the same half second the viewpoint buttons take, rather than jumping.
+   *
+   * The interpolation is through SO(4) proper — a pair of quaternions slerped together — so it
+   * takes the shortest path and never passes through a squashed intermediate. An app whose view
+   * is not one of the named viewpoints uses this to move like one that is.
+   */
+  glideTo(mat4d: readonly number[] | Float64Array): void;
   resetView(): void;
   /** Which named viewpoint this camera is at or heading for; null once it has been dragged away. */
   readonly canonicalView: string | null;
@@ -447,6 +455,7 @@ export function useViewport(
     getRenderer,
     getRotation,
     setRotation,
+    glideTo,
     resetView,
     canonicalView,
     goToCanonicalView,

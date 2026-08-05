@@ -91,7 +91,7 @@ export function Viewport({
     dragDims: unfolded ? 3 : 4,
   });
 
-  const { getRenderer, snapshot, setRotation, getRotation } = view;
+  const { getRenderer, snapshot, setRotation, glideTo, getRotation } = view;
   useEffect(() => {
     onRenderer(index, getRenderer());
     return () => onRenderer(index, null);
@@ -114,11 +114,21 @@ export function Viewport({
 
   // Deliberately not keyed on spacing: widening the gaps is not a re-cut, and snapping the camera
   // back on every frame of a slider drag would be maddening.
+  const lastCut = useRef<string | null>(null);
   useEffect(() => {
     if (!geometry || !unfolded) return;
     const layout = netLayout(geometry, centreFace, armFace);
-    setRotation(netView(layout, BASE_TURN + quarters * QUARTER));
-  }, [setRotation, geometry, unfolded, centreFace, armFace, quarters]);
+    const target = netView(layout, BASE_TURN + quarters * QUARTER);
+    const cut = `${centreFace}:${armFace}`;
+    // A Turn leaves the cross exactly as it was and only changes where you stand, so it is worth
+    // watching happen — and gliding is what makes a quarter turn legible as a quarter turn rather
+    // than as the puzzle having been swapped for a different one. A re-cut is the opposite: the
+    // cells themselves move, and easing the camera through that would suggest a motion that is not
+    // taking place.
+    if (lastCut.current === cut) glideTo(target);
+    else setRotation(target);
+    lastCut.current = cut;
+  }, [setRotation, glideTo, geometry, unfolded, centreFace, armFace, quarters]);
 
   // The compass asks where each puzzle axis lands on screen. In a projection that is a row of the
   // view matrix; unfolded the net has rearranged them, so the matrix is remapped first.
