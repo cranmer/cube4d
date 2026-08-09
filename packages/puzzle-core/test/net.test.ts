@@ -11,7 +11,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { loadGeometry } from './fixtures.js';
-import { cellAxis, cellName, faceOnAxis, netCompass, netLayout, netTearing, netView } from '../src/net.js';
+import { cellAxis, cellName, faceOnAxis, netCompass, netTransition, netLayout, netTearing, netView } from '../src/net.js';
 import { isValidTwist, numSlicesForGrip, permutationFor } from '../src/twist.js';
 import { vxm } from '../src/vecmath.js';
 import { interpolateRotation } from '../src/so4.js';
@@ -369,5 +369,82 @@ describe('gliding a Turn', () => {
       previous = at;
     }
     expect(swept).toBeLessThan(Math.PI / 2 + 0.02);
+  });
+});
+
+describe('a re-cut is a whole-puzzle rotation', () => {
+  const CELLS = [0, 1, 2, 3].flatMap((axis) => [1, -1].map((sign) => ({ axis, sign })));
+  const CUTS = CELLS.flatMap((centre) =>
+    CELLS.filter((arm) => arm.axis !== centre.axis).map((arm) => ({ centre, arm })),
+  );
+
+  it('has one for every control change from every cut', () => {
+    expect(CUTS).toHaveLength(48);
+    for (const cut of CUTS) {
+      for (const axis of [0, 1, 2, 3]) {
+        if (axis === cut.centre.axis) continue;
+        expect(() => netTransition(cut, { kind: 'fold', axis }), `fold ${axis}`).not.toThrow();
+      }
+      expect(() => netTransition(cut, { kind: 'middle' })).not.toThrow();
+      for (const to of CELLS) {
+        if (to.axis === cut.centre.axis) continue;
+        if (to.axis === cut.arm.axis && to.sign === cut.arm.sign) continue;
+        expect(() => netTransition(cut, { kind: 'arm', to }), `arm`).not.toThrow();
+      }
+    }
+  });
+
+  it('always turns in a single plane, by a quarter or a half', () => {
+    for (const cut of CUTS) {
+      const t = netTransition(cut, { kind: 'middle' });
+      expect([90, -90, 180]).toContain(t.degrees);
+      expect(t.plane[0]).not.toBe(t.plane[1]);
+      // A rotation, not a reflection: the cells must not come out mirrored.
+      expect(determinant4(t.matrix)).toBeCloseTo(1, 9);
+      expect(isOrthogonal(t.matrix)).toBe(true);
+    }
+  });
+
+  it('lands each control on the cut it was asked for', () => {
+    for (const cut of CUTS) {
+      for (const axis of [0, 1, 2, 3]) {
+        if (axis === cut.centre.axis) continue;
+        expect(netTransition(cut, { kind: 'fold', axis }).centre.axis).toBe(axis);
+      }
+      const middle = netTransition(cut, { kind: 'middle' });
+      expect(middle.centre.axis).toBe(cut.centre.axis);
+      expect(middle.centre.sign).toBe(-cut.centre.sign);
+      for (const to of CELLS) {
+        if (to.axis === cut.centre.axis) continue;
+        if (to.axis === cut.arm.axis && to.sign === cut.arm.sign) continue;
+        const t = netTransition(cut, { kind: 'arm', to });
+        expect(t.arm).toEqual(to);
+        expect(t.centre).toEqual(cut.centre);
+      }
+    }
+  });
+
+  // The case that started this. From the default cut, folding onto Z turns in the ZW plane -- the
+  // plane the long arm lies in -- and has to move the arm, because the arm was using Z. Both ends of
+  // Z are reachable, one directly and the other after Middle; the observed screenshot was +Z.
+  it('reproduces the observed example', () => {
+    const cut = { centre: { axis: 3, sign: -1 }, arm: { axis: 2, sign: -1 } };
+    const folded = netTransition(cut, { kind: 'fold', axis: 2 });
+    expect(folded.centre.axis).toBe(2);
+    expect(folded.arm.axis).toBe(3);
+    expect([...folded.plane].sort()).toEqual([2, 3]);
+    expect(Math.abs(folded.degrees)).toBe(90);
+
+    const observed = netTransition(folded, { kind: 'middle' });
+    expect(observed.centre).toEqual({ axis: 2, sign: -folded.centre.sign });
+    expect(Math.abs(observed.degrees)).toBe(180);
+  });
+
+  // The four cells on the long arm are the ones the rotation turns; the four at the sides are not.
+  it('turns in the plane the long arm lies in, leaving the sides alone', () => {
+    const cut = { centre: { axis: 3, sign: -1 }, arm: { axis: 2, sign: -1 } };
+    const t = netTransition(cut, { kind: 'fold', axis: 2 });
+    const onArm = [cut.centre.axis, cut.arm.axis].sort();
+    expect([...t.plane].sort()).toEqual(onArm);
   });
 });

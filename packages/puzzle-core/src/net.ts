@@ -365,3 +365,122 @@ export function netCompass(
   }
   return out;
 }
+
+/** A cell named by the signed axis it sits on, which is how the controls talk about them. */
+export interface CellRef {
+  readonly axis: number;
+  readonly sign: number;
+}
+
+/** A cut of the net: which cell is in the middle, and which neighbour the far cell hangs beyond. */
+export interface Cut {
+  readonly centre: CellRef;
+  readonly arm: CellRef;
+}
+
+/** What one of the three controls does. */
+export type Recut =
+  | { readonly kind: 'fold'; readonly axis: number }
+  | { readonly kind: 'middle' }
+  | { readonly kind: 'arm'; readonly to: CellRef };
+
+export interface NetTransition extends Cut {
+  /**
+   * The rotation of 4-space this re-cut is equivalent to, row-major and row-vector.
+   *
+   * It carries the *new* cut onto the old one, which is the direction that makes the pictures agree:
+   * after a whole-puzzle twist the colour of cell F shows up on cell R(F), and after this re-cut
+   * cell F sits where R(F) used to.
+   */
+  readonly matrix: Float64Array;
+  /** The two axes it turns in, and by how much. Always a simple rotation. */
+  readonly plane: readonly [number, number];
+  readonly degrees: number;
+}
+
+const same = (a: CellRef, b: CellRef) => a.axis === b.axis && a.sign === b.sign;
+const flip = (a: CellRef): CellRef => ({ axis: a.axis, sign: -a.sign });
+
+/** Where a cell sits in a cut, without reference to any frame. */
+function slot(cell: CellRef, cut: Cut): 'centre' | 'far' | 'side' {
+  if (same(cell, cut.centre)) return 'centre';
+  if (same(cell, flip(cut.centre))) return 'far';
+  return 'side';
+}
+
+/** How a simple rotation moves a signed axis. */
+function turn(cell: CellRef, i: number, j: number, degrees: number): CellRef {
+  if (degrees === 180) {
+    return cell.axis === i || cell.axis === j ? flip(cell) : cell;
+  }
+  const forward = degrees === 90;
+  if (cell.axis === i) return { axis: j, sign: forward ? cell.sign : -cell.sign };
+  if (cell.axis === j) return { axis: i, sign: forward ? -cell.sign : cell.sign };
+  return cell;
+}
+
+const ALL_CELLS: readonly CellRef[] = [0, 1, 2, 3].flatMap((axis) =>
+  [1, -1].map((sign) => ({ axis, sign })),
+);
+
+/**
+ * The rotation a change of cut is equivalent to.
+ *
+ * Re-cutting the net and rotating the whole puzzle are the same operation seen from two sides. A
+ * re-cut moves the cells and leaves the colours; a whole-puzzle twist — every layer selected, about
+ * a cell's own face axis — moves the colours and leaves the cells. They produce the same picture,
+ * which is why changing the cut can be animated as the twist it corresponds to rather than snapping.
+ *
+ * The rotation is always *simple*: a turn in one 2-plane, leaving the other two axes alone. That is
+ * what a whole-puzzle twist is, and it is why the four cells on the long arm cycle while the four at
+ * the sides sit still — the arm holds exactly the two axes the rotation turns in. Verified for every
+ * control change from every one of the 48 cuts.
+ *
+ * The rotation chooses the new cut rather than the caller choosing it and hoping. Folding onto an
+ * axis the long arm is already using has to move the arm, and only the rotation knows where to.
+ */
+export function netTransition(cut: Cut, action: Recut): NetTransition {
+  // What the caller is entitled to pin down, and what the rotation is left to choose.
+  //
+  // Folding onto the axis the long arm is already using has to move the arm, and only the rotation
+  // knows where to — so the arm is left free there and named everywhere else. The middle's sign is
+  // preferred rather than required for the same reason: for some cuts, folding onto an axis is only
+  // reachable by a turn that lands on the other end of it.
+  const targets: { centre: CellRef | null; centreAxis: number; arm: CellRef | null }[] =
+    action.kind === 'fold'
+      ? [
+          { centre: { axis: action.axis, sign: cut.centre.sign }, centreAxis: action.axis, arm: null },
+          { centre: null, centreAxis: action.axis, arm: null },
+        ]
+      : action.kind === 'middle'
+        ? [{ centre: flip(cut.centre), centreAxis: cut.centre.axis, arm: cut.arm }]
+        : [{ centre: cut.centre, centreAxis: cut.centre.axis, arm: action.to }];
+
+  for (const target of targets) {
+    for (let i = 0; i < 4; ++i) {
+      for (let j = i + 1; j < 4; ++j) {
+        for (const degrees of [90, -90, 180]) {
+          const R = (cell: CellRef) => turn(cell, i, j, degrees);
+          // R carries the new cut onto the old one, so the new cut is what R sends there.
+          const centre = ALL_CELLS.find((c) => same(R(c), cut.centre));
+          const arm = ALL_CELLS.find((c) => same(R(c), cut.arm));
+          if (!centre || !arm) continue;
+          if (centre.axis !== target.centreAxis) continue;
+          if (target.centre && !same(centre, target.centre)) continue;
+          if (target.arm && !same(arm, target.arm)) continue;
+          if (arm.axis === centre.axis) continue;
+          // The picture test, which is the whole claim: every cell lands in the slot the rotation
+          // would have carried its colour to.
+          if (!ALL_CELLS.every((F) => slot(F, { centre, arm }) === slot(R(F), cut))) continue;
+          return { centre, arm, matrix: rotationMatrix(i, j, degrees), plane: [i, j], degrees };
+        }
+      }
+    }
+  }
+  throw new Error(`no simple rotation performs ${action.kind} on this cut`);
+}
+
+/** A simple rotation as a 4×4, row-major and row-vector, matching the rest of this file. */
+function rotationMatrix(i: number, j: number, degrees: number): Float64Array {
+  return makeRowRotMat(4, i, j, (degrees * Math.PI) / 180);
+}
