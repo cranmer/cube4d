@@ -105,6 +105,33 @@ function quarterOnto(
 }
 
 /**
+ * The determinant of the 3×3 that actually places a cell: from the cell's own 3-space into the frame
+ * the net is read off in. The 4×4 unfold rotation is always +1; this block need not be, and −1
+ * mirrors the cell — every sticker on it drawn in reverse, with its normals pointing inward, which
+ * shows up as inside-out lighting rather than as anything recognisably geometric.
+ *
+ * Probed on one neighbour, which settles it for all of them: they differ by which axis they came
+ * from, not by handedness. Measured rather than derived, because the rule depends on the middle
+ * cell's axis *and* its sign, and getting it wrong mirrors exactly half the cuts.
+ */
+function reducedDeterminant(
+  geo: PuzzleGeometry,
+  centreFace: number,
+  kept: readonly number[],
+): number {
+  const centre = cellAxis(geo, centreFace);
+  const probe = [0, 1, 2, 3].find((a) => a !== centre.axis)!;
+  const m = quarterOnto(4, probe, 1, centre.axis, centre.sign);
+  const own = [0, 1, 2, 3].filter((a) => a !== probe);
+  const b = own.map((r) => kept.map((k) => m[r * 4 + k]));
+  return (
+    b[0][0] * (b[1][1] * b[2][2] - b[1][2] * b[2][1]) -
+    b[0][1] * (b[1][0] * b[2][2] - b[1][2] * b[2][0]) +
+    b[0][2] * (b[1][0] * b[2][1] - b[1][1] * b[2][0])
+  );
+}
+
+/**
  * Lay the eight cells of a hypercube out as a solid cross.
  *
  * @param centreFace which cell sits in the middle
@@ -129,11 +156,19 @@ export function netLayout(
 
   const centre = cellAxis(geo, centreFace);
   const arm = cellAxis(geo, armFace);
-  const keptAxes = [0, 1, 2, 3].filter((a) => a !== centre.axis) as unknown as [
-    number,
-    number,
-    number,
-  ];
+  // The three axes the net is built in, ordered so the reduced frame is right-handed.
+  //
+  // A cell is placed by reading off the kept coordinates of its rotated points, which is a 3×3 map
+  // from the cell's own 3-space to this frame. The 4×4 rotation always has determinant +1, but that
+  // 3×3 block need not: with the axes in their natural order it comes out −1 for one sign of the
+  // middle cell and +1 for the other, and −1 mirrors every cell — visible as inside-out lighting on
+  // the six cells a change of middle does not otherwise touch, since their normals point inward.
+  // Swapping two axes flips the handedness back.
+  const rising = [0, 1, 2, 3].filter((a) => a !== centre.axis);
+  // Measured rather than derived. Which ordering is right-handed depends on the middle cell's axis
+  // *and* its sign, and getting the rule wrong is silent: it mirrors exactly half the cuts, which
+  // looks like a lighting fault rather than a geometric one.
+  const keptAxes = rising as unknown as [number, number, number];
   const reduced = (axis: number) => keptAxes.indexOf(axis);
 
   // A cell's width, so `spacing` can be given in cell widths rather than in whatever units the
@@ -483,4 +518,31 @@ export function netTransition(cut: Cut, action: Recut): NetTransition {
 /** A simple rotation as a 4×4, row-major and row-vector, matching the rest of this file. */
 function rotationMatrix(i: number, j: number, degrees: number): Float64Array {
   return makeRowRotMat(4, i, j, (degrees * Math.PI) / 180);
+}
+
+/**
+ * The simple rotation carrying one cut to another, or null if there is none.
+ *
+ * The same relation `netTransition` finds, but between two cuts already decided rather than from a
+ * control's intent. A viewport that is handed a new cut can use this to work out what motion it
+ * should show without being told which button was pressed.
+ */
+export function netTransitionBetween(cut: Cut, next: Cut): NetTransition | null {
+  for (let i = 0; i < 4; ++i) {
+    for (let j = i + 1; j < 4; ++j) {
+      for (const degrees of [90, -90, 180]) {
+        const R = (cell: CellRef) => turn(cell, i, j, degrees);
+        if (!same(R(next.centre), cut.centre) || !same(R(next.arm), cut.arm)) continue;
+        if (!ALL_CELLS.every((F) => slot(F, next) === slot(R(F), cut))) continue;
+        return {
+          centre: next.centre,
+          arm: next.arm,
+          matrix: rotationMatrix(i, j, degrees),
+          plane: [i, j],
+          degrees,
+        };
+      }
+    }
+  }
+  return null;
 }

@@ -50,7 +50,8 @@ export type { ScrambleOptions } from './scramble.js';
 export { countCubiesWithColors, fullScrambleLength, mulberry32, scramble } from './scramble.js';
 
 export type { CellRef, Cut, NetCell, NetLayout, NetTransition, Recut } from './net.js';
-export { AXIS_NAMES, cellAxis, cellName, faceOnAxis, netCompass, netLayout, netTearing, netTransition, netView } from './net.js';
+export { makeRowRotMat } from './vecmath.js';
+export { AXIS_NAMES, cellAxis, cellName, faceOnAxis, netCompass, netLayout, netTearing, netTransition, netTransitionBetween, netView } from './net.js';
 export type { CanonicalView } from './canonicalViews.js';
 export {
   CANONICAL_VIEWS,

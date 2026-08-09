@@ -1,6 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { netCompass, netLayout, netView, type PuzzleGeometry } from '@mc4d/puzzle-core';
+import {
+  cellAxis,
+  makeRowRotMat,
+  netCompass,
+  netLayout,
+  netTransitionBetween,
+  netView,
+  type PuzzleGeometry,
+} from '@mc4d/puzzle-core';
 import {
   AxisInset,
   useViewport,
@@ -20,6 +28,8 @@ import type { PuzzleRenderer } from '@mc4d/render';
  */
 const BASE_TURN = 0.52 - Math.PI / 2;
 const QUARTER = Math.PI / 2;
+/** How long a change of cut takes, matched to the view glide so the app moves at one pace. */
+const RECUT_MS = 520;
 
 /**
  * One pane, drawn either unfolded or projected.
@@ -108,10 +118,59 @@ export function Viewport({
     onSnapshot(index, snapshot);
   }, [onSnapshot, index, snapshot]);
 
+  // Re-cutting the net and turning the whole puzzle are the same operation seen from two sides, so
+  // a change of cut is shown as the rotation it is equivalent to rather than as a jump — the same
+  // motion a twist with every layer selected already makes, driven through the same uniform.
+  //
+  // The old cut stays on screen while the rotation plays and the new one is applied at the end: the
+  // cells are what move, and moving them before the motion has finished would be showing the answer
+  // during the question.
+  const previousCut = useRef<{ centre: number; arm: number } | null>(null);
+  const animation = useRef<number>(0);
   useEffect(() => {
     const renderer = getRenderer();
     if (!renderer || !geometry) return;
-    renderer.setNetLayout(unfolded ? netLayout(geometry, centreFace, armFace, spacing) : null);
+    if (!unfolded) {
+      renderer.setNetLayout(null);
+      return;
+    }
+
+    const settle = (centre: number, arm: number) => {
+      renderer.setNetLayout(netLayout(geometry, centre, arm, spacing));
+      renderer.endTwist();
+      previousCut.current = { centre, arm };
+    };
+
+    const before = previousCut.current;
+    const transition =
+      before && (before.centre !== centreFace || before.arm !== armFace)
+        ? netTransitionBetween(
+            { centre: cellAxis(geometry, before.centre), arm: cellAxis(geometry, before.arm) },
+            { centre: cellAxis(geometry, centreFace), arm: cellAxis(geometry, armFace) },
+          )
+        : null;
+
+    if (!transition) {
+      settle(centreFace, armFace);
+      return;
+    }
+
+    // Every sticker turns, which is what makes this a whole-puzzle rotation rather than a twist.
+    renderer.setNetLayout(netLayout(geometry, before!.centre, before!.arm, spacing));
+    renderer.beginTwist(new Uint8Array(geometry.nStickers).fill(1));
+    const [i, j] = transition.plane;
+    const radians = (transition.degrees * Math.PI) / 180;
+    const startedAt = performance.now();
+    cancelAnimationFrame(animation.current);
+    const step = () => {
+      const t = Math.min(1, (performance.now() - startedAt) / RECUT_MS);
+      const eased = t < 0.5 ? 2 * t * t : 1 - 2 * (1 - t) * (1 - t);
+      renderer.setTwistMatrix(makeRowRotMat(4, i, j, radians * eased));
+      if (t < 1) animation.current = requestAnimationFrame(step);
+      else settle(centreFace, armFace);
+    };
+    animation.current = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(animation.current);
   }, [getRenderer, geometry, unfolded, centreFace, armFace, spacing]);
 
   // Turn, unfolded, is a quarter turn about the long arm — the axis the cross already stands on.
