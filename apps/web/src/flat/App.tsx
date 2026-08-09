@@ -1,6 +1,17 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 
-import { AXIS_NAMES, cellName, DEFAULT_PUZZLE_ID, faceOnAxis } from '@mc4d/puzzle-core';
+import {
+  cellName,
+  DEFAULT_PUZZLE_ID,
+  faceOnAxis,
+  identity,
+  makeRowRotMat,
+  mxm,
+  netLayout,
+  netStateLayout,
+  netView,
+  type NetLayout,
+} from '@mc4d/puzzle-core';
 import type { PuzzleRenderer } from '@mc4d/render';
 import {
   Section,
@@ -12,7 +23,7 @@ import {
   type ViewSnapshot,
 } from '@mc4d/shell';
 
-import { Viewport } from './Viewport.js';
+import { BASE_TURN, Viewport } from './Viewport.js';
 
 /**
  * The hypercube, unfolded.
@@ -57,8 +68,10 @@ export function App() {
     },
   );
 
-  const [centre, setCentre] = useState(DEFAULT_CENTRE);
-  const [arm, setArm] = useState(DEFAULT_ARM);
+  // What has been done to the puzzle since the opening arrangement. Holding a rotation rather than
+  // a cut is what keeps the cells from coming out mirrored: see netStateLayout.
+  const [rotation, setRotation] = useState(() => identity(4));
+  const [move, setMove] = useState<{ plane: readonly [number, number]; radians: number } | null>(null);
   const [spacing, setSpacing] = useState(1.35);
   const [axisHints, setAxisHints] = useState(() => {
     try {
@@ -109,42 +122,80 @@ export function App() {
   actionsRef.current = actions;
 
   const { controls, geometry } = asset;
-  const centreFace = geometry ? faceOnAxis(geometry, centre.axis, centre.sign) : 0;
-  const armFace = geometry ? faceOnAxis(geometry, arm.axis, arm.sign) : 0;
 
-  /** The six signed axes the long arm can hang from: everything off the folded-away axis. */
-  const arms = AXIS_NAMES.flatMap((_, axis) =>
-    axis === centre.axis ? [] : [1, -1].map((sign) => ({ axis, sign })),
+  /** The arrangement everything else is a turn away from, and the one known to render correctly. */
+  const base: NetLayout | null = useMemo(
+    () =>
+      geometry
+        ? netLayout(
+            geometry,
+            faceOnAxis(geometry, DEFAULT_CENTRE.axis, DEFAULT_CENTRE.sign),
+            faceOnAxis(geometry, DEFAULT_ARM.axis, DEFAULT_ARM.sign),
+            spacing,
+          )
+        : null,
+    [geometry, spacing],
   );
 
   /**
-   * Re-cut the net so the given signed axis is the cell in the middle.
+   * The six presses: the middle cube one step along each of the three directions, either way.
    *
-   * The long arm has to be moved with it when its axis is the one being folded away: it hangs off
-   * one of the middle cell's neighbours, and both cells on the folded axis are the middle cell and
-   * the one with nowhere to attach.
+   * Each is a quarter turn in the plane holding the folded-away axis and one of the three the cross
+   * is built in — which is to say, exactly the whole-puzzle twist that would move it there. Four
+   * cells change place and four stand still, every time, which is what makes it predictable.
    */
-  const recut = useCallback(
-    (axis: number, sign: number) => {
-      setCentre({ axis, sign });
-      setArm((current) =>
-        current.axis === axis ? { axis: (axis + 1) % AXIS_NAMES.length, sign: -1 } : current,
+  const moves = useMemo(() => {
+    if (!base) return [];
+    // Which way each turn actually sends the middle cube, asked of the view rather than assumed.
+    // The three axes the cross is built in are not in screen order -- the long arm is whichever one
+    // the opening view stands upright -- so labelling them positionally gets Up wrong.
+    const view = netView(base, BASE_TURN);
+    const screen = (axis: number, way: number) => {
+      const to = [0, 0, 0];
+      to[base.keptAxes.indexOf(axis)] = way;
+      return [0, 1, 2].map((j) => [0, 1, 2].reduce((sum, i) => sum + to[i] * view[i * 4 + j], 0));
+    };
+    const named = base.keptAxes.flatMap((axis) =>
+      [1, -1].map((way) => {
+        // Negated: the turn moves the middle cube *towards* the slot it is named for, so the cell
+        // that arrives in the middle is the one from the opposite side. Pressing Up must send the
+        // middle cube up and bring the cell below it in, not the other way about.
+        const [x, y, z] = screen(axis, -way);
+        const label =
+          Math.abs(y) > Math.abs(x) && Math.abs(y) > Math.abs(z)
+            ? y > 0 ? 'Up' : 'Down'
+            : Math.abs(x) >= Math.abs(z)
+              ? x > 0 ? 'Right' : 'Left'
+              : z > 0 ? 'Front' : 'Back';
+        return {
+          label,
+          hint: `Move the middle cube ${label.toLowerCase()}`,
+          plane: [axis, base.droppedAxis] as const,
+          radians: (way * Math.PI) / 2,
+        };
+      }),
+    );
+    const order = ['Up', 'Down', 'Left', 'Right', 'Front', 'Back'];
+    return named.sort((a, b) => order.indexOf(a.label) - order.indexOf(b.label));
+  }, [base]);
+
+  const press = useCallback(
+    (m: { plane: readonly [number, number]; radians: number }) => {
+      setRotation((current: Float64Array) =>
+        mxm(current, makeRowRotMat(4, m.plane[0], m.plane[1], m.radians), 4),
       );
+      setMove(m);
     },
     [],
   );
 
+  /** Where the turning has left things, for the labels. */
+  const placed = geometry && base ? netStateLayout(geometry, base, rotation) : null;
+  const middleCell = placed?.cells.find((c) => c.role === 'centre');
+  const farCell = placed?.cells.find((c) => c.role === 'far');
+
   const axisColors = useAxisColors(geometry, controls.paletteId);
 
-  const cycleFold = useCallback(
-    () => recut((centre.axis + 1) % AXIS_NAMES.length, centre.sign),
-    [recut, centre.axis, centre.sign],
-  );
-  const cycleCentre = useCallback(() => recut(centre.axis, -centre.sign), [recut, centre.axis, centre.sign]);
-  const cycleArm = useCallback(() => {
-    const at = arms.findIndex((a) => a.axis === arm.axis && a.sign === arm.sign);
-    if (arms.length) setArm(arms[(at + 1) % arms.length]);
-  }, [arms, arm.axis, arm.sign]);
 
   return (
     <div className="layout">
@@ -160,17 +211,16 @@ export function App() {
             onRenderer={onRenderer}
             onSnapshot={onSnapshot}
             initial={undefined}
-            centreFace={centreFace}
-            armFace={armFace}
+            base={base}
+            rotation={rotation}
+            move={move}
             spacing={spacing}
             axisHints={axisHints}
             axisColors={axisColors}
-            onCycleFold={cycleFold}
-            onCycleCentre={cycleCentre}
-            onCycleArm={cycleArm}
-            foldLabel={AXIS_NAMES[centre.axis]}
-            centreLabel={geometry ? cellName(geometry, centreFace) : ''}
-            armLabel={geometry ? cellName(geometry, armFace) : ''}
+            moves={moves}
+            onPress={press}
+            middleLabel={geometry && middleCell ? cellName(geometry, middleCell.face) : ''}
+            farLabel={geometry && farCell ? cellName(geometry, farCell.face) : ''}
           />
         ))}
       </div>
@@ -186,67 +236,30 @@ export function App() {
 
         <Section id="fold" title="The cross" defaultOpen>
           <p className="hint">
-            A cube's net can be cut a dozen ways and so can a hypercube's. All three choices below
-            are arbitrary; changing any of them re-cuts it.
+            The cross itself never moves. The six buttons under the pane turn the puzzle, which
+            shuffles the cells through it one step at a time — each is the whole-puzzle twist that
+            would put the middle cube where you asked, so pressing and watching are the same thing.
           </p>
 
-          {/* The flattening direction and the middle cell are one choice in the geometry -- the net
-              lies in the hyperplane perpendicular to the middle cell's normal, so picking that cell
-              fixes the direction too. They are asked separately because they are separate questions
-              to a person: which axis gets folded away, and then which of its two ends you keep in
-              your hand. */}
-          <h3 className="subhead">Flattened direction</h3>
-          <div className="chips">
-            {AXIS_NAMES.map((name, axis) => (
-              <button
-                key={name}
-                className={centre.axis === axis ? 'chip on' : 'chip'}
-                onClick={() => recut(axis, centre.sign)}
-              >
-                {name}
+          <div className="moves panel-moves">
+            {moves.map((m) => (
+              <button key={m.label} onClick={() => press(m)} title={m.hint}>
+                {m.label}
               </button>
             ))}
           </div>
-          <p className="hint">
-            The axis folded away. The other three are the ones you can still see, and the cross is
-            built in them.
-          </p>
 
-          <h3 className="subhead">Cell in the middle</h3>
-          <div className="chips">
-            {[1, -1].map((sign) => (
-              <button
-                key={sign}
-                className={centre.sign === sign ? 'chip on' : 'chip'}
-                onClick={() => recut(centre.axis, sign)}
-              >
-                {sign > 0 ? '+' : '\u2212'}
-                {AXIS_NAMES[centre.axis]}
-              </button>
-            ))}
-          </div>
-          <p className="hint">
-            Either end of that axis will do. The other end is the cell with nowhere to attach, and
-            hangs off the bottom of the long arm.
-          </p>
-
-          <h3 className="subhead">Long arm</h3>
-          <div className="chips">
-            {arms.map((a) => (
-              <button
-                key={`${a.axis}:${a.sign}`}
-                className={a.axis === arm.axis && a.sign === arm.sign ? 'chip on' : 'chip'}
-                onClick={() => setArm(a)}
-              >
-                {a.sign > 0 ? '+' : '\u2212'}
-                {AXIS_NAMES[a.axis]}
-              </button>
-            ))}
-          </div>
-          <p className="hint">
-            Which neighbour the eighth cell hangs beyond. It is drawn straight down, so the long arm
-            is always the vertical one.
-          </p>
+          {/* Where the turning has left things. Labels rather than controls: which cell is in the
+              middle is now a consequence of what you pressed, not a thing you set. */}
+          <h3 className="subhead">Where you are</h3>
+          <dl className="help">
+            <dt>Folded away</dt>
+            <dd>{geometry && middleCell ? cellName(geometry, middleCell.face).slice(1) : '—'}</dd>
+            <dt>In the middle</dt>
+            <dd>{geometry && middleCell ? cellName(geometry, middleCell.face) : '—'}</dd>
+            <dt>At the bottom</dt>
+            <dd>{geometry && farCell ? cellName(geometry, farCell.face) : '—'}</dd>
+          </dl>
 
           <label className="slider">
             <span className="row">

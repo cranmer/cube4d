@@ -1,12 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import {
-  cellAxis,
   makeRowRotMat,
   netCompass,
-  netLayout,
-  netTransitionBetween,
+  netStateLayout,
   netView,
+  type NetLayout,
   type PuzzleGeometry,
 } from '@mc4d/puzzle-core';
 import {
@@ -26,7 +25,7 @@ import type { PuzzleRenderer } from '@mc4d/render';
  * groups them. A cell you find in one pane is then on the same side in the other — and with −Z as
  * the long arm the vertical agrees too, +Z above the middle and −Z below.
  */
-const BASE_TURN = 0.52 - Math.PI / 2;
+export const BASE_TURN = 0.52 - Math.PI / 2;
 const QUARTER = Math.PI / 2;
 /** How long a change of cut takes, matched to the view glide so the app moves at one pace. */
 const RECUT_MS = 520;
@@ -53,17 +52,16 @@ export function Viewport({
   initial,
   index,
   unfolded,
-  centreFace,
-  armFace,
+  base,
+  rotation,
+  move,
   spacing,
   axisHints,
   axisColors,
-  onCycleFold,
-  onCycleCentre,
-  onCycleArm,
-  foldLabel,
-  centreLabel,
-  armLabel,
+  moves,
+  onPress,
+  middleLabel,
+  farLabel,
 }: {
   geometry: PuzzleGeometry | null;
   controls: ViewControls;
@@ -74,20 +72,25 @@ export function Viewport({
   index: number;
   /** Unfolded into a solid cross, rather than projected from four dimensions. */
   unfolded: boolean;
-  /** Which cell sits at the middle of the cross. Ignored when projecting. */
-  centreFace: number;
-  /** Which of its neighbours the eighth cell is attached beyond. Ignored when projecting. */
-  armFace: number;
+  /** The arrangement everything is derived from, or null before the puzzle loads. */
+  base: NetLayout | null;
+  /** How far the puzzle has been turned from that arrangement. */
+  rotation: Float64Array;
+  /** The turn that got here, so it can be shown happening. Null on the first render. */
+  move: { plane: readonly [number, number]; radians: number } | null;
   spacing: number;
   axisHints: boolean;
   axisColors: readonly (string | null)[] | undefined;
-  /** The three cuts, as cyclers: the panel's choices, next to the thing they change. */
-  onCycleFold: () => void;
-  onCycleCentre: () => void;
-  onCycleArm: () => void;
-  foldLabel: string;
-  centreLabel: string;
-  armLabel: string;
+  /** The six presses that move the middle cube one step, and what to call where it ended up. */
+  moves: readonly {
+    label: string;
+    hint: string;
+    plane: readonly [number, number];
+    radians: number;
+  }[];
+  onPress: (move: { plane: readonly [number, number]; radians: number }) => void;
+  middleLabel: string;
+  farLabel: string;
 }) {
   const controlsRef = useRef<HTMLDivElement>(null);
   // The two panes want opposite shape settings, so they take them separately while sharing
@@ -118,91 +121,70 @@ export function Viewport({
     onSnapshot(index, snapshot);
   }, [onSnapshot, index, snapshot]);
 
-  // Re-cutting the net and turning the whole puzzle are the same operation seen from two sides, so
-  // a change of cut is shown as the rotation it is equivalent to rather than as a jump — the same
-  // motion a twist with every layer selected already makes, driven through the same uniform.
-  //
-  // The old cut stays on screen while the rotation plays and the new one is applied at the end: the
-  // cells are what move, and moving them before the motion has finished would be showing the answer
-  // during the question.
-  const previousCut = useRef<{ centre: number; arm: number } | null>(null);
+  // A press turns the puzzle, and the turn is shown rather than jumped to -- the same motion a
+  // twist with every layer selected makes, driven through the same uniform. The previous state
+  // stays on screen until the motion finishes: the cells are what move, and moving them first
+  // would be showing the answer during the question.
   const animation = useRef<number>(0);
+  const shown = useRef<Float64Array | null>(null);
   useEffect(() => {
     const renderer = getRenderer();
-    if (!renderer || !geometry) return;
+    if (!renderer || !geometry || !base) {
+      renderer?.setNetLayout(null);
+      return;
+    }
     if (!unfolded) {
       renderer.setNetLayout(null);
       return;
     }
 
-    const settle = (centre: number, arm: number) => {
-      renderer.setNetLayout(netLayout(geometry, centre, arm, spacing));
+    const settle = () => {
+      renderer.setNetLayout(netStateLayout(geometry, base, rotation));
       renderer.endTwist();
-      previousCut.current = { centre, arm };
+      shown.current = rotation;
     };
 
-    const before = previousCut.current;
-    const transition =
-      before && (before.centre !== centreFace || before.arm !== armFace)
-        ? netTransitionBetween(
-            { centre: cellAxis(geometry, before.centre), arm: cellAxis(geometry, before.arm) },
-            { centre: cellAxis(geometry, centreFace), arm: cellAxis(geometry, armFace) },
-          )
-        : null;
-
-    if (!transition) {
-      settle(centreFace, armFace);
+    cancelAnimationFrame(animation.current);
+    if (!move || shown.current === rotation || !shown.current) {
+      settle();
       return;
     }
 
-    // Every sticker turns, which is what makes this a whole-puzzle rotation rather than a twist.
-    renderer.setNetLayout(netLayout(geometry, before!.centre, before!.arm, spacing));
+    // Hold the previous arrangement and turn the geometry into the new one.
+    renderer.setNetLayout(netStateLayout(geometry, base, shown.current));
     renderer.beginTwist(new Uint8Array(geometry.nStickers).fill(1));
-    const [i, j] = transition.plane;
-    const radians = (transition.degrees * Math.PI) / 180;
     const startedAt = performance.now();
-    cancelAnimationFrame(animation.current);
     const step = () => {
       const t = Math.min(1, (performance.now() - startedAt) / RECUT_MS);
       const eased = t < 0.5 ? 2 * t * t : 1 - 2 * (1 - t) * (1 - t);
-      renderer.setTwistMatrix(makeRowRotMat(4, i, j, radians * eased));
+      renderer.setTwistMatrix(makeRowRotMat(4, move.plane[0], move.plane[1], move.radians * eased));
       if (t < 1) animation.current = requestAnimationFrame(step);
-      else settle(centreFace, armFace);
+      else settle();
     };
     animation.current = requestAnimationFrame(step);
     return () => cancelAnimationFrame(animation.current);
-  }, [getRenderer, geometry, unfolded, centreFace, armFace, spacing]);
+  }, [getRenderer, geometry, unfolded, base, rotation, move, spacing]);
 
   // Turn, unfolded, is a quarter turn about the long arm — the axis the cross already stands on.
   // It cannot be the projected pane's Turn, which moves between viewpoints of 4-space that the net
   // does not have; and turning about anything else would lay the cross on its side.
   const [quarters, setQuarters] = useState(0);
 
-  // Deliberately not keyed on spacing: widening the gaps is not a re-cut, and snapping the camera
-  // back on every frame of a slider drag would be maddening.
-  const lastCut = useRef<string | null>(null);
+  // The cross itself never moves now, so the view only has to be set once and turned by Turn.
   useEffect(() => {
-    if (!geometry || !unfolded) return;
-    const layout = netLayout(geometry, centreFace, armFace);
-    const target = netView(layout, BASE_TURN + quarters * QUARTER);
-    const cut = `${centreFace}:${armFace}`;
-    // A Turn leaves the cross exactly as it was and only changes where you stand, so it is worth
-    // watching happen — and gliding is what makes a quarter turn legible as a quarter turn rather
-    // than as the puzzle having been swapped for a different one. A re-cut is the opposite: the
-    // cells themselves move, and easing the camera through that would suggest a motion that is not
-    // taking place.
-    if (lastCut.current === cut) glideTo(target);
-    else setRotation(target);
-    lastCut.current = cut;
-  }, [setRotation, glideTo, geometry, unfolded, centreFace, armFace, quarters]);
+    if (!geometry || !unfolded || !base) return;
+    setRotation(netView(base, BASE_TURN + quarters * QUARTER));
+  }, [setRotation, geometry, unfolded, base, quarters]);
 
   // The compass asks where each puzzle axis lands on screen. In a projection that is a row of the
   // view matrix; unfolded the net has rearranged them, so the matrix is remapped first.
   const compassRotation = useCallback(() => {
     const mat = getRotation();
     if (!unfolded || !geometry) return mat;
-    return netCompass(geometry, netLayout(geometry, centreFace, armFace), centreFace, mat);
-  }, [getRotation, unfolded, geometry, centreFace, armFace]);
+    if (!base) return mat;
+    const middle = netStateLayout(geometry, base, rotation).cells.find((c) => c.role === 'centre');
+    return middle ? netCompass(geometry, base, middle.face, mat) : mat;
+  }, [getRotation, unfolded, geometry, base, rotation]);
 
   return (
     <div className="pane">
@@ -233,22 +215,24 @@ export function Viewport({
           // and next to the cross they re-cut. The panel keeps the full pickers, for when you want
           // a particular one rather than the next one.
           <>
-            <button className="cycle" onClick={onCycleFold} title="Fold a different axis away">
-              <span className="cycle-name">Fold</span>
-              <span className="cycle-value">{foldLabel}</span>
-            </button>
-            <button
-              className="cycle"
-              onClick={onCycleCentre}
-              title="Keep the other end of that axis in the middle"
-            >
-              <span className="cycle-name">Middle</span>
-              <span className="cycle-value">{centreLabel}</span>
-            </button>
-            <button className="cycle" onClick={onCycleArm} title="Hang the eighth cell elsewhere">
-              <span className="cycle-name">Arm</span>
-              <span className="cycle-value">{armLabel}</span>
-            </button>
+            {/* Six presses that move the middle cube one step, rather than three that re-cut the
+                net. Each is the whole-puzzle twist that would put it there, so what you press and
+                what you watch are the same thing. */}
+            <div className="moves">
+              {moves.map((m) => (
+                <button key={m.label} onClick={() => onPress(m)} title={m.hint}>
+                  {m.label}
+                </button>
+              ))}
+            </div>
+            <span className="standing">
+              <span className="standing-name">Middle</span>
+              <span className="standing-value">{middleLabel}</span>
+            </span>
+            <span className="standing">
+              <span className="standing-name">Bottom</span>
+              <span className="standing-value">{farLabel}</span>
+            </span>
           </>
         ) : (
           <>
