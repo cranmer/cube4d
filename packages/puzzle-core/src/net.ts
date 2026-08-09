@@ -25,7 +25,7 @@
  */
 
 import type { PuzzleGeometry } from './asset.js';
-import { identity, makeRowRotMat, vxm } from './vecmath.js';
+import { identity, makeRowRotMat, mxm, transpose, vxm } from './vecmath.js';
 
 /** Where one cell goes, and how it has to be turned to get there. */
 export interface NetCell {
@@ -545,4 +545,46 @@ export function netTransitionBetween(cut: Cut, next: Cut): NetTransition | null 
     }
   }
   return null;
+}
+
+/**
+ * The layout reached by turning the puzzle, rather than by re-deriving a cut from scratch.
+ *
+ * This is the fix for a bug that no predicate over `(centre, arm)` could have solved. Building each
+ * cut independently re-derives the handedness of the frame every time, and gets it wrong for half of
+ * them — every cell mirrored, normals pointing inward, which reads as bad lighting rather than as
+ * bad geometry. The cut does not determine the handedness; the *path taken to reach it* does.
+ *
+ * So the state is a rotation applied to a layout already known to be right, and the frame is carried
+ * along instead of recomputed. Every rotation preserves orientation, so no sequence of them can flip
+ * it: the property holds by construction rather than by a check that has to be got right.
+ *
+ * It also makes the arrangement predictable in the way the controls want. The slots — the shape of
+ * the cross, the kept axes, the long arm's direction — are fixed by the base layout and never move.
+ * Turning the puzzle shuffles which cell occupies which slot, one step at a time.
+ */
+export function netStateLayout(
+  geo: PuzzleGeometry,
+  base: NetLayout,
+  rotation: Float64Array,
+): NetLayout {
+  const n = geo.nDims;
+  const cells = base.cells.map((slot) => {
+    // Which cell the rotation brings into this slot: the one whose normal lands on this slot's.
+    const normal = new Float64Array(n);
+    for (let i = 0; i < n; ++i) normal[i] = -geo.faceInwardNormals[slot.face * n + i];
+    const turned = vxm(new Float64Array(n), normal, rotation, n);
+    let axis = 0;
+    for (let i = 1; i < n; ++i) if (Math.abs(turned[i]) > Math.abs(turned[axis])) axis = i;
+    const face = faceOnAxis(geo, axis, Math.sign(turned[axis]));
+    // Carry the cell into this slot, then place it as the slot has always been placed. The product
+    // of two rotations is a rotation, which is the whole point.
+    return {
+      face,
+      matrix: mxm(transpose(rotation, n), slot.matrix, n),
+      offset: slot.offset,
+      role: slot.role,
+    };
+  });
+  return { ...base, cells };
 }

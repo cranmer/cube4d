@@ -11,9 +11,9 @@
 import { describe, expect, it } from 'vitest';
 
 import { loadGeometry } from './fixtures.js';
-import { cellAxis, cellName, faceOnAxis, netCompass, netTransition, netLayout, netTearing, netView } from '../src/net.js';
+import { cellAxis, cellName, faceOnAxis, netCompass, netStateLayout, netTransition, netLayout, netTearing, netView } from '../src/net.js';
 import { isValidTwist, numSlicesForGrip, permutationFor } from '../src/twist.js';
-import { vxm } from '../src/vecmath.js';
+import { makeRowRotMat, mxm, vxm } from '../src/vecmath.js';
 import { interpolateRotation } from '../src/so4.js';
 
 const geo = loadGeometry('4-3-3_3');
@@ -448,3 +448,71 @@ describe('a re-cut is a whole-puzzle rotation', () => {
     expect([...t.plane].sort()).toEqual(onArm);
   });
 });
+
+describe('turning the puzzle instead of re-cutting it', () => {
+  const base = netLayout(geo, 0, faceOnAxis(geo, 2, -1), 1.35);
+  const I = identity4();
+
+  /**
+   * The determinant of the 3×3 that actually places a cell: from its own 3-space into the frame the
+   * net is read off in. This is the quantity that was wrong, and the 4×4 test could not see it --
+   * the 4×4 unfold rotation is always +1 while this block can be −1, which mirrors every sticker on
+   * the cell and points its normals inward.
+   */
+  function placementDeterminant(layout: ReturnType<typeof netLayout>, cell: (typeof base.cells)[0]) {
+    const normalAxis = [0, 1, 2, 3].find(
+      (a) => Math.abs(geo.faceInwardNormals[cell.face * 4 + a]) > 0.5,
+    )!;
+    const outward = -Math.sign(geo.faceInwardNormals[cell.face * 4 + normalAxis]);
+    const rest = [0, 1, 2, 3].filter((a) => a !== normalAxis);
+    // Orient the cell's own 3-space by its outward normal: (normal, rest...) right-handed in 4D.
+    const own = (normalAxis % 2 === 0) === (outward > 0) ? rest : [rest[1], rest[0], rest[2]];
+    const m = own.map((r) => layout.keptAxes.map((k) => cell.matrix[r * 4 + k]));
+    return (
+      m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1]) -
+      m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0]) +
+      m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0])
+    );
+  }
+
+  /** The six presses: the middle cube one step along each display axis, either way. */
+  const MOVES = base.keptAxes.flatMap((axis) =>
+    [1, -1].map((way) => makeRowRotMat(4, axis, base.droppedAxis, (way * Math.PI) / 2)),
+  );
+
+  it('never mirrors a cell, however far you walk', () => {
+    let rotation = I;
+    // A long deterministic walk: every press, repeatedly, in a pattern that revisits and diverges.
+    for (let step = 0; step < 400; ++step) {
+      rotation = mxm(rotation, MOVES[(step * 7 + (step % 5)) % MOVES.length], 4);
+      const layout = netStateLayout(geo, base, rotation);
+      expect(new Set(layout.cells.map((c) => c.face)).size, `step ${step}`).toBe(8);
+      for (const cell of layout.cells) {
+        expect(placementDeterminant(layout, cell), `step ${step}, cell ${cell.face}`).toBeCloseTo(1, 6);
+      }
+    }
+  });
+
+  // The point of the base layout being the one that is known good: it is what everything inherits.
+  it('agrees with the base layout when nothing has been turned', () => {
+    const still = netStateLayout(geo, base, I);
+    expect(still.cells.map((c) => c.face)).toEqual(base.cells.map((c) => c.face));
+    expect(still.cells.map((c) => [...c.offset])).toEqual(base.cells.map((c) => [...c.offset]));
+  });
+
+  // The slots never move; the cells move through them. That is what makes the controls predictable.
+  it('keeps the cross fixed and shuffles the cells through it', () => {
+    const turned = netStateLayout(geo, base, MOVES[0]);
+    expect(turned.cells.map((c) => [...c.offset])).toEqual(base.cells.map((c) => [...c.offset]));
+    expect(turned.cells.map((c) => c.role)).toEqual(base.cells.map((c) => c.role));
+    // Four cells change slot -- the ones on the plane being turned -- and four stay.
+    const moved = turned.cells.filter((c, i) => c.face !== base.cells[i].face);
+    expect(moved).toHaveLength(4);
+  });
+});
+
+function identity4(): Float64Array {
+  const m = new Float64Array(16);
+  for (let i = 0; i < 4; ++i) m[i * 4 + i] = 1;
+  return m;
+}
