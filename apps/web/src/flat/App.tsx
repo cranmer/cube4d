@@ -268,6 +268,30 @@ export function App() {
           </p>
         </Section>
 
+        <Section id="twist" title="Twist control" defaultOpen>
+          <h3 className="subhead">Layers</h3>
+          <div className="chips">
+            {Array.from({ length: session.sliceCount }, (_, i) => (
+              <button
+                key={i}
+                className={session.slicemask & (1 << i) ? 'chip on' : 'chip'}
+                onClick={() => actions.toggleSlice(i)}
+              >
+                {i + 1}
+              </button>
+            ))}
+          </div>
+          <p className="hint">
+            Which layers turn, counting inward from the cell you click. Holding <kbd>1</kbd>–
+            <kbd>3</kbd> chooses them for a single twist without changing the setting.
+          </p>
+          {/* Worth saying here rather than in the projected app, because unfolded it is visible:
+              selecting every layer turns the whole puzzle, which moves all eight cells at once. */}
+          <p className="hint">
+            Selecting all three turns the whole puzzle rather than a slice of it.
+          </p>
+        </Section>
+
         <Section id="view" title="View">
           <label className="check">
             <input type="checkbox" checked={axisHints} onChange={toggleAxisHints} />
