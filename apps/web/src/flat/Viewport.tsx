@@ -153,7 +153,11 @@ export function Viewport({
       return;
     }
 
-    const tween = netTween(geometry, base, previous, rotation);
+    // Which way is into the screen, in the net's own coordinates: the third column of the view,
+    // reversed. The cell that has to cross the middle swings round the back on that side. Round the
+    // front it comes at the camera instead, which reads as lunging rather than as going around.
+    const view = getRotation();
+    const tween = netTween(geometry, base, previous, rotation, [-view[2], -view[6], -view[10]]);
     const startedAt = performance.now();
     const step = () => {
       const t = Math.min(1, (performance.now() - startedAt) / RECUT_MS);
@@ -166,7 +170,7 @@ export function Viewport({
     };
     animation.current = requestAnimationFrame(step);
     return () => cancelAnimationFrame(animation.current);
-  }, [getRenderer, geometry, unfolded, base, rotation, spacing]);
+  }, [getRenderer, getRotation, geometry, unfolded, base, rotation, spacing]);
 
   // Turn, unfolded, is a quarter turn about the long arm — the axis the cross already stands on.
   // It cannot be the projected pane's Turn, which moves between viewpoints of 4-space that the net

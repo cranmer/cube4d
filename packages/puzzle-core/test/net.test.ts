@@ -584,9 +584,13 @@ describe('moving between arrangements', () => {
   const I = identity4();
 
   /** The six presses: the middle cube one step along each display axis, either way. */
-  const MOVES = base.keptAxes.flatMap((axis) =>
-    [1, -1].map((way) => makeRowRotMat(4, axis, base.droppedAxis, (way * Math.PI) / 2)),
+  const PRESSES = base.keptAxes.flatMap((axis) =>
+    [1, -1].map((way) => ({
+      plane: [axis, base.droppedAxis] as const,
+      radians: (way * Math.PI) / 2,
+    })),
   );
+  const MOVES = PRESSES.map((p) => makeRowRotMat(4, p.plane[0], p.plane[1], p.radians));
   const STEPS = [0, 0.07, 0.2, 0.35, 0.5, 0.64, 0.8, 0.93, 1];
 
   const byFace = (layout: ReturnType<typeof netLayout>) =>
@@ -630,6 +634,48 @@ describe('moving between arrangements', () => {
               expect(now, `cell ${face} at t ${t}`).toBeCloseTo(then, 9);
             }
           }
+        }
+      }
+    }
+  });
+
+  // Swung around the middle cube, not dragged past it: a straight line between two slots a quarter
+  // turn apart cuts the corner, so the cells would dip towards the middle and back out again.
+  it('carries a rotation round the middle cube at a constant radius', () => {
+    const about = base.cells.find((c) => c.role === 'centre')!.offset;
+    const radius = (cell: { offset: readonly [number, number, number] }) =>
+      Math.hypot(...cell.offset.map((v, i) => v - about[i]));
+    for (let i = 0; i < 3; ++i) {
+      for (let j = i + 1; j < 3; ++j) {
+        const plane = [base.keptAxes[i], base.keptAxes[j]] as const;
+        const tween = netTween(geo, base, I, netTurn(I, plane, Math.PI / 2));
+        const rest = new Map(tween(0).cells.map((c) => [c.face, radius(c)]));
+        for (const t of STEPS) {
+          for (const cell of tween(t).cells) {
+            expect(radius(cell), `cell ${cell.face} at t ${t}`).toBeCloseTo(rest.get(cell.face)!, 9);
+          }
+        }
+      }
+    }
+  });
+
+  // The same thing said for every press rather than just the rotations, and the cell that crosses
+  // from one end of the long arm to the other is the point of it. A straight line there runs the
+  // length of the stack, through every cube in it; going round keeps it outside the whole cross.
+  it('never passes nearer the middle than the slots it is between', () => {
+    const about = base.cells.find((c) => c.role === 'centre')!.offset;
+    const radius = (offset: readonly [number, number, number]) =>
+      Math.hypot(...offset.map((v, i) => v - about[i]));
+    for (const press of PRESSES) {
+      const tween = netTween(geo, base, I, netTurn(I, press.plane, press.radians));
+      const ends = new Map(tween(1).cells.map((c) => [c.face, c.offset]));
+      for (const cell of tween(0).cells) {
+        const u = cell.offset.map((v, i) => v - about[i]);
+        const w = ends.get(cell.face)!.map((v, i) => v - about[i]);
+        const near = Math.min(Math.hypot(...u), Math.hypot(...w));
+        for (const t of STEPS) {
+          const now = tween(t).cells.find((c) => c.face === cell.face)!;
+          expect(radius(now.offset), `cell ${cell.face} at t ${t}`).toBeGreaterThan(near - 1e-9);
         }
       }
     }

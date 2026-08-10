@@ -642,19 +642,27 @@ export function netTween(
   base: NetLayout,
   from: Float64Array,
   to: Float64Array,
+  towards?: readonly number[],
 ): (t: number) => NetLayout {
   const n = geo.nDims;
   const start = netStateLayout(geo, base, from);
   const end = netStateLayout(geo, base, to);
   const still = identity(n);
+  const middle = base.cells.find((c) => c.role === 'centre')!.offset;
+  // One step of the cross, as the layout itself has it: how far out the cell that has to cross the
+  // middle swings to get round everything standing between its two slots.
+  const step = Math.min(
+    ...base.cells
+      .map((c) => Math.hypot(...c.offset.map((v, i) => v - middle[i])))
+      .filter((d) => d > 1e-9),
+  );
   const legs = start.cells.map((cell) => {
     const arrived = end.cells.find((c) => c.face === cell.face)!;
     return {
       face: cell.face,
       matrix: cell.matrix,
       motion: mxm(transpose(cell.matrix, n), arrived.matrix, n),
-      from: cell.offset,
-      to: arrived.offset,
+      path: path(cell.offset, arrived.offset, middle, step, towards),
       // The role it will have. Nothing reads a role mid-motion; a cell that is arriving in the
       // middle is better called the middle one than the arm it is leaving.
       role: arrived.role,
@@ -665,9 +673,96 @@ export function netTween(
     cells: legs.map((leg) => ({
       face: leg.face,
       matrix: mxm(leg.matrix, interpolateRotation(still, leg.motion, t), n),
-      offset: [0, 1, 2].map((i) => leg.from[i] + (leg.to[i] - leg.from[i]) * t) as unknown as
-        readonly [number, number, number],
+      offset: leg.path(t),
       role: leg.role,
     })),
   });
+}
+
+/**
+ * How a cell's centre travels between two slots: around the middle cube where that means anything,
+ * and straight where it does not.
+ *
+ * A rotation of the middle cube swings the four arms about it, all at one cell's distance, and a
+ * straight line between two of those slots visibly cuts the corner — the cells sink towards the
+ * middle and back out. Turning the offset about the middle instead keeps each one at its own radius
+ * the whole way, which is what the eye expects of something being swung around.
+ *
+ * A cell arriving in the middle has no radius to keep and simply goes straight in. The awkward one
+ * is the cell a move pushes off the end of the long arm, whose two slots are diametrically opposite:
+ * the whole stack stands between them, and going straight means going through all of it. There is no
+ * turn to take, since every side is as short as every other, so a side is chosen — whichever the
+ * caller nominates — and the cell swings out a step wider than the cross before coming back in. Some
+ * cell has to make that crossing; this is only about doing it in the open rather than through
+ * everything else.
+ */
+function path(
+  from: readonly [number, number, number],
+  to: readonly [number, number, number],
+  about: readonly [number, number, number],
+  step: number,
+  towards: readonly number[] | undefined,
+): (t: number) => readonly [number, number, number] {
+  const u = [0, 1, 2].map((i) => from[i] - about[i]);
+  const v = [0, 1, 2].map((i) => to[i] - about[i]);
+  const lu = Math.hypot(...u);
+  const lv = Math.hypot(...v);
+  const straight = (t: number) =>
+    [0, 1, 2].map((i) => from[i] + (to[i] - from[i]) * t) as unknown as
+      readonly [number, number, number];
+  if (lu < 1e-9 || lv < 1e-9) return straight;
+
+  const cos = u.reduce((sum, c, i) => sum + c * v[i], 0) / (lu * lv);
+  if (cos < -0.999) return crossing(about, u, lu, lv, step, towards);
+  const angle = Math.acos(Math.min(1, cos));
+  if (angle < 1e-9) return straight;
+
+  const sin = Math.sin(angle);
+  return (t: number) => {
+    const a = Math.sin((1 - t) * angle) / sin;
+    const b = Math.sin(t * angle) / sin;
+    // Slerped in direction, lerped in length, so a cell that changes radius does it evenly.
+    const dir = [0, 1, 2].map((i) => (a * u[i]) / lu + (b * v[i]) / lv);
+    const reach = (lu + (lv - lu) * t) / Math.hypot(...dir);
+    return [0, 1, 2].map((i) => about[i] + dir[i] * reach) as unknown as
+      readonly [number, number, number];
+  };
+}
+
+/**
+ * The half turn from one end of a line through the middle to the other, out around everything.
+ *
+ * Which way round is free, so it is chosen: the component of the caller's preferred direction that
+ * is square to the travel, which for the app is away from the viewer, so the cell goes round the
+ * back of the cross instead of at the camera. Failing that, the diagonal between the two axes the
+ * travel does not use — never straight at one of them, since that is where the other arms are.
+ */
+function crossing(
+  about: readonly [number, number, number],
+  u: number[],
+  lu: number,
+  lv: number,
+  step: number,
+  towards: readonly number[] | undefined,
+): (t: number) => readonly [number, number, number] {
+  const out = u.map((c) => c / lu);
+  const square = (d: readonly number[]) => {
+    const along = d.reduce((sum, c, i) => sum + c * out[i], 0);
+    const perp = [0, 1, 2].map((i) => d[i] - along * out[i]);
+    const length = Math.hypot(...perp);
+    return length < 1e-6 ? null : perp.map((c) => c / length);
+  };
+  const spare = [0, 1, 2].sort((a, b) => Math.abs(out[a]) - Math.abs(out[b])).slice(0, 2);
+  const side =
+    (towards && square(towards)) ??
+    square([0, 1, 2].map((i) => (spare.includes(i) ? 1 : 0)))!;
+
+  return (t: number) => {
+    const angle = Math.PI * t;
+    // A step wider than the cross at the halfway point, which is what carries it clear of the arms.
+    const reach = lu + (lv - lu) * t + step * Math.sin(angle);
+    return [0, 1, 2].map(
+      (i) => about[i] + (Math.cos(angle) * out[i] + Math.sin(angle) * side[i]) * reach,
+    ) as unknown as readonly [number, number, number];
+  };
 }
