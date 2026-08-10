@@ -30,6 +30,14 @@ const QUARTER = Math.PI / 2;
 /** How long a change of cut takes, matched to the view glide so the app moves at one pace. */
 const RECUT_MS = 520;
 
+/** One press: a quarter turn of the whole puzzle, named for what it does to the middle cube. */
+export interface Press {
+  label?: string;
+  hint: string;
+  plane: readonly [number, number];
+  radians: number;
+}
+
 /**
  * One pane, drawn either unfolded or projected.
  *
@@ -58,6 +66,7 @@ export function Viewport({
   axisHints,
   axisColors,
   moves,
+  spins,
   onPress,
   middleLabel,
   farLabel,
@@ -82,12 +91,9 @@ export function Viewport({
   axisHints: boolean;
   axisColors: readonly (string | null)[] | undefined;
   /** The six presses that move the middle cube one step, and what to call where it ended up. */
-  moves: readonly {
-    label: string;
-    hint: string;
-    plane: readonly [number, number];
-    radians: number;
-  }[];
+  moves: readonly Press[];
+  /** The two axes it can be rotated about instead, each with a press either way round. */
+  spins: readonly { label: string; name: string; pair: readonly Press[] }[];
   onPress: (move: { plane: readonly [number, number]; radians: number }) => void;
   middleLabel: string;
   farLabel: string;
@@ -208,19 +214,35 @@ export function Viewport({
         </div>
 
         {unfolded ? (
-          // The three arbitrary choices, as cyclers rather than pickers: small enough for a strip,
-          // and next to the cross they re-cut. The panel keeps the full pickers, for when you want
-          // a particular one rather than the next one.
+          // Everything here is done to the middle cube, which is why the two groups are named for
+          // it: six presses move it to the next slot, four rotate it where it stands. Both are
+          // whole-puzzle twists, so what you press and what you watch are the same thing.
           <>
-            {/* Six presses that move the middle cube one step, rather than three that re-cut the
-                net. Each is the whole-puzzle twist that would put it there, so what you press and
-                what you watch are the same thing. */}
-            <div className="moves">
-              {moves.map((m) => (
-                <button key={m.label} onClick={() => onPress(m)} title={m.hint}>
-                  {m.label}
-                </button>
-              ))}
+            <div className="group">
+              <span className="group-name">Move</span>
+              <div className="moves">
+                {moves.map((m) => (
+                  <button key={m.label} onClick={() => onPress(m)} title={m.hint}>
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="group">
+              <span className="group-name">Rotate</span>
+              <div className="spins">
+                {spins.map((spin) => (
+                  <div className="pad" key={spin.label}>
+                    <button onClick={() => onPress(spin.pair[0])} title={spin.pair[0].hint}>
+                      <TurnIcon clockwise={false} />
+                    </button>
+                    <span>{spin.label}</span>
+                    <button onClick={() => onPress(spin.pair[1])} title={spin.pair[1].hint}>
+                      <TurnIcon clockwise />
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
             <span className="standing">
               <span className="standing-name">Middle</span>
@@ -265,7 +287,7 @@ export function Viewport({
   );
 }
 
-function TurnIcon({ clockwise }: { clockwise: boolean }) {
+export function TurnIcon({ clockwise }: { clockwise: boolean }) {
   return (
     <svg
       viewBox="0 0 16 16"

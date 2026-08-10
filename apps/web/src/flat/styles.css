@@ -496,6 +496,9 @@ button:disabled:hover { background: #21262d; }
   .pane-controls .pad span,
   .pane-controls .flip span { display: none; }
   .pane-controls .pad + .pad { margin-left: 8px; }
+  /* Except the rotations: two pads of the same two arrows are only told apart by which axis they
+     name, so dropping the name would leave four buttons that all look alike. */
+  .pane-controls .spins .pad span { display: inline; }
 }
 
 @media (max-width: 900px) {
@@ -524,33 +527,32 @@ button.wide { width: 100%; margin-top: 8px; }
 }
 
 
-/* The cross's three choices, in the strip under the pane. A cycler rather than a picker: it names
-   what it is and what it is currently set to, and one press moves to the next. */
-.cycle {
-  display: inline-flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1px;
-  padding: 4px 9px;
-  line-height: 1.15;
-}
-.cycle-name {
+/* Two compasses, one per pane, so each is positioned within its own pane rather than the stage. */
+.pane { position: relative; }
+
+
+/* The presses. Two rows of three in the panel, one row in the strip under the pane. */
+.moves { display: flex; gap: 4px; flex-wrap: wrap; }
+.moves button { padding: 5px 9px; font-size: 12px; }
+.panel-moves { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
+.panel-moves button { width: 100%; }
+
+/* Both kinds of press are done to the middle cube, so each group says which kind it is. Without the
+   names the ten buttons read as one bank, and moving a cube and spinning it are not the same thing. */
+.group { display: flex; align-items: center; gap: 7px; }
+.group-name {
   font-size: 9.5px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--dim);
 }
-.cycle-value { font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.spins { display: flex; gap: 10px; }
 
-/* Two compasses, one per pane, so each is positioned within its own pane rather than the stage. */
-.pane { position: relative; }
-
-
-/* The six presses. Two rows of three in the panel, one row in the strip under the pane. */
-.moves { display: flex; gap: 4px; flex-wrap: wrap; }
-.moves button { padding: 5px 9px; font-size: 12px; }
-.panel-moves { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
-.panel-moves button { width: 100%; }
+/* In the panel there is room to say which axis in words, so the pad is laid out as a row. */
+.panel-spins { display: flex; flex-direction: column; gap: 6px; }
+.panel-spins .pad { display: flex; align-items: center; gap: 6px; }
+.panel-spins .pad span { flex: 1; text-align: center; font-size: 12px; color: var(--dim); }
+.panel-spins .pad button { display: inline-flex; padding: 5px 9px; }
 
 /* Where the turning has left things: a reading, not a control. */
 .standing { display: inline-flex; flex-direction: column; align-items: center; gap: 1px; line-height: 1.15; }

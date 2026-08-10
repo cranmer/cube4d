@@ -515,6 +515,30 @@ describe('turning the puzzle instead of re-cutting it', () => {
   });
 
   /**
+   * The other thing that can be done to the middle cube: turned about one of its own axes rather
+   * than moved to another slot. The plane is two of the cross's three, so the folded-away axis is
+   * left alone — and the two cells on it are the middle one and the one at the end of the long arm.
+   */
+  it('keeps the middle and the far cube in place when turned about an axis of its own', () => {
+    const still = netStateLayout(geo, base, I).cells;
+    for (let i = 0; i < 3; ++i) {
+      for (let j = i + 1; j < 3; ++j) {
+        for (const way of [1, -1]) {
+          const plane = [base.keptAxes[i], base.keptAxes[j]] as const;
+          const turned = netStateLayout(geo, base, netTurn(I, plane, (way * Math.PI) / 2)).cells;
+          const kept = turned.filter((c, s) => c.face === still[s].face);
+          expect(kept, `plane ${plane}`).toHaveLength(4);
+          // The two on the folded-away axis are always among them, whichever plane was turned.
+          for (const role of ['centre', 'far'] as const) {
+            const slot = still.findIndex((c) => c.role === role);
+            expect(turned[slot].face, `${role} in plane ${plane}`).toBe(still[slot].face);
+          }
+        }
+      }
+    }
+  });
+
+  /**
    * A press is named for places in the cross, so it has to mean the same thing every time. Composed
    * in the puzzle's frame instead of the cross's it does not: the first press behaves, the second
    * turns about an axis the first one carried off somewhere, and the third rolls the whole cross

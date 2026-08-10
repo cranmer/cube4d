@@ -1,14 +1,17 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 
 import {
+  cellAxis,
   cellName,
   DEFAULT_PUZZLE_ID,
   faceOnAxis,
   identity,
+  makeRowRotMat,
   netLayout,
   netStateLayout,
   netTurn,
   netView,
+  vxm,
   type NetLayout,
 } from '@mc4d/puzzle-core';
 import type { PuzzleRenderer } from '@mc4d/render';
@@ -22,7 +25,7 @@ import {
   type ViewSnapshot,
 } from '@mc4d/shell';
 
-import { BASE_TURN, Viewport } from './Viewport.js';
+import { BASE_TURN, TurnIcon, Viewport } from './Viewport.js';
 
 /**
  * The hypercube, unfolded.
@@ -136,46 +139,99 @@ export function App() {
   );
 
   /**
-   * The six presses: the middle cube one step along each of the three directions, either way.
+   * The presses, in the two kinds a middle cube can be given.
    *
-   * Each is a quarter turn in the plane holding the folded-away axis and one of the three the cross
-   * is built in — which is to say, exactly the whole-puzzle twist that would move it there. Four
-   * cells change place and four stand still, every time, which is what makes it predictable.
+   * Six of them move it: a quarter turn in the plane holding the folded-away axis and one of the
+   * three the cross is built in, which is exactly the whole-puzzle twist that would carry it to the
+   * next slot. Four more rotate it where it stands, in a plane of two of the cross's own axes, so
+   * the middle cube keeps its place and spins about the axis the other two leave alone.
+   *
+   * Both are named from the picture rather than from the axes. The three axes the cross is built in
+   * are not in screen order — the long arm is whichever one the opening view stands upright — so
+   * anything positional gets Up wrong. Every label here is read off the view, and where a press
+   * sends a cell is read off the rotation, so neither can drift from what the buttons do.
    */
-  const moves = useMemo(() => {
-    if (!base) return [];
-    // Which way each turn actually sends the middle cube, asked of the view rather than assumed.
-    // The three axes the cross is built in are not in screen order -- the long arm is whichever one
-    // the opening view stands upright -- so labelling them positionally gets Up wrong.
+  const { moves, spins } = useMemo(() => {
+    if (!base || !geometry) return { moves: [], spins: [] };
     const view = netView(base, BASE_TURN);
     const screen = (axis: number, way: number) => {
       const to = [0, 0, 0];
       to[base.keptAxes.indexOf(axis)] = way;
       return [0, 1, 2].map((j) => [0, 1, 2].reduce((sum, i) => sum + to[i] * view[i * 4 + j], 0));
     };
-    const named = base.keptAxes.flatMap((axis) =>
-      [1, -1].map((way) => {
-        // Negated: the turn moves the middle cube *towards* the slot it is named for, so the cell
-        // that arrives in the middle is the one from the opposite side. Pressing Up must send the
-        // middle cube up and bring the cell below it in, not the other way about.
-        const [x, y, z] = screen(axis, -way);
-        const label =
-          Math.abs(y) > Math.abs(x) && Math.abs(y) > Math.abs(z)
-            ? y > 0 ? 'Up' : 'Down'
-            : Math.abs(x) >= Math.abs(z)
-              ? x > 0 ? 'Right' : 'Left'
-              : z > 0 ? 'Front' : 'Back';
-        return {
-          label,
-          hint: `Move the middle cube ${label.toLowerCase()}`,
-          plane: [axis, base.droppedAxis] as const,
-          radians: (way * Math.PI) / 2,
-        };
-      }),
-    );
+    /** What to call the direction a signed axis points once the opening view has turned it. */
+    const nameOf = (axis: number, sign: number) => {
+      const v = screen(axis, sign);
+      let k = 0;
+      for (let i = 1; i < 3; ++i) if (Math.abs(v[i]) > Math.abs(v[k])) k = i;
+      return [
+        ['Left', 'Right'],
+        ['Down', 'Up'],
+        ['Back', 'Front'],
+      ][k][v[k] > 0 ? 1 : 0];
+    };
+    /**
+     * Which slot the cell in a given one ends up in. A press carries the cell in slot t to the slot
+     * whose direction is `t` turned back: the slots are fixed and the cells move through them.
+     */
+    const after = (
+      slot: { axis: number; sign: number },
+      plane: readonly [number, number],
+      radians: number,
+    ) => {
+      const from = new Float64Array(4);
+      from[slot.axis] = slot.sign;
+      const to = vxm(new Float64Array(4), from, makeRowRotMat(4, plane[0], plane[1], -radians), 4);
+      let axis = 0;
+      for (let i = 1; i < 4; ++i) if (Math.abs(to[i]) > Math.abs(to[axis])) axis = i;
+      return { axis, sign: Math.sign(to[axis]) };
+    };
+
+    const middle = cellAxis(geometry, base.cells.find((c) => c.role === 'centre')!.face);
     const order = ['Up', 'Down', 'Left', 'Right', 'Front', 'Back'];
-    return named.sort((a, b) => order.indexOf(a.label) - order.indexOf(b.label));
-  }, [base]);
+    const moves = base.keptAxes
+      .flatMap((axis) =>
+        [1, -1].map((way) => {
+          const plane = [axis, base.droppedAxis] as const;
+          const radians = (way * Math.PI) / 2;
+          const to = after(middle, plane, radians);
+          const label = nameOf(to.axis, to.sign);
+          return { label, hint: `Move the middle cube ${label.toLowerCase()}`, plane, radians };
+        }),
+      )
+      .sort((a, b) => order.indexOf(a.label) - order.indexOf(b.label));
+
+    // The axis a rotation leaves alone is the one it is named for, so each is a plane of the other
+    // two. Rotating about the up-down axis is the third of these and is left out on purpose: it
+    // spins the cross about the axis it already stands on, which is what Turn appears to do.
+    const upright = base.keptAxes.find((a) => nameOf(a, 1) === 'Up' || nameOf(a, -1) === 'Up')!;
+    const sideways = base.keptAxes.find((a) => nameOf(a, 1) === 'Right' || nameOf(a, -1) === 'Right')!;
+    const depth = base.keptAxes.find((a) => nameOf(a, 1) === 'Front' || nameOf(a, -1) === 'Front')!;
+    const top = { axis: upright, sign: nameOf(upright, 1) === 'Up' ? 1 : -1 };
+    const spins = [
+      { label: 'L–R', name: 'left–right', plane: [upright, depth] as const },
+      { label: 'F–B', name: 'front–back', plane: [upright, sideways] as const },
+    ].map((spin) => ({
+      ...spin,
+      // Ordered so the right-hand button always brings the top of the cross towards you or towards
+      // your right, whichever this axis offers. Two pairs of identical arrows need some rule.
+      pair: [1, -1]
+        .map((way) => {
+          const radians = (way * Math.PI) / 2;
+          const to = after(top, spin.plane, radians);
+          const goes = nameOf(to.axis, to.sign);
+          return {
+            goes,
+            hint: `Rotate the middle cube about the ${spin.name} axis: the cube on top comes round to the ${goes.toLowerCase()}`,
+            plane: spin.plane,
+            radians,
+          };
+        })
+        .sort((a, b) => (a.goes === 'Front' || a.goes === 'Right' ? 1 : -1)),
+    }));
+
+    return { moves, spins };
+  }, [base, geometry]);
 
   // A press only ever composes a new rotation. The panes animate from the one they were showing to
   // the one they are handed, so what the motion looks like is theirs to work out, not a press's.
@@ -213,6 +269,7 @@ export function App() {
             axisHints={axisHints}
             axisColors={axisColors}
             moves={moves}
+            spins={spins}
             onPress={press}
             middleLabel={geometry && middleCell ? cellName(geometry, middleCell.face) : ''}
             farLabel={geometry && farCell ? cellName(geometry, farCell.face) : ''}
@@ -231,11 +288,12 @@ export function App() {
 
         <Section id="fold" title="The cross" defaultOpen>
           <p className="hint">
-            The cross itself never moves. The six buttons under the pane turn the puzzle, which
-            shuffles the cells through it one step at a time — each is the whole-puzzle twist that
-            would put the middle cube where you asked, so pressing and watching are the same thing.
+            The cross itself never moves. These buttons turn the puzzle, which shuffles the cells
+            through it — each is the whole-puzzle twist that would put the middle cube where you
+            asked, so pressing and watching are the same thing.
           </p>
 
+          <h3 className="subhead">Move the middle cube</h3>
           <div className="moves panel-moves">
             {moves.map((m) => (
               <button key={m.label} onClick={() => press(m)} title={m.hint}>
@@ -243,6 +301,29 @@ export function App() {
               </button>
             ))}
           </div>
+          <p className="hint">
+            One slot at a time: the cube you send it towards comes in to replace it, four cells stand
+            still, and one has to jump the cut the net has made.
+          </p>
+
+          <h3 className="subhead">Rotate the middle cube</h3>
+          <div className="panel-spins">
+            {spins.map((spin) => (
+              <div className="pad" key={spin.label}>
+                <button onClick={() => press(spin.pair[0])} title={spin.pair[0].hint}>
+                  <TurnIcon clockwise={false} />
+                </button>
+                <span>around the {spin.name} axis</span>
+                <button onClick={() => press(spin.pair[1])} title={spin.pair[1].hint}>
+                  <TurnIcon clockwise />
+                </button>
+              </div>
+            ))}
+          </div>
+          <p className="hint">
+            The middle cube keeps its place and spins, and the four arms about that axis take each
+            other's places.
+          </p>
 
           {/* Where the turning has left things. Labels rather than controls: which cell is in the
               middle is now a consequence of what you pressed, not a thing you set. */}
