@@ -11,7 +11,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { loadGeometry } from './fixtures.js';
-import { cellAxis, cellName, faceOnAxis, netCompass, netStateLayout, netTransition, netLayout, netTearing, netView } from '../src/net.js';
+import { cellAxis, cellName, faceOnAxis, netCompass, netStateLayout, netTransition, netLayout, netTearing, netTween, netView } from '../src/net.js';
 import { isValidTwist, numSlicesForGrip, permutationFor } from '../src/twist.js';
 import { makeRowRotMat, mxm, vxm } from '../src/vecmath.js';
 import { interpolateRotation } from '../src/so4.js';
@@ -508,6 +508,95 @@ describe('turning the puzzle instead of re-cutting it', () => {
     // Four cells change slot -- the ones on the plane being turned -- and four stay.
     const moved = turned.cells.filter((c, i) => c.face !== base.cells[i].face);
     expect(moved).toHaveLength(4);
+  });
+});
+
+/**
+ * The motion between two arrangements.
+ *
+ * The thing being guarded is that the cells stay solid. The first version of this animation ran the
+ * 4D rotation through the twist uniform, which unfolded draws a moving cell's shadow rather than the
+ * cell: it flattens as it turns out of the net's hyperplane and springs back at the end. Nothing
+ * about the endpoints could catch that, since the endpoints were right -- only the frames between.
+ */
+describe('moving between arrangements', () => {
+  const base = netLayout(geo, faceOnAxis(geo, 3, -1), faceOnAxis(geo, 2, -1), 1.35);
+  const I = identity4();
+
+  /** The six presses: the middle cube one step along each display axis, either way. */
+  const MOVES = base.keptAxes.flatMap((axis) =>
+    [1, -1].map((way) => makeRowRotMat(4, axis, base.droppedAxis, (way * Math.PI) / 2)),
+  );
+  const STEPS = [0, 0.07, 0.2, 0.35, 0.5, 0.64, 0.8, 0.93, 1];
+
+  const byFace = (layout: ReturnType<typeof netLayout>) =>
+    new Map(layout.cells.map((c) => [c.face, c]));
+
+  it('begins and ends on the two arrangements it is between', () => {
+    for (const move of MOVES) {
+      const tween = netTween(geo, base, I, move);
+      for (const [t, rotation] of [
+        [0, I],
+        [1, move],
+      ] as const) {
+        const got = byFace(tween(t));
+        for (const want of netStateLayout(geo, base, rotation).cells) {
+          const cell = got.get(want.face)!;
+          expect([...cell.offset]).toEqual(want.offset.map((v) => expect.closeTo(v, 9)));
+          expect([...cell.matrix]).toEqual([...want.matrix].map((v) => expect.closeTo(v, 9)));
+        }
+      }
+    }
+  });
+
+  it('keeps every cell solid the whole way', () => {
+    for (const move of MOVES) {
+      const tween = netTween(geo, base, I, move);
+      const rest = place(tween(0));
+      for (const t of STEPS) {
+        const layout = tween(t);
+        const placed = place(layout);
+        // Every cell in the same hyperplane, at every moment: a cell part way out of it would be
+        // drawn as its own shadow, which is exactly the flattening this replaced.
+        const depths = [...placed.values()].flatMap((c) => c.dropped);
+        for (const d of depths) expect(d, `t ${t}`).toBeCloseTo(depths[0], 9);
+        // And rigid: a vertex keeps its distance from every other vertex on its cell.
+        for (const [face, { xs }] of placed) {
+          const was = rest.get(face)!.xs;
+          for (let i = 0; i < xs.length; i += 37) {
+            for (let j = i + 1; j < xs.length; j += 53) {
+              const now = Math.hypot(...xs[i].map((v, k) => v - xs[j][k]));
+              const then = Math.hypot(...was[i].map((v, k) => v - was[j][k]));
+              expect(now, `cell ${face} at t ${t}`).toBeCloseTo(then, 9);
+            }
+          }
+        }
+      }
+    }
+  });
+
+  // What makes a press readable: half the cross is standing still, and nothing that moves goes
+  // anywhere but into a slot another cell has just left.
+  it('moves four cells and spins the other four where they stand', () => {
+    for (const move of MOVES) {
+      const tween = netTween(geo, base, I, move);
+      const before = place(tween(0));
+      const after = byFace(tween(1));
+      const still = [...byFace(tween(0)).values()].filter(
+        (c) => Math.hypot(...c.offset.map((v, i) => v - after.get(c.face)!.offset[i])) < 1e-9,
+      );
+      expect(still).toHaveLength(4);
+      // Standing still is not the same as not moving: those four spin a quarter turn in place.
+      const ends = place(tween(1));
+      for (const cell of still) {
+        const travel = before
+          .get(cell.face)!
+          .xs.map((p, i) => Math.hypot(...p.map((v, k) => v - ends.get(cell.face)!.xs[i][k])));
+        expect(Math.max(...travel)).toBeGreaterThan(0.5);
+      }
+      // And every slot is still occupied, so nothing has been left doubled up or empty.
+      expect(new Set([...after.values()].map((c) => c.offset.join(','))).size).toBe(8);
+    }
   });
 });
 

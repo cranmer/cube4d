@@ -71,7 +71,6 @@ export function App() {
   // What has been done to the puzzle since the opening arrangement. Holding a rotation rather than
   // a cut is what keeps the cells from coming out mirrored: see netStateLayout.
   const [rotation, setRotation] = useState(() => identity(4));
-  const [move, setMove] = useState<{ plane: readonly [number, number]; radians: number } | null>(null);
   const [spacing, setSpacing] = useState(1.35);
   const [axisHints, setAxisHints] = useState(() => {
     try {
@@ -179,13 +178,13 @@ export function App() {
     return named.sort((a, b) => order.indexOf(a.label) - order.indexOf(b.label));
   }, [base]);
 
+  // A press only ever composes a new rotation. The panes animate from the one they were showing to
+  // the one they are handed, so what the motion looks like is theirs to work out, not a press's.
   const press = useCallback(
-    (m: { plane: readonly [number, number]; radians: number }) => {
+    (m: { plane: readonly [number, number]; radians: number }) =>
       setRotation((current: Float64Array) =>
         mxm(current, makeRowRotMat(4, m.plane[0], m.plane[1], m.radians), 4),
-      );
-      setMove(m);
-    },
+      ),
     [],
   );
 
@@ -213,7 +212,6 @@ export function App() {
             initial={undefined}
             base={base}
             rotation={rotation}
-            move={move}
             spacing={spacing}
             axisHints={axisHints}
             axisColors={axisColors}

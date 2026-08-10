@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import {
-  makeRowRotMat,
   netCompass,
   netStateLayout,
+  netTween,
   netView,
   type NetLayout,
   type PuzzleGeometry,
@@ -54,7 +54,6 @@ export function Viewport({
   unfolded,
   base,
   rotation,
-  move,
   spacing,
   axisHints,
   axisColors,
@@ -74,10 +73,11 @@ export function Viewport({
   unfolded: boolean;
   /** The arrangement everything is derived from, or null before the puzzle loads. */
   base: NetLayout | null;
-  /** How far the puzzle has been turned from that arrangement. */
+  /**
+   * How far the puzzle has been turned from that arrangement. A new one animates from the last:
+   * it is the identity of the array that says a turn has happened, so it is never mutated.
+   */
   rotation: Float64Array;
-  /** The turn that got here, so it can be shown happening. Null on the first render. */
-  move: { plane: readonly [number, number]; radians: number } | null;
   spacing: number;
   axisHints: boolean;
   axisColors: readonly (string | null)[] | undefined;
@@ -121,49 +121,46 @@ export function Viewport({
     onSnapshot(index, snapshot);
   }, [onSnapshot, index, snapshot]);
 
-  // A press turns the puzzle, and the turn is shown rather than jumped to -- the same motion a
-  // twist with every layer selected makes, driven through the same uniform. The previous state
-  // stays on screen until the motion finishes: the cells are what move, and moving them first
-  // would be showing the answer during the question.
+  // A press turns the puzzle, and the turn is shown rather than jumped to: every cell travels from
+  // the slot it held to the slot it is going to, as a solid cube moving through the net's own space.
+  // What it must not be is the 4D rotation itself run through the twist uniform -- unfolded that
+  // draws each moving cell's shadow rather than the cell, so they flatten on the way past and never
+  // leave their slots. netTween is where that is worked out; this only has to run the clock.
   const animation = useRef<number>(0);
   const shown = useRef<Float64Array | null>(null);
   useEffect(() => {
     const renderer = getRenderer();
-    if (!renderer || !geometry || !base) {
+    if (!renderer || !geometry || !base || !unfolded) {
       renderer?.setNetLayout(null);
-      return;
-    }
-    if (!unfolded) {
-      renderer.setNetLayout(null);
       return;
     }
 
     const settle = () => {
       renderer.setNetLayout(netStateLayout(geometry, base, rotation));
-      renderer.endTwist();
       shown.current = rotation;
     };
 
     cancelAnimationFrame(animation.current);
-    if (!move || shown.current === rotation || !shown.current) {
+    const previous = shown.current;
+    if (!previous || previous === rotation) {
       settle();
       return;
     }
 
-    // Hold the previous arrangement and turn the geometry into the new one.
-    renderer.setNetLayout(netStateLayout(geometry, base, shown.current));
-    renderer.beginTwist(new Uint8Array(geometry.nStickers).fill(1));
+    const tween = netTween(geometry, base, previous, rotation);
     const startedAt = performance.now();
     const step = () => {
       const t = Math.min(1, (performance.now() - startedAt) / RECUT_MS);
       const eased = t < 0.5 ? 2 * t * t : 1 - 2 * (1 - t) * (1 - t);
-      renderer.setTwistMatrix(makeRowRotMat(4, move.plane[0], move.plane[1], move.radians * eased));
-      if (t < 1) animation.current = requestAnimationFrame(step);
-      else settle();
+      if (t < 1) {
+        // Framing held: see setNetLayout. Every frame here is between two crosses of the same size.
+        renderer.setNetLayout(tween(eased), false);
+        animation.current = requestAnimationFrame(step);
+      } else settle();
     };
     animation.current = requestAnimationFrame(step);
     return () => cancelAnimationFrame(animation.current);
-  }, [getRenderer, geometry, unfolded, base, rotation, move, spacing]);
+  }, [getRenderer, geometry, unfolded, base, rotation, spacing]);
 
   // Turn, unfolded, is a quarter turn about the long arm — the axis the cross already stands on.
   // It cannot be the projected pane's Turn, which moves between viewpoints of 4-space that the net

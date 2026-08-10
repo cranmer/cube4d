@@ -25,6 +25,7 @@
  */
 
 import type { PuzzleGeometry } from './asset.js';
+import { interpolateRotation } from './so4.js';
 import { identity, makeRowRotMat, mxm, transpose, vxm } from './vecmath.js';
 
 /** Where one cell goes, and how it has to be turned to get there. */
@@ -587,4 +588,63 @@ export function netStateLayout(
     };
   });
   return { ...base, cells };
+}
+
+/**
+ * The motion each cell makes on the way from one arrangement to the next.
+ *
+ * A turn of the puzzle is a rotation of 4-space, so the obvious way to show one is to run that
+ * rotation through the same uniform a twist uses. Unfolded, that goes wrong twice over. The net
+ * draws a cell by dropping one of the four axes, and mid-turn a moving cell is half out of the
+ * hyperplane the net lives in — what gets drawn is its shadow, so the cell flattens, passes through
+ * itself and springs back at the end. And it never leaves its slot, because the offset that puts it
+ * on its arm of the cross is fixed per cell and knows nothing about the turn.
+ *
+ * Unfolded, the cells are solid cubes in a 3-space of their own, so what they should do is move like
+ * solid cubes: each travels from the slot it held to the slot it is going to, turning as it goes.
+ * That is a rigid motion, and every frame of it is a real unfolding rather than a projection of one.
+ *
+ * What the turn does to the cross is worth knowing, because it is what makes these moves readable.
+ * Four cells stay where they are and spin a quarter turn in place, and four change slot. Turning
+ * along the long arm, three of those four step one slot and the one pushed off the end reappears at
+ * the other; turning across it, two step one slot and the remaining pair trade the far end for an
+ * arm. Something always has to jump: the net has cut precisely the connection the turn needs.
+ *
+ * The relative rotation carrying a cell's placement to its next one fixes the dropped axis, and a
+ * geodesic between rotations that fix an axis fixes it the whole way. That is what keeps every
+ * intermediate frame flat in the net's hyperplane, and so what keeps the cells solid.
+ */
+export function netTween(
+  geo: PuzzleGeometry,
+  base: NetLayout,
+  from: Float64Array,
+  to: Float64Array,
+): (t: number) => NetLayout {
+  const n = geo.nDims;
+  const start = netStateLayout(geo, base, from);
+  const end = netStateLayout(geo, base, to);
+  const still = identity(n);
+  const legs = start.cells.map((cell) => {
+    const arrived = end.cells.find((c) => c.face === cell.face)!;
+    return {
+      face: cell.face,
+      matrix: cell.matrix,
+      motion: mxm(transpose(cell.matrix, n), arrived.matrix, n),
+      from: cell.offset,
+      to: arrived.offset,
+      // The role it will have. Nothing reads a role mid-motion; a cell that is arriving in the
+      // middle is better called the middle one than the arm it is leaving.
+      role: arrived.role,
+    };
+  });
+  return (t: number) => ({
+    ...base,
+    cells: legs.map((leg) => ({
+      face: leg.face,
+      matrix: mxm(leg.matrix, interpolateRotation(still, leg.motion, t), n),
+      offset: [0, 1, 2].map((i) => leg.from[i] + (leg.to[i] - leg.from[i]) * t) as unknown as
+        readonly [number, number, number],
+      role: leg.role,
+    })),
+  });
 }

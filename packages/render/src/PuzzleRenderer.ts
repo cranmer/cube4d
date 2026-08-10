@@ -441,8 +441,11 @@ export class PuzzleRenderer {
    * they were. The front-cell cull does have to go: it exists to hide the cell nearest the 4D eye,
    * and unfolded there is no such cell -- every one of the eight is meant to be visible at once,
    * which is the point of drawing it this way.
+   *
+   * @param reframe whether to refit the camera to the layout. Off for the frames of a motion, which
+   *                are all on their way between two layouts that frame identically.
    */
-  setNetLayout(layout: NetLayout | null): void {
+  setNetLayout(layout: NetLayout | null, reframe = true): void {
     if (!this.material || !this.geo) return;
     const uniforms = this.material.uniforms;
     uniforms.uUnfold.value = layout !== null;
@@ -470,6 +473,12 @@ export class PuzzleRenderer {
       offsets[cell.face].set(cell.offset[0], cell.offset[1], cell.offset[2]);
       reach = Math.max(reach, Math.hypot(...cell.offset));
     }
+
+    // Mid-motion the framing is left alone. A cell part way between two slots is nearer the middle
+    // than either, so measuring the reach every frame would zoom in as the cells set off and back
+    // out as they arrive -- a pulse the puzzle never actually made. The two ends of any motion are
+    // the same cross, so the framing they agree on is the right one throughout.
+    if (!reframe) return;
 
     // The shader normalises by circumRadius before projecting, so the framing has to be measured in
     // those units too. Half a cell beyond the furthest cell centre reaches its outer face.
