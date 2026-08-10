@@ -591,6 +591,29 @@ export function netStateLayout(
 }
 
 /**
+ * The arrangement reached by turning the puzzle from another one.
+ *
+ * The turn is composed on the outside, and that is the whole content of this function. The six
+ * presses are named for places in the cross — up, left, front — and the cross never moves, so the
+ * turn belongs to its frame and not to the puzzle's. Composed the other way round, on the inside,
+ * each press is measured from wherever the puzzle has already been turned to: the first press
+ * behaves, the second turns about an axis the first one carried somewhere else, and by the third the
+ * cross is rolling bodily about some diagonal. Every one of those is a real move of the puzzle, and
+ * none of them is the one the button says.
+ *
+ * Written out, `n · (R · rotation)` is `(n · R) · rotation`: ask which slot the cell should come
+ * from first, in the fixed frame the slots are named in, and only then apply everything that has
+ * already happened. So the same press always moves the same slots, however much came before it.
+ */
+export function netTurn(
+  rotation: Float64Array,
+  plane: readonly [number, number],
+  radians: number,
+): Float64Array {
+  return mxm(makeRowRotMat(4, plane[0], plane[1], radians), rotation, 4);
+}
+
+/**
  * The motion each cell makes on the way from one arrangement to the next.
  *
  * A turn of the puzzle is a rotation of 4-space, so the obvious way to show one is to run that

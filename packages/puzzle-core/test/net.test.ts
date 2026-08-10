@@ -11,7 +11,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { loadGeometry } from './fixtures.js';
-import { cellAxis, cellName, faceOnAxis, netCompass, netStateLayout, netTransition, netLayout, netTearing, netTween, netView } from '../src/net.js';
+import { cellAxis, cellName, faceOnAxis, netCompass, netStateLayout, netTransition, netLayout, netTearing, netTurn, netTween, netView } from '../src/net.js';
 import { isValidTwist, numSlicesForGrip, permutationFor } from '../src/twist.js';
 import { makeRowRotMat, mxm, vxm } from '../src/vecmath.js';
 import { interpolateRotation } from '../src/so4.js';
@@ -476,9 +476,13 @@ describe('turning the puzzle instead of re-cutting it', () => {
   }
 
   /** The six presses: the middle cube one step along each display axis, either way. */
-  const MOVES = base.keptAxes.flatMap((axis) =>
-    [1, -1].map((way) => makeRowRotMat(4, axis, base.droppedAxis, (way * Math.PI) / 2)),
+  const PRESSES = base.keptAxes.flatMap((axis) =>
+    [1, -1].map((way) => ({
+      plane: [axis, base.droppedAxis] as const,
+      radians: (way * Math.PI) / 2,
+    })),
   );
+  const MOVES = PRESSES.map((p) => makeRowRotMat(4, p.plane[0], p.plane[1], p.radians));
 
   it('never mirrors a cell, however far you walk', () => {
     let rotation = I;
@@ -508,6 +512,38 @@ describe('turning the puzzle instead of re-cutting it', () => {
     // Four cells change slot -- the ones on the plane being turned -- and four stay.
     const moved = turned.cells.filter((c, i) => c.face !== base.cells[i].face);
     expect(moved).toHaveLength(4);
+  });
+
+  /**
+   * A press is named for places in the cross, so it has to mean the same thing every time. Composed
+   * in the puzzle's frame instead of the cross's it does not: the first press behaves, the second
+   * turns about an axis the first one carried off somewhere, and the third rolls the whole cross
+   * bodily. All three are real moves; only the first is the one the button says.
+   */
+  it('moves the same slots however much has been pressed before', () => {
+    /** Where the cell in each slot goes: the permutation of slots a press performs. */
+    const shuffle = (before: Float64Array, press: (typeof PRESSES)[0]) => {
+      const was = netStateLayout(geo, base, before).cells.map((c) => c.face);
+      const now = netStateLayout(
+        geo,
+        base,
+        netTurn(before, press.plane, press.radians),
+      ).cells.map((c) => c.face);
+      return was.map((face) => now.indexOf(face));
+    };
+
+    for (const press of PRESSES) {
+      const fresh = shuffle(I, press);
+      // Four slots keep their cell and four pass it on, which is what a press is.
+      expect(fresh.filter((to, from) => to === from)).toHaveLength(4);
+
+      let history = I;
+      for (let step = 0; step < 40; ++step) {
+        const previous = PRESSES[(step * 3 + (step % 4)) % PRESSES.length];
+        history = netTurn(history, previous.plane, previous.radians);
+        expect(shuffle(history, press), `after ${step + 1} presses`).toEqual(fresh);
+      }
+    }
   });
 });
 

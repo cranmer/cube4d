@@ -5,10 +5,9 @@ import {
   DEFAULT_PUZZLE_ID,
   faceOnAxis,
   identity,
-  makeRowRotMat,
-  mxm,
   netLayout,
   netStateLayout,
+  netTurn,
   netView,
   type NetLayout,
 } from '@mc4d/puzzle-core';
@@ -182,9 +181,7 @@ export function App() {
   // the one they are handed, so what the motion looks like is theirs to work out, not a press's.
   const press = useCallback(
     (m: { plane: readonly [number, number]; radians: number }) =>
-      setRotation((current: Float64Array) =>
-        mxm(current, makeRowRotMat(4, m.plane[0], m.plane[1], m.radians), 4),
-      ),
+      setRotation((current: Float64Array) => netTurn(current, m.plane, m.radians)),
     [],
   );
 
