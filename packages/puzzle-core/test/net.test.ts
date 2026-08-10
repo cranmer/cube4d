@@ -681,6 +681,80 @@ describe('moving between arrangements', () => {
     }
   });
 
+  /**
+   * A cube carried round a corner rolls with the corner. Half the time it did not: a half turn has
+   * no shorter way round, so the geodesic settled the tie on a quaternion sign, and against the arc
+   * it was riding the cube read as slipping rather than turning. Every plane from every arrangement,
+   * since which cells make a half turn depends on where the cross has got to.
+   */
+  it('rolls each cell the same way as the arc it is riding', () => {
+    const about = base.cells.find((c) => c.role === 'centre')!.offset;
+    const cross = (a: number[], b: number[]) => [
+      a[1] * b[2] - a[2] * b[1],
+      a[2] * b[0] - a[0] * b[2],
+      a[0] * b[1] - a[1] * b[0],
+    ];
+    const unit = (v: number[]) => {
+      const length = Math.hypot(...v);
+      return length < 1e-9 ? null : v.map((c) => c / length);
+    };
+    /**
+     * The axis a cell's own orientation is turning about as it sets off. The relative rotation is
+     * over the cell's whole 4×3 placement, not the kept-by-kept block: the cell's normal is in the
+     * kernel of that map, so a 3×3 corner of it is not a rotation and has no axis to read.
+     */
+    const spinOf = (was: Float64Array, now: Float64Array) => {
+      const rel = (i: number, j: number) =>
+        [0, 1, 2, 3].reduce(
+          (s, k) => s + was[k * 4 + base.keptAxes[i]] * now[k * 4 + base.keptAxes[j]],
+          0,
+        );
+      return unit([rel(1, 2) - rel(2, 1), rel(2, 0) - rel(0, 2), rel(0, 1) - rel(1, 0)]);
+    };
+
+    // Every plane of the four axes: three that move the middle cube, three that rotate it.
+    const PLANES = [0, 1, 2, 3].flatMap((a) => [1, 2, 3].filter((b) => b > a).map((b) => [a, b]));
+    const ALL = PLANES.flatMap((plane) =>
+      [1, -1].map((way) => ({ plane: plane as [number, number], radians: (way * Math.PI) / 2 })),
+    );
+    // Every arrangement the buttons can reach, not a sample of them: which cells make a half turn
+    // depends on where the cross has got to, and the ones that go wrong are a minority of a minority.
+    const seen = new Map<string, Float64Array>();
+    const queue = [I];
+    while (queue.length) {
+      const at = queue.shift()!;
+      const key = [...at].map((v) => Math.round(v)).join(',');
+      if (seen.has(key)) continue;
+      seen.set(key, at);
+      for (const press of ALL) queue.push(netTurn(at, press.plane, press.radians));
+    }
+    expect(seen.size).toBeGreaterThan(100);
+
+    for (const rotation of seen.values()) {
+      for (const press of ALL) {
+        const tween = netTween(geo, base, rotation, netTurn(rotation, press.plane, press.radians));
+        const first = tween(0).cells;
+        const early = tween(0.02).cells;
+        const last = tween(1).cells;
+        for (const [i, cell] of first.entries()) {
+          const arc = unit(
+            cross(
+              cell.offset.map((v, k) => v - about[k]),
+              last[i].offset.map((v, k) => v - about[k]),
+            ),
+          );
+          const spin = spinOf(cell.matrix, early[i].matrix);
+          // No arc, or no turning at all: nothing that could disagree with anything.
+          if (!arc || !spin) continue;
+          expect(
+            arc.reduce((s, c, k) => s + c * spin[k], 0),
+            `plane ${press.plane}, cell ${cell.face}`,
+          ).toBeGreaterThan(-1e-9);
+        }
+      }
+    }
+  });
+
   // What makes a press readable: half the cross is standing still, and nothing that moves goes
   // anywhere but into a slot another cell has just left.
   it('moves four cells and spins the other four where they stand', () => {

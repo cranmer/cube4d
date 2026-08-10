@@ -658,11 +658,17 @@ export function netTween(
   );
   const legs = start.cells.map((cell) => {
     const arrived = end.cells.find((c) => c.face === cell.face)!;
+    const motion = mxm(transpose(cell.matrix, n), arrived.matrix, n);
+    const travel = path(cell.offset, arrived.offset, middle, step, towards);
     return {
       face: cell.face,
       matrix: cell.matrix,
-      motion: mxm(transpose(cell.matrix, n), arrived.matrix, n),
-      path: path(cell.offset, arrived.offset, middle, step, towards),
+      // A half turn can be made either way round, and the geodesic has no reason to prefer one, so
+      // it settles the tie on a quaternion sign and gets it right about half the time. Rolled the
+      // wrong way against the arc it is travelling, a cube reads as slipping rather than turning.
+      turn: rolling(motion, base.keptAxes, base.droppedAxis, travel.axis) ?? ((t: number) =>
+        interpolateRotation(still, motion, t)),
+      travel,
       // The role it will have. Nothing reads a role mid-motion; a cell that is arriving in the
       // middle is better called the middle one than the arm it is leaving.
       role: arrived.role,
@@ -672,11 +678,60 @@ export function netTween(
     ...base,
     cells: legs.map((leg) => ({
       face: leg.face,
-      matrix: mxm(leg.matrix, interpolateRotation(still, leg.motion, t), n),
-      offset: leg.path(t),
+      matrix: mxm(leg.matrix, leg.turn(t), n),
+      offset: leg.travel.at(t),
       role: leg.role,
     })),
   });
+}
+
+/**
+ * A half turn made the same way round as the cell is travelling, or null if that is not the case.
+ *
+ * Every other reorientation has a shortest way round and the geodesic finds it. A half turn does
+ * not: both ways are the same length and end in the same place, so something has to choose, and the
+ * only thing with an opinion is the arc the cell is riding. Rolling with it looks like a cube being
+ * carried around a corner; rolling against it looks like a cube slipping on the way.
+ *
+ * The axis of a half turn falls out of the rotation itself — `R + I` is twice the outer product of
+ * the axis with itself — leaving only its sign to settle, which is what the arc is asked for.
+ */
+function rolling(
+  motion: Float64Array,
+  keptAxes: readonly [number, number, number],
+  droppedAxis: number,
+  arc: readonly number[] | null,
+): ((t: number) => Float64Array) | null {
+  if (!arc) return null;
+  // The rotation in the net's own axes, as a column-vector matrix, which is the convention the
+  // cross product below is in. Everything else here is row-vector, hence the swap.
+  const R = [0, 1, 2].map((a) => [0, 1, 2].map((b) => motion[keptAxes[b] * 4 + keptAxes[a]]));
+  if (Math.abs(R[0][0] + R[1][1] + R[2][2] + 1) > 1e-6) return null;
+
+  let best = 0;
+  for (let i = 1; i < 3; ++i) if (R[i][i] > R[best][best]) best = i;
+  const axis = [0, 1, 2].map((i) => (R[i][best] + (i === best ? 1 : 0)) / 2);
+  const length = Math.hypot(...axis);
+  if (length < 1e-9) return null;
+  const way = axis.reduce((sum, c, i) => sum + c * arc[i], 0) < 0 ? -1 : 1;
+  const m = axis.map((c) => (way * c) / length);
+
+  return (t: number) => {
+    const angle = Math.PI * t;
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+    const out = new Float64Array(16);
+    out[droppedAxis * 4 + droppedAxis] = 1;
+    for (let a = 0; a < 3; ++a) {
+      for (let b = 0; b < 3; ++b) {
+        // Rodrigues, transposed back into the row-vector convention on the way into the matrix.
+        const skew = a === b ? 0 : m[3 - a - b] * ((b - a + 3) % 3 === 1 ? -1 : 1);
+        out[keptAxes[b] * 4 + keptAxes[a]] =
+          (a === b ? cos : 0) + sin * skew + (1 - cos) * m[a] * m[b];
+      }
+    }
+    return out;
+  };
 }
 
 /**
@@ -702,14 +757,17 @@ function path(
   about: readonly [number, number, number],
   step: number,
   towards: readonly number[] | undefined,
-): (t: number) => readonly [number, number, number] {
+): Travel {
   const u = [0, 1, 2].map((i) => from[i] - about[i]);
   const v = [0, 1, 2].map((i) => to[i] - about[i]);
   const lu = Math.hypot(...u);
   const lv = Math.hypot(...v);
-  const straight = (t: number) =>
-    [0, 1, 2].map((i) => from[i] + (to[i] - from[i]) * t) as unknown as
-      readonly [number, number, number];
+  const straight = {
+    at: (t: number) =>
+      [0, 1, 2].map((i) => from[i] + (to[i] - from[i]) * t) as unknown as
+        readonly [number, number, number],
+    axis: null,
+  };
   if (lu < 1e-9 || lv < 1e-9) return straight;
 
   const cos = u.reduce((sum, c, i) => sum + c * v[i], 0) / (lu * lv);
@@ -718,7 +776,7 @@ function path(
   if (angle < 1e-9) return straight;
 
   const sin = Math.sin(angle);
-  return (t: number) => {
+  const at = (t: number) => {
     const a = Math.sin((1 - t) * angle) / sin;
     const b = Math.sin(t * angle) / sin;
     // Slerped in direction, lerped in length, so a cell that changes radius does it evenly.
@@ -727,6 +785,7 @@ function path(
     return [0, 1, 2].map((i) => about[i] + dir[i] * reach) as unknown as
       readonly [number, number, number];
   };
+  return { at, axis: unit(cross(u, v)) };
 }
 
 /**
@@ -744,7 +803,7 @@ function crossing(
   lv: number,
   step: number,
   towards: readonly number[] | undefined,
-): (t: number) => readonly [number, number, number] {
+): Travel {
   const out = u.map((c) => c / lu);
   const square = (d: readonly number[]) => {
     const along = d.reduce((sum, c, i) => sum + c * out[i], 0);
@@ -757,7 +816,7 @@ function crossing(
     (towards && square(towards)) ??
     square([0, 1, 2].map((i) => (spare.includes(i) ? 1 : 0)))!;
 
-  return (t: number) => {
+  const at = (t: number) => {
     const angle = Math.PI * t;
     // A step wider than the cross at the halfway point, which is what carries it clear of the arms.
     const reach = lu + (lv - lu) * t + step * Math.sin(angle);
@@ -765,4 +824,26 @@ function crossing(
       (i) => about[i] + (Math.cos(angle) * out[i] + Math.sin(angle) * side[i]) * reach,
     ) as unknown as readonly [number, number, number];
   };
+  return { at, axis: unit(cross(out, side)) };
 }
+
+/** Where a cell's centre is at each moment, and the axis it is being carried round, if any. */
+interface Travel {
+  readonly at: (t: number) => readonly [number, number, number];
+  /**
+   * What the travel turns about, which is the only thing with an opinion on which way round a cell
+   * should roll when its own reorientation is a half turn and so has no shorter way.
+   */
+  readonly axis: readonly number[] | null;
+}
+
+const cross = (a: readonly number[], b: readonly number[]) => [
+  a[1] * b[2] - a[2] * b[1],
+  a[2] * b[0] - a[0] * b[2],
+  a[0] * b[1] - a[1] * b[0],
+];
+
+const unit = (v: readonly number[]) => {
+  const length = Math.hypot(...v);
+  return length < 1e-9 ? null : v.map((c) => c / length);
+};
