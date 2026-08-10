@@ -173,11 +173,18 @@ export function Viewport({
   // does not have; and turning about anything else would lay the cross on its side.
   const [quarters, setQuarters] = useState(0);
 
-  // The cross itself never moves now, so the view only has to be set once and turned by Turn.
+  // The cross itself never moves now, so the view only has to be placed once and turned by Turn.
+  // Placed, not glided: there is nowhere to glide from on the first frame. Every quarter after that
+  // eases round over the same half second the projected pane's viewpoint buttons take, since the two
+  // panes sitting side by side ought to move at one pace.
+  const placed = useRef(false);
   useEffect(() => {
     if (!geometry || !unfolded || !base) return;
-    setRotation(netView(base, BASE_TURN + quarters * QUARTER));
-  }, [setRotation, geometry, unfolded, base, quarters]);
+    const to = netView(base, BASE_TURN + quarters * QUARTER);
+    if (placed.current) glideTo(to);
+    else setRotation(to);
+    placed.current = true;
+  }, [setRotation, glideTo, geometry, unfolded, base, quarters]);
 
   // The compass asks where each puzzle axis lands on screen. In a projection that is a row of the
   // view matrix; unfolded the net has rearranged them, so the matrix is remapped first.
