@@ -204,8 +204,12 @@ export function Viewport({
   const showing = useRef<boolean | null>(null);
   useEffect(() => {
     if (!geometry || !base || showing.current === unfolded) return;
+    // Set outright rather than glided, and this is the one place in the app where that is right.
+    // A glide would be the two matrices interpolated -- but they only *mean* the same orientation at
+    // the end, and the cells have already changed shape by the first frame. What you would watch is
+    // the new drawing at the old drawing's angle, swinging round to where it belonged all along.
     if (showing.current === null) {
-      // Nothing to carry over on the first frame, and nowhere to glide from either.
+      // Nothing to carry over on the first frame.
       if (unfolded) setRotation(netView(base, BASE_TURN));
     } else if (unfolded) {
       // The cell the projection had in the middle becomes the middle cube, so that the fold is of
@@ -213,12 +217,12 @@ export function Viewport({
       // land exactly where the projection had them and the compass does not move at all.
       const adopted = netTurnToMiddle(geometry, base, rotation, netMiddleFacing(geometry, getRotation()));
       if (adopted !== rotation) onAdopt(adopted);
-      glideTo(netViewMatching(geometry, netStateLayout(geometry, base, adopted), getRotation()));
+      setRotation(netViewMatching(geometry, netStateLayout(geometry, base, adopted), getRotation()));
     } else {
-      glideTo(netCompass(geometry, netStateLayout(geometry, base, rotation), getRotation()));
+      setRotation(netCompass(geometry, netStateLayout(geometry, base, rotation), getRotation()));
     }
     showing.current = unfolded;
-  }, [setRotation, glideTo, getRotation, onAdopt, geometry, unfolded, base, rotation]);
+  }, [setRotation, getRotation, onAdopt, geometry, unfolded, base, rotation]);
 
   /**
    * Turn, unfolded, is a quarter turn of the cross about the long arm — the axis it already stands
