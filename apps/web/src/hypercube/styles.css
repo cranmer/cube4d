@@ -512,23 +512,53 @@ button.wide { width: 100%; margin-top: 8px; }
 .palettes + .subhead { margin-top: 18px; }
 
 
-/* Always two panes: the unfolded puzzle and the projection of the same puzzle, which only means
-   anything side by side. They stack on a narrow screen, where side by side would leave each too
-   small to read. */
-.stage { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; }
-@media (max-width: 780px) {
-  .stage { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
+/* One, two or three panes, as chosen in the panel. Any of them can be unfolded or projected, so the
+   grid says nothing about what is in them. They stack on a narrow screen, where side by side would
+   leave each too small to read. */
+.stage.panes-1 { grid-template-columns: 1fr; }
+.stage.panes-2 { grid-template-columns: 1fr 1fr; }
+.stage.panes-3 { grid-template-columns: 1fr 1fr 1fr; }
+@media (max-width: 900px) {
+  .stage.panes-2,
+  .stage.panes-3 { grid-template-columns: 1fr; grid-auto-rows: 1fr; }
 }
+
+/* The label is a row: which pane, how it is drawn, and where it is looking. */
+.pane-label {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.pane-view { font-size: 12px; color: var(--text); text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6); }
+
+/* The middle of the three is a button: pressing the word swaps the pane between the two ways of
+   drawing a hypercube. It has to look pressable without shouting, since it sits over the puzzle --
+   hence a quiet outline that fills in on hover, rather than a button-shaped button. */
 .pane-kind {
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 7px;
   font-size: 11px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--dim);
+  background: rgba(22, 27, 34, 0.7);
+  border: 1px solid var(--edge);
+  border-radius: 999px;
 }
+.pane-kind:hover { color: var(--text); border-color: #3a434f; background: rgba(30, 36, 45, 0.9); }
 
 
 /* Two compasses, one per pane, so each is positioned within its own pane rather than the stage. */
 .pane { position: relative; }
+
+
+/* How many twists in, and whether it is solved. */
+.counter { display: flex; gap: 12px; align-items: baseline; font-size: 13px; color: var(--dim); }
+.counter b { font-size: 15px; color: var(--text); font-variant-numeric: tabular-nums; }
+.counter .won { color: #7ee787; font-weight: 600; }
 
 
 /* The presses. Two rows of three in the panel, one row in the strip under the pane. */
@@ -538,9 +568,10 @@ button.wide { width: 100%; margin-top: 8px; }
 .panel-moves button { width: 100%; }
 
 /* Both kinds of press are done to the middle cube, so each group says which kind it is. Without the
-   names the ten buttons read as one bank, and moving a cube and spinning it are not the same thing. */
-.group { display: flex; align-items: center; gap: 7px; }
-.group-name {
+   names the ten buttons read as one bank, and moving a cube and spinning it are not the same thing.
+   Not `.group`, which the panel's collapsible sections already are. */
+.presses { display: flex; align-items: center; gap: 7px; }
+.presses-name {
   font-size: 9.5px;
   letter-spacing: 0.08em;
   text-transform: uppercase;

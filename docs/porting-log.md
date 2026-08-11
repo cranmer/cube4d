@@ -791,8 +791,9 @@ genuinely 4D-specific code, and not in the geometry.
 
 ## 2026-08-10 — Phase 7, prototype: the hypercube unfolded
 
-Tagged `v0.7.0-unfolded` on the `flattened-ui` branch. Everything below is a prototype app at
-`/flat/`, kept beside the projected view rather than replacing it.
+Tagged `v0.7.0-unfolded` on the `flattened-ui` branch. Everything below began as a prototype at
+`/flat/`, kept beside the projected view rather than replacing it; it has since become the hypercube
+app at `/hypercube/`, where any pane can be either.
 
 A cube's six faces unfold into a flat cross; a hypercube's eight cells unfold into a solid one — the
 shape Dalí painted. Drawn that way every cell is a genuine undistorted 3×3×3 cube, all eight are

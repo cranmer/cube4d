@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import {
+  CANONICAL_VIEWS,
   netCompass,
   netStateLayout,
   netTween,
@@ -39,17 +40,17 @@ export interface Press {
 }
 
 /**
- * One pane, drawn either unfolded or projected.
+ * One pane, drawn either unfolded or projected, and switched between the two by its own label.
  *
- * The two are the same renderer with one uniform different, which is the reason for showing them
- * side by side: whatever the net has to fake, the projection next to it is doing honestly, and you
- * can watch both at once.
+ * The two are the same renderer with one uniform different, which is the reason for letting any pane
+ * be either: whatever the net has to fake, a pane beside it can be doing honestly, and you can watch
+ * both at once on the same puzzle.
  *
- * Their controls differ because their vocabularies do. The projected pane gets the four the
+ * Their controls differ because their vocabularies do. Projected, a pane gets the four the
  * multi-view app settled on — Turn, Tip, Flip, Reset — which move between the eight ways of facing a
  * hypercube. Unfolded there are no such viewpoints: the net has already chosen a direction to fold
- * away, so what a viewer wants to change is the cut, and Turn is the only one of the four that
- * still means anything.
+ * away, so what there is to change is which cell is in the middle, and Turn is the only one of the
+ * four that still means anything.
  */
 export function Viewport({
   geometry,
@@ -59,7 +60,9 @@ export function Viewport({
   onSnapshot,
   initial,
   index,
+  label,
   unfolded,
+  onToggleMode,
   base,
   rotation,
   spacing,
@@ -69,7 +72,6 @@ export function Viewport({
   spins,
   onPress,
   middleLabel,
-  farLabel,
 }: {
   geometry: PuzzleGeometry | null;
   controls: ViewControls;
@@ -78,8 +80,11 @@ export function Viewport({
   onSnapshot: (index: number, snapshot: () => ViewSnapshot) => void;
   initial: ViewSnapshot | undefined;
   index: number;
+  /** Which pane this is: A, B or C, as the panel names them. */
+  label: string;
   /** Unfolded into a solid cross, rather than projected from four dimensions. */
   unfolded: boolean;
+  onToggleMode: () => void;
   /** The arrangement everything is derived from, or null before the puzzle loads. */
   base: NetLayout | null;
   /**
@@ -95,8 +100,8 @@ export function Viewport({
   /** The two axes it can be rotated about instead, each with a press either way round. */
   spins: readonly { label: string; name: string; pair: readonly Press[] }[];
   onPress: (move: { plane: readonly [number, number]; radians: number }) => void;
+  /** Which cell this pane has in the middle of its cross, for its label. */
   middleLabel: string;
-  farLabel: string;
 }) {
   const controlsRef = useRef<HTMLDivElement>(null);
   // The two panes want opposite shape settings, so they take them separately while sharing
@@ -117,7 +122,8 @@ export function Viewport({
     dragDims: unfolded ? 3 : 4,
   });
 
-  const { getRenderer, snapshot, setRotation, glideTo, getRotation } = view;
+  const { getRenderer, snapshot, setRotation, glideTo, getRotation, resetView } = view;
+  const viewpoint = CANONICAL_VIEWS.find((v) => v.id === view.canonicalView)?.name ?? 'Free';
   useEffect(() => {
     onRenderer(index, getRenderer());
     return () => onRenderer(index, null);
@@ -177,18 +183,36 @@ export function Viewport({
   // does not have; and turning about anything else would lay the cross on its side.
   const [quarters, setQuarters] = useState(0);
 
-  // The cross itself never moves now, so the view only has to be placed once and turned by Turn.
-  // Placed, not glided: there is nowhere to glide from on the first frame. Every quarter after that
-  // eases round over the same half second the projected pane's viewpoint buttons take, since the two
-  // panes sitting side by side ought to move at one pace.
-  const placed = useRef(false);
+  /**
+   * Where the camera goes, which is a different question in each mode.
+   *
+   * Unfolded there are no viewpoints of 4-space to move between, so the camera is placed by the
+   * layout — standing the long arm upright — and Turn walks it round in quarters. Projected it is
+   * whatever the viewpoint buttons and your dragging have made it.
+   *
+   * So a pane changing mode parks the camera it is leaving and picks the other one up again. Losing
+   * it would be worse here than in the multi-view app: the reason for two panes is often one
+   * particular angle, and toggling a pane to compare and back would throw it away.
+   */
+  const parked = useRef<number[] | null>(null);
+  const showing = useRef<boolean | null>(null);
   useEffect(() => {
-    if (!geometry || !unfolded || !base) return;
-    const to = netView(base, BASE_TURN + quarters * QUARTER);
-    if (placed.current) glideTo(to);
-    else setRotation(to);
-    placed.current = true;
-  }, [setRotation, glideTo, geometry, unfolded, base, quarters]);
+    if (!geometry || !base) return;
+    const first = showing.current === null;
+    if (unfolded) {
+      if (showing.current === false) parked.current = Array.from(getRotation());
+      const to = netView(base, BASE_TURN + quarters * QUARTER);
+      // Placed, not glided, on the first frame: there is nowhere to glide from. Every quarter after
+      // that eases round over the same half second the viewpoint buttons take, since two panes side
+      // by side ought to move at one pace.
+      if (first) setRotation(to);
+      else glideTo(to);
+    } else if (showing.current === true) {
+      if (parked.current) glideTo(parked.current);
+      else resetView();
+    }
+    showing.current = unfolded;
+  }, [setRotation, glideTo, getRotation, resetView, geometry, unfolded, base, quarters]);
 
   // The compass asks where each puzzle axis lands on screen. In a projection that is a row of the
   // view matrix; unfolded the net has rearranged them, so the matrix is remapped first.
@@ -203,8 +227,21 @@ export function Viewport({
     <div className="pane">
       <canvas ref={view.canvasRef} />
       {axisHints && <AxisInset getRotation={compassRotation} colors={axisColors} />}
+      {/* The label is the switch. There are exactly two ways to draw a hypercube here, so a toggle
+          is the honest control — a picker would imply more of them — and putting it on the name
+          means the pane says what it is and changes what it is in one place. Which pane it applies
+          to needs no explaining, because it is in the pane. */}
       <div className="pane-label">
-        <span className="pane-kind">{unfolded ? 'Unfolded' : 'Projected'}</span>
+        <span className="pane-index">{label}</span>
+        <button
+          className="pane-kind"
+          onClick={onToggleMode}
+          title={unfolded ? 'Show this pane projected from 4D' : 'Show this pane unfolded into a cross'}
+        >
+          {unfolded ? 'Unfolded' : 'Projected'}
+          <SwapIcon />
+        </button>
+        <span className="pane-view">{unfolded ? `${middleLabel} in the middle` : viewpoint}</span>
       </div>
       <div className="pane-controls" ref={controlsRef}>
         <div className="pad">
@@ -228,8 +265,8 @@ export function Viewport({
           // it: six presses move it to the next slot, four rotate it where it stands. Both are
           // whole-puzzle twists, so what you press and what you watch are the same thing.
           <>
-            <div className="group">
-              <span className="group-name">Move</span>
+            <div className="presses">
+              <span className="presses-name">Move</span>
               <div className="moves">
                 {moves.map((m) => (
                   <button key={m.label} onClick={() => onPress(m)} title={m.hint}>
@@ -238,8 +275,8 @@ export function Viewport({
                 ))}
               </div>
             </div>
-            <div className="group">
-              <span className="group-name">Rotate</span>
+            <div className="presses">
+              <span className="presses-name">Rotate</span>
               <div className="spins">
                 {spins.map((spin) => (
                   <div className="pad" key={spin.label}>
@@ -254,14 +291,6 @@ export function Viewport({
                 ))}
               </div>
             </div>
-            <span className="standing">
-              <span className="standing-name">Middle</span>
-              <span className="standing-value">{middleLabel}</span>
-            </span>
-            <span className="standing">
-              <span className="standing-name">Bottom</span>
-              <span className="standing-value">{farLabel}</span>
-            </span>
           </>
         ) : (
           <>
@@ -294,6 +323,28 @@ export function Viewport({
         </button>
       </div>
     </div>
+  );
+}
+
+export /** Two arrows curling back on each other: this pane, drawn the other way. */
+function SwapIcon() {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      width="11"
+      height="11"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M2.6 6h9.2" />
+      <path d="M9.6 3.4 12.2 6 9.6 8.6" />
+      <path d="M13.4 10h-9.2" />
+      <path d="M6.4 7.4 3.8 10l2.6 2.6" />
+    </svg>
   );
 }
 

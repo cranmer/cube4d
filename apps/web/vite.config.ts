@@ -49,7 +49,7 @@ export default defineConfig({
         gallery: entry('gallery/index.html'),
         multi: entry('multi/index.html'),
         cube: entry('cube/index.html'),
-        flat: entry('flat/index.html'),
+        hypercube: entry('hypercube/index.html'),
       },
     },
   },

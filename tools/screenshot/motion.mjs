@@ -2,14 +2,14 @@
 //
 // Animations are the one thing the unit tests cannot look at: the geometry of every frame can be
 // checked in the core, but whether the result reads as cubes moving is a question about pixels.
-// Screenshots under software GL take longer than a move does, so raise RECUT_MS in flat/Viewport.tsx
+// Screenshots under software GL take longer than a move does, so raise RECUT_MS in hypercube/Viewport.tsx
 // while using this — it is the difference between catching the motion and only ever seeing the ends.
 import { chromium } from 'playwright';
 import { mkdirSync } from 'node:fs';
 
 const which = process.argv[2] ?? 'Up';
 const out = process.argv[3] ?? 'build/shots/motion';
-const url = process.argv[4] ?? 'http://localhost:5173/flat/';
+const url = process.argv[4] ?? 'http://localhost:5173/hypercube/';
 mkdirSync(out, { recursive: true });
 
 const browser = await chromium.launch({

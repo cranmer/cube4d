@@ -8,7 +8,7 @@ import { mkdirSync } from 'node:fs';
 
 const out = 'build/shots/presses';
 mkdirSync(out, { recursive: true });
-const url = process.argv[3] ?? 'http://localhost:5173/flat/';
+const url = process.argv[3] ?? 'http://localhost:5173/hypercube/';
 const sequences = (process.argv[2] ?? 'Up|Left|Up,Left|Up,Left,Front').split('|');
 
 const browser = await chromium.launch({

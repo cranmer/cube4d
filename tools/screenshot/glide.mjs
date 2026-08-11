@@ -8,7 +8,7 @@ const browser = await chromium.launch({
   args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'],
 });
 const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
-await page.goto('http://localhost:5173/flat/', { waitUntil: 'networkidle' });
+await page.goto('http://localhost:5173/hypercube/', { waitUntil: 'networkidle' });
 await page.waitForTimeout(2500);
 
 await page.evaluate(() => {
