@@ -21,10 +21,11 @@ If you want the conclusions rather than the story:
 
 ## Status
 
-**Phases 0–6 and 8 of 8 complete.** All 128 four-dimensional puzzles are playable in a browser,
+**All eight phases complete.** All 128 four-dimensional puzzles are playable in a browser,
 solves persist and can be saved, shared or exported, the real Hall-of-Fame records replay on demand,
 the front-end is split so that alternative layouts are separate apps rather than more controls in one
-panel — and the engine now builds three-dimensional puzzles too, which the original never could.
+panel, the engine builds three-dimensional puzzles too, which the original never could — and the
+hypercube can now be unfolded into a solid cross beside its own projection.
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -35,13 +36,13 @@ panel — and the engine now builds three-dimensional puzzles too, which the ori
 | 4 | Interaction — twisting, undo, scramble | ✅ complete |
 | 5 | Catalog + persistence | ✅ complete |
 | 6 | Several apps on one engine | ✅ complete |
-| 7 | A hypercube-specific app | 🚧 prototype on `flattened-ui` |
+| 7 | A hypercube-specific app | ✅ complete |
 | 8 | 3D puzzles on the same engine | ✅ complete |
 
 What exists today: all 136 puzzles export to binary assets — 128 four-dimensional and 8 three-dimensional; `@mc4d/puzzle-core` decodes, twists,
 scrambles and tracks history; `@mc4d/legacy-format` reads and writes `.log` files, with an
 `mc4d-convert` CLI; and `@mc4d/render` puts the whole 4D→3D projection into a vertex shader.
-409 tests, plus a headless browser that scrambles and solves the puzzle end to end.
+448 tests, plus a headless browser that scrambles and solves the puzzle end to end.
 
 **Playable at <https://theoryandpractice.org/cube4d/>.**
 
@@ -890,6 +891,10 @@ already uploads a layout per frame, and the orientation work means the camera wo
 at all. Planned in [`folding-animation.md`](folding-animation.md), including the one risky part (the
 shader forces `w = 0`, and mid-fold the cells have a real one) and the reason to build it short
 before polishing it.
+
+Nearer to hand: the unfolded app opens the 3×3×3×3 only, which is a scoping decision and not a
+limitation — every hypercube unfolds into the same cross whatever it is sliced into. Costed in
+[`polish-backlog.md`](polish-backlog.md#other-hypercube-sizes).
 
 Still open from earlier phases: the 622 KB bundle, now more visible as a shared chunk and so more
 worth trimming; a guided "what is 4D" tour for people arriving without a hypercube already in their

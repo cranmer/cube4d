@@ -112,6 +112,31 @@ optional `facecolors.txt`, so there is precedent for user-supplied palettes.
 
 ---
 
+## The unfolded hypercube app
+
+### Other hypercube sizes
+
+It opens the 3×3×3×3 and nothing else, which is a scoping decision left over from the prototype
+rather than a limitation. Checked rather than assumed: `netLayout` produces an identical cross for
+2⁴ through 6⁴ — same cell width, same offsets, all eight cells in one hyperplane to 1e-16 — because
+the unfolding depends on the hypercube's shape and not on how finely it is sliced. The presses move
+cells rather than cubies, so the arrangement machinery is indifferent to edge length, and the layer
+chips already generate from the puzzle's own slice count.
+
+What it takes:
+
+- Relax `OPENS` in `apps/web/src/hypercube/App.tsx` from one id to the `{4,3,3}` family.
+- A size picker in the panel. `PuzzlePicker` is a family list and a length list; this app wants only
+  the second half of it, so either a `family` prop or a small local component.
+- Drop the `offers` filter passed to `RealSolves`, which exists only because of this limit. Five of
+  the eight Hall of Fame solves are 2⁴ or 5⁴ and would become openable here.
+
+Worth a look once it is in: the cross is drawn at a fixed spacing in cell widths, so a 9⁴ has the
+same footprint as a 2⁴ and only the sticker count changes — which should be right, but is the sort
+of thing that is easier to check than to reason about.
+
+---
+
 ## Housekeeping
 
 ### Dev-dependency advisories
