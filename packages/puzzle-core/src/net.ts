@@ -374,8 +374,14 @@ function rotationTaking(from: readonly number[], to: readonly number[]): number[
  * in are related by the layout rather than by identity. When the folded-away axis is W they happen
  * to coincide, which makes this look unnecessary until someone folds away X instead.
  *
- * Six of the eight cells sit exactly along their own signed axis, so their spokes point straight at
- * them. The remaining two are the pair on the folded-away axis, and are handled by pointing that
+ * The layout it is given must be the one on screen. Where a cell's axis points is a fact about the
+ * arrangement, not about the cut it was built from: the slots never move, but the cells travel
+ * through them, so a compass read off the opening layout would go stale the moment anything is
+ * pressed — six spokes pointing confidently at the wrong cells.
+ *
+ * Six of the eight cells sit along a slot of their own, so their spokes point straight at them. The
+ * remaining two are the pair whose cells are in the middle and at the far end, and are handled by
+ * pointing that
  * axis at the viewer: the compass already draws such an axis collapsed in the middle at the end
  * that faces away, and hides the end that faces you. Aimed so that the surviving end is the cell in
  * the middle of the cross — which is exactly where the compass draws it — the far cell's label is
@@ -385,19 +391,26 @@ function rotationTaking(from: readonly number[], to: readonly number[]): number[
 export function netCompass(
   geo: PuzzleGeometry,
   layout: NetLayout,
-  centreFace: number,
   viewMat: readonly number[],
 ): number[] {
   const n = 4;
   const out = new Array(n * n).fill(0);
-  for (let axis = 0; axis < n; ++axis) {
-    if (axis === layout.droppedAxis) {
-      // Straight at the viewer, oriented so the end that survives is the middle cell.
-      out[axis * n + 3] = -cellAxis(geo, centreFace).sign;
-      continue;
-    }
-    const reduced = layout.keptAxes.indexOf(axis);
-    for (let j = 0; j < 3; ++j) out[axis * n + j] = viewMat[reduced * n + j];
+  const middle = layout.cells.find((c) => c.role === 'centre')!;
+  const folded = cellAxis(geo, middle.face);
+  // Straight at the viewer, oriented so the end that survives is the middle cell.
+  out[folded.axis * n + 3] = -folded.sign;
+
+  for (const cell of layout.cells) {
+    if (cell.role !== 'neighbour') continue;
+    const { axis, sign } = cellAxis(geo, cell.face);
+    // Which way this cell lies from the middle one, in the reduced coordinates the view is in.
+    // Asked of the cell rather than assumed from its axis: the slots of the cross never move, but
+    // the cells travel through them, so which axis is where is a fact about the arrangement.
+    const from = [0, 1, 2].map((i) => cell.offset[i] - middle.offset[i]);
+    let reduced = 0;
+    for (let i = 1; i < 3; ++i) if (Math.abs(from[i]) > Math.abs(from[reduced])) reduced = i;
+    const way = sign * Math.sign(from[reduced]);
+    for (let j = 0; j < 3; ++j) out[axis * n + j] = way * viewMat[reduced * n + j];
   }
   return out;
 }

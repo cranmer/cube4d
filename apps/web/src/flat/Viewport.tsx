@@ -196,8 +196,7 @@ export function Viewport({
     const mat = getRotation();
     if (!unfolded || !geometry) return mat;
     if (!base) return mat;
-    const middle = netStateLayout(geometry, base, rotation).cells.find((c) => c.role === 'centre');
-    return middle ? netCompass(geometry, base, middle.face, mat) : mat;
+    return netCompass(geometry, netStateLayout(geometry, base, rotation), mat);
   }, [getRotation, unfolded, geometry, base, rotation]);
 
   return (

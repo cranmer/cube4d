@@ -285,43 +285,71 @@ describe('the compass, unfolded', () => {
       const arm = [0, 1, 2, 3, 4, 5, 6, 7].find(
         (f) => f !== centre && f !== geo.face2OppositeFace[centre],
       )!;
-      const layout = netLayout(geo, centre, arm, 1.35);
-      const view = netView(layout);
-      const compass = netCompass(geo, layout, centre, view);
-
-      for (const cell of layout.cells) {
-        if (cell.role !== 'neighbour') continue;
-        const { axis, sign } = cellAxis(geo, cell.face);
-        // Where the compass sends this cell's axis, on screen.
-        const spoke = [0, 1].map((j) => sign * compass[axis * 4 + j]);
-        // Where the cell actually is, on screen -- measured from the middle cell, not from the
-        // origin. Recentring the cross moves the middle cell off the origin, so a neighbour's raw
-        // offset carries a component along the long arm that has nothing to do with its own axis.
-        const from = layout.cells.find((c) => c.role === 'centre')!.offset;
-        const at = [0, 1].map((j) =>
-          [0, 1, 2].reduce((sum, i) => sum + (cell.offset[i] - from[i]) * view[i * 4 + j], 0),
-        );
-        const dot = spoke[0] * at[0] + spoke[1] * at[1];
-        const norms = Math.hypot(...spoke) * Math.hypot(...at);
-        // Same direction, allowing for the spoke being a unit vector and the cell being further out.
-        expect(dot / norms, `cell ${cellName(geo, cell.face)} of centre ${centre}`).toBeCloseTo(1, 6);
+      const base = netLayout(geo, centre, arm, 1.35);
+      const view = netView(base);
+      // Every arrangement, not just the opening one. The cells travel through the slots as the
+      // puzzle is turned, so a compass that reads the cut rather than the arrangement points six
+      // spokes at the wrong cells the moment a button is pressed -- which is what it used to do.
+      for (const layout of everyArrangement(base)) {
+        const compass = netCompass(geo, layout, view);
+        for (const cell of layout.cells) {
+          if (cell.role !== 'neighbour') continue;
+          const { axis, sign } = cellAxis(geo, cell.face);
+          // Where the compass sends this cell's axis, on screen.
+          const spoke = [0, 1].map((j) => sign * compass[axis * 4 + j]);
+          // Where the cell actually is, on screen -- measured from the middle cell, not from the
+          // origin. Recentring the cross moves the middle cell off the origin, so a neighbour's raw
+          // offset carries a component along the long arm that has nothing to do with its own axis.
+          const from = layout.cells.find((c) => c.role === 'centre')!.offset;
+          const at = [0, 1].map((j) =>
+            [0, 1, 2].reduce((sum, i) => sum + (cell.offset[i] - from[i]) * view[i * 4 + j], 0),
+          );
+          const dot = spoke[0] * at[0] + spoke[1] * at[1];
+          const norms = Math.hypot(...spoke) * Math.hypot(...at);
+          // Same direction: the spoke is a unit vector and the cell is further out.
+          expect(
+            dot / norms,
+            `cell ${cellName(geo, cell.face)} of centre ${centre}`,
+          ).toBeCloseTo(1, 6);
+        }
       }
     }
   });
 
-  it('aims the folded-away axis at the viewer, surviving end at the middle cell', () => {
-    const layout = netLayout(geo, 0, 2, 1.35);
-    const compass = netCompass(geo, layout, 0, netView(layout));
-    const { axis, sign } = cellAxis(geo, 0);
-    expect(axis).toBe(layout.droppedAxis);
-    // The compass fades a spoke by `1 - w`. The middle cell must survive; its opposite must not.
-    expect(sign * compass[axis * 4 + 3]).toBeCloseTo(-1, 9);
-    expect(-sign * compass[axis * 4 + 3]).toBeCloseTo(1, 9);
-    // And it has no screen direction at all, which is what puts it in the middle.
-    expect(compass[axis * 4]).toBeCloseTo(0, 9);
-    expect(compass[axis * 4 + 1]).toBeCloseTo(0, 9);
+  it('aims the axis in the middle at the viewer, wherever the turning has left it', () => {
+    const base = netLayout(geo, 0, 2, 1.35);
+    for (const layout of everyArrangement(base)) {
+      const middle = layout.cells.find((c) => c.role === 'centre')!;
+      const compass = netCompass(geo, layout, netView(base));
+      const { axis, sign } = cellAxis(geo, middle.face);
+      // The compass fades a spoke by `1 - w`. The middle cell must survive; its opposite must not.
+      expect(sign * compass[axis * 4 + 3]).toBeCloseTo(-1, 9);
+      expect(-sign * compass[axis * 4 + 3]).toBeCloseTo(1, 9);
+      // And it has no screen direction at all, which is what puts it in the middle.
+      expect(compass[axis * 4]).toBeCloseTo(0, 9);
+      expect(compass[axis * 4 + 1]).toBeCloseTo(0, 9);
+    }
   });
 });
+
+/** Every arrangement the cross's buttons can reach from a given layout, the opening one included. */
+function everyArrangement(base: ReturnType<typeof netLayout>) {
+  const presses = [0, 1, 2, 3].flatMap((a) =>
+    [1, 2, 3]
+      .filter((b) => b > a)
+      .flatMap((b) => [1, -1].map((way) => ({ plane: [a, b] as const, radians: (way * Math.PI) / 2 }))),
+  );
+  const seen = new Map<string, ReturnType<typeof netLayout>>();
+  const queue = [identity4()];
+  while (queue.length) {
+    const at = queue.shift()!;
+    const key = [...at].map((v) => Math.round(v)).join(',');
+    if (seen.has(key)) continue;
+    seen.set(key, netStateLayout(geo, base, at));
+    for (const press of presses) queue.push(netTurn(at, press.plane, press.radians));
+  }
+  return [...seen.values()];
+}
 
 describe('gliding a Turn', () => {
   // The unfolded view eases between quarter turns through SO(4), the same interpolation the named
