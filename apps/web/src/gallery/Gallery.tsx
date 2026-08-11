@@ -84,7 +84,7 @@ export function Gallery() {
         <h1>Puzzles</h1>
         <p className="lede">
           {total || 107} puzzles, from the familiar 3×3×3×3 to a 120-cell made of dodecahedra. Pick
-          one to open it in the <a href={`${BASE}multi/`}>new interface</a>.
+          one to open it in the <a href={`${BASE}multi/`}>multi-view interface</a>.
         </p>
         <p className="lede small">
           A puzzle is a Schläfli product symbol and an edge length — nothing here is special-cased.
