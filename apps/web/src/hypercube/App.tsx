@@ -74,6 +74,17 @@ const PANES = ['A', 'B', 'C'];
 const DEFAULT_CENTRE = { axis: 3, sign: -1 };
 const DEFAULT_ARM = { axis: 2, sign: -1 };
 
+/**
+ * Which puzzles this app opens: the 3×3×3×3 and, for now, nothing else.
+ *
+ * The net itself is size-agnostic — every hypercube unfolds into the same cross, whatever it is
+ * sliced into, and the presses move cells rather than cubies — so this is a limit of the app and
+ * not of the layout. It is written once here because two things have to agree about it: the catalog
+ * is filtered by it, and so is the Hall of Fame, which otherwise offers solves of 2⁴ and 5⁴ that
+ * this app cannot open and whose failure reads as a fault rather than as a limit.
+ */
+const OPENS = (puzzleId: string) => puzzleId === DEFAULT_PUZZLE_ID;
+
 /** Which panes are open, or which are unfolded: both are a set of pane letters in one string. */
 function readPanes(key: string, fallback: boolean[]): boolean[] {
   try {
@@ -99,9 +110,7 @@ export function App() {
     assetBase,
     { id: DEFAULT_PUZZLE_ID, path: '4-3-3_3.mc4dpz' },
     {
-      // The one puzzle this app exists for. Other hypercube sizes unfold identically, but the
-      // catalog stays shut until the layout has been tried on the one everybody knows.
-      accepts: (entry) => entry.id === DEFAULT_PUZZLE_ID,
+      accepts: (entry) => OPENS(entry.id),
       // Vivid: three small panes at once, so the cells have to be told apart at a glance.
       defaultPaletteId: 'vivid',
     },
@@ -414,7 +423,7 @@ export function App() {
         <header className="masthead">
           <div>
             <h1>MagicCube4D</h1>
-            <p className="sub">The hypercube &mdash; projected and unfolded.</p>
+            <p className="sub">The hypercube &mdash; projected or unfolded.</p>
           </div>
           <a
             className="icon-link"
@@ -615,7 +624,13 @@ export function App() {
           </p>
         </Section>
 
-        <RealSolves session={session} actions={actions} io={io} base={import.meta.env.BASE_URL} />
+        <RealSolves
+          session={session}
+          actions={actions}
+          io={io}
+          base={import.meta.env.BASE_URL}
+          offers={OPENS}
+        />
 
         <ImportExport
           session={session}
