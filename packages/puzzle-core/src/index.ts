@@ -51,7 +51,7 @@ export { countCubiesWithColors, fullScrambleLength, mulberry32, scramble } from 
 
 export type { CellRef, Cut, NetCell, NetLayout, NetTransition, Recut } from './net.js';
 export { identity, makeRowRotMat, mxm, vxm } from './vecmath.js';
-export { AXIS_NAMES, cellAxis, cellName, faceOnAxis, netCompass, netLayout, netStateLayout, netTearing, netTransition, netTransitionBetween, netTurn, netTween, netView } from './net.js';
+export { AXIS_NAMES, cellAxis, cellName, faceOnAxis, netCompass, netLayout, netStateLayout, netTearing, netTransition, netMiddleFacing, netTransitionBetween, netTurn, netTurnToMiddle, netTween, netView, netViewMatching } from './net.js';
 export type { CanonicalView } from './canonicalViews.js';
 export {
   CANONICAL_VIEWS,

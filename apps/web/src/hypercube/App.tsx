@@ -391,6 +391,9 @@ export function App() {
               moves={moves}
               spins={spins}
               onPress={(m) => press(i, m)}
+              onAdopt={(next) =>
+                setArrangements((current) => current.map((r, k) => (k === i ? next : r)))
+              }
               middleLabel={middleOf(i)}
             />
           ) : null,

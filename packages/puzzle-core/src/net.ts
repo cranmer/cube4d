@@ -415,6 +415,123 @@ export function netCompass(
   return out;
 }
 
+/**
+ * The arrangement with a given cell in the middle of the cross, turned there from another.
+ *
+ * What it is for: a projection has a cell in the middle too — the one facing away from you, drawn
+ * small in the centre — and unfolding ought to be about the cell you were looking at. If the net
+ * were to keep its own middle cube regardless, the fold would move a different cell to the centre
+ * than the one the projection had there, and no choice of camera could hide it.
+ *
+ * One simple rotation, so the arrangement stays one of the ones the buttons can reach and its
+ * handedness is carried rather than recomputed — the same reason `netStateLayout` exists.
+ */
+export function netTurnToMiddle(
+  geo: PuzzleGeometry,
+  base: NetLayout,
+  rotation: Float64Array,
+  face: number,
+): Float64Array {
+  const middle = netStateLayout(geo, base, rotation).cells.find((c) => c.role === 'centre')!;
+  if (middle.face === face) return rotation;
+  const from = cellAxis(geo, middle.face);
+  const to = cellAxis(geo, face);
+  const carry =
+    from.axis === to.axis
+      ? // Opposite ends of one axis: no quarter turn takes a cell to its own opposite, so it goes
+        // the long way round, through whichever other axis comes first.
+        makeRowRotMat(4, from.axis, (from.axis + 1) % 4, Math.PI)
+      : quarterOnto(4, from.axis, from.sign, to.axis, to.sign);
+  return mxm(rotation, carry, 4);
+}
+
+/**
+ * Which cell a view has facing away from the viewer, which is the one a projection draws in the
+ * middle: the far end of the axis pointing into the screen.
+ */
+export function netMiddleFacing(geo: PuzzleGeometry, axes: readonly number[]): number {
+  let best = { axis: 0, sign: 1, w: Infinity };
+  for (let axis = 0; axis < 4; ++axis) {
+    for (const sign of [1, -1]) {
+      const w = sign * axes[axis * 4 + 3];
+      if (w < best.w) best = { axis, sign, w };
+    }
+  }
+  return faceOnAxis(geo, best.axis, best.sign);
+}
+
+/**
+ * The unfolded view that shows the axes where a projected view already has them.
+ *
+ * `netCompass` asks where each puzzle axis lands, given a view of the net; this asks for the view of
+ * the net that would land them where a projection has them. So a pane switching between the two ways
+ * of drawing the puzzle can keep its orientation instead of jumping to a stock one — the cells stay
+ * roughly where your eye left them, and the compass barely moves.
+ *
+ * The two cannot agree completely, and it is worth being clear about why. A projection is a rotation
+ * of 4-space and can point all four axes somewhere on the screen. The net has folded one axis away,
+ * and that one has nowhere to point but at the viewer. The other three are matched as closely as an
+ * orthonormal frame allows: three rows of a 4×4 rotation with their fourth components dropped are
+ * not in general orthogonal, so the frame nearest them is what comes back.
+ *
+ * @param axes where each puzzle axis lands, in the same row-major form `setRotation` takes.
+ */
+export function netViewMatching(
+  geo: PuzzleGeometry,
+  layout: NetLayout,
+  axes: readonly number[],
+): number[] {
+  const middle = layout.cells.find((c) => c.role === 'centre')!;
+  const want: number[][] = [
+    [0, 0, 0],
+    [0, 0, 0],
+    [0, 0, 0],
+  ];
+  for (const cell of layout.cells) {
+    if (cell.role !== 'neighbour') continue;
+    const { axis, sign } = cellAxis(geo, cell.face);
+    const from = [0, 1, 2].map((i) => cell.offset[i] - middle.offset[i]);
+    let reduced = 0;
+    for (let i = 1; i < 3; ++i) if (Math.abs(from[i]) > Math.abs(from[reduced])) reduced = i;
+    // Both ends of a slot line name the same reduced axis and agree about which way it runs, so
+    // whichever of the pair is visited second writes the same answer.
+    const way = sign * Math.sign(from[reduced]);
+    want[reduced] = [0, 1, 2].map((j) => way * axes[axis * 4 + j]);
+  }
+
+  const frame = nearestFrame(want);
+  const out = new Array(16).fill(0);
+  for (let i = 0; i < 3; ++i) for (let j = 0; j < 3; ++j) out[i * 4 + j] = frame[i][j];
+  out[15] = 1;
+  return out;
+}
+
+/**
+ * The right-handed orthonormal frame nearest three given rows.
+ *
+ * Built from the longest row down, because length is how much a row has to say: an axis pointing
+ * near enough at the viewer projects to almost nothing, and taking its direction seriously would
+ * throw the other two off to no purpose. The last row is fixed by the other two rather than fitted,
+ * which is what keeps the frame a rotation — a fitted one could come out a reflection, and the
+ * puzzle would be drawn mirror-imaged.
+ */
+function nearestFrame(want: readonly number[][]): number[][] {
+  const order = [0, 1, 2].sort((a, b) => Math.hypot(...want[b]) - Math.hypot(...want[a]));
+  const [first, second, third] = order;
+  const out: number[][] = [[], [], []];
+
+  out[first] = unit(want[first]) ?? [1, 0, 0];
+  const along = want[second].reduce((sum, c, i) => sum + c * out[first][i], 0);
+  out[second] =
+    unit(want[second].map((c, i) => c - along * out[first][i])) ??
+    unit(cross(out[first], [0, 0, 1])) ??
+    unit(cross(out[first], [0, 1, 0]))!;
+  // Cyclic order decides which way round the cross product goes; anything else mirrors the frame.
+  const cyclic = (first + 1) % 3 === second;
+  out[third] = cyclic ? cross(out[first], out[second]) : cross(out[second], out[first]);
+  return out;
+}
+
 /** A cell named by the signed axis it sits on, which is how the controls talk about them. */
 export interface CellRef {
   readonly axis: number;

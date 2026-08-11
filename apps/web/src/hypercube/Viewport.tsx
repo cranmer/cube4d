@@ -1,11 +1,16 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 
 import {
   CANONICAL_VIEWS,
+  makeRowRotMat,
+  mxm,
   netCompass,
+  netMiddleFacing,
   netStateLayout,
+  netTurnToMiddle,
   netTween,
   netView,
+  netViewMatching,
   type NetLayout,
   type PuzzleGeometry,
 } from '@mc4d/puzzle-core';
@@ -71,6 +76,7 @@ export function Viewport({
   moves,
   spins,
   onPress,
+  onAdopt,
   middleLabel,
 }: {
   geometry: PuzzleGeometry | null;
@@ -100,6 +106,8 @@ export function Viewport({
   /** The two axes it can be rotated about instead, each with a press either way round. */
   spins: readonly { label: string; name: string; pair: readonly Press[] }[];
   onPress: (move: { plane: readonly [number, number]; radians: number }) => void;
+  /** Take up a whole arrangement at once, which is what unfolding a projection amounts to. */
+  onAdopt: (rotation: Float64Array) => void;
   /** Which cell this pane has in the middle of its cross, for its label. */
   middleLabel: string;
 }) {
@@ -122,7 +130,7 @@ export function Viewport({
     dragDims: unfolded ? 3 : 4,
   });
 
-  const { getRenderer, snapshot, setRotation, glideTo, getRotation, resetView } = view;
+  const { getRenderer, snapshot, setRotation, glideTo, getRotation } = view;
   const viewpoint = CANONICAL_VIEWS.find((v) => v.id === view.canonicalView)?.name ?? 'Free';
   useEffect(() => {
     onRenderer(index, getRenderer());
@@ -144,6 +152,8 @@ export function Viewport({
     const renderer = getRenderer();
     if (!renderer || !geometry || !base || !unfolded) {
       renderer?.setNetLayout(null);
+      // Nothing is on screen to animate from, so the next unfolding settles rather than travels.
+      shown.current = null;
       return;
     }
 
@@ -178,41 +188,57 @@ export function Viewport({
     return () => cancelAnimationFrame(animation.current);
   }, [getRenderer, getRotation, geometry, unfolded, base, rotation, spacing]);
 
-  // Turn, unfolded, is a quarter turn about the long arm — the axis the cross already stands on.
-  // It cannot be the projected pane's Turn, which moves between viewpoints of 4-space that the net
-  // does not have; and turning about anything else would lay the cross on its side.
-  const [quarters, setQuarters] = useState(0);
-
   /**
-   * Where the camera goes, which is a different question in each mode.
+   * Switching how the pane is drawn, without switching where it is looking.
    *
-   * Unfolded there are no viewpoints of 4-space to move between, so the camera is placed by the
-   * layout — standing the long arm upright — and Turn walks it round in quarters. Projected it is
-   * whatever the viewpoint buttons and your dragging have made it.
+   * The two modes describe an orientation differently — a projection points all four axes somewhere
+   * on the screen, a net has folded one of them away — so the camera cannot simply carry over. What
+   * carries over is what the axes are doing, which is the thing you are actually reading: the
+   * compass says where a net view puts them, and `netViewMatching` answers the reverse. Between them
+   * a pane can change mode and stay put.
    *
-   * So a pane changing mode parks the camera it is leaving and picks the other one up again. Losing
-   * it would be worse here than in the multi-view app: the reason for two panes is often one
-   * particular angle, and toggling a pane to compare and back would throw it away.
+   * The alternative, parking each mode's camera and picking it up again, sounds equivalent and is
+   * not: after turning the cross a few times, the camera you parked is no longer the view you are
+   * looking at, and toggling would take you somewhere you had left long ago.
    */
-  const parked = useRef<number[] | null>(null);
   const showing = useRef<boolean | null>(null);
   useEffect(() => {
-    if (!geometry || !base) return;
-    const first = showing.current === null;
-    if (unfolded) {
-      if (showing.current === false) parked.current = Array.from(getRotation());
-      const to = netView(base, BASE_TURN + quarters * QUARTER);
-      // Placed, not glided, on the first frame: there is nowhere to glide from. Every quarter after
-      // that eases round over the same half second the viewpoint buttons take, since two panes side
-      // by side ought to move at one pace.
-      if (first) setRotation(to);
-      else glideTo(to);
-    } else if (showing.current === true) {
-      if (parked.current) glideTo(parked.current);
-      else resetView();
+    if (!geometry || !base || showing.current === unfolded) return;
+    if (showing.current === null) {
+      // Nothing to carry over on the first frame, and nowhere to glide from either.
+      if (unfolded) setRotation(netView(base, BASE_TURN));
+    } else if (unfolded) {
+      // The cell the projection had in the middle becomes the middle cube, so that the fold is of
+      // the thing you were looking at. With the same cell folded away in both, the other three axes
+      // land exactly where the projection had them and the compass does not move at all.
+      const adopted = netTurnToMiddle(geometry, base, rotation, netMiddleFacing(geometry, getRotation()));
+      if (adopted !== rotation) onAdopt(adopted);
+      glideTo(netViewMatching(geometry, netStateLayout(geometry, base, adopted), getRotation()));
+    } else {
+      glideTo(netCompass(geometry, netStateLayout(geometry, base, rotation), getRotation()));
     }
     showing.current = unfolded;
-  }, [setRotation, glideTo, getRotation, resetView, geometry, unfolded, base, quarters]);
+  }, [setRotation, glideTo, getRotation, onAdopt, geometry, unfolded, base, rotation]);
+
+  /**
+   * Turn, unfolded, is a quarter turn of the cross about the long arm — the axis it already stands
+   * on. It cannot be the projected pane's Turn, which moves between viewpoints of 4-space that the
+   * net does not have; and turning about anything else would lay the cross on its side.
+   *
+   * Applied to wherever the pane is looking rather than to a stock view, so it composes with dragging
+   * and with an orientation carried over from a projection.
+   */
+  const turnCross = useCallback(
+    (step: number) => {
+      if (!base) return;
+      const [i, j] = [0, 1, 2].filter((a) => a !== base.arm.axis);
+      const from = Float64Array.from(getRotation());
+      // Composed on the left, so the quarter turn happens in the cross's own space rather than the
+      // camera's: the arm stays upright and the cells go round it, which is the point of Turn.
+      glideTo(mxm(makeRowRotMat(4, i, j, step * QUARTER), from, 4));
+    },
+    [base, glideTo, getRotation],
+  );
 
   // The compass asks where each puzzle axis lands on screen. In a projection that is a row of the
   // view matrix; unfolded the net has rearranged them, so the matrix is remapped first.
@@ -246,14 +272,14 @@ export function Viewport({
       <div className="pane-controls" ref={controlsRef}>
         <div className="pad">
           <button
-            onClick={() => (unfolded ? setQuarters((q) => q - 1) : view.turnQuarter(-1))}
+            onClick={() => (unfolded ? turnCross(-1) : view.turnQuarter(-1))}
             title="Turn a quarter, the other way"
           >
             <TurnIcon clockwise={false} />
           </button>
           <span>Turn</span>
           <button
-            onClick={() => (unfolded ? setQuarters((q) => q + 1) : view.turnQuarter(1))}
+            onClick={() => (unfolded ? turnCross(1) : view.turnQuarter(1))}
             title="Turn a quarter"
           >
             <TurnIcon clockwise />
@@ -316,7 +342,7 @@ export function Viewport({
 
         <button
           className="reset"
-          onClick={() => (unfolded ? setQuarters(0) : view.resetView())}
+          onClick={() => (unfolded && base ? glideTo(netView(base, BASE_TURN)) : view.resetView())}
           title="Back to the opening view"
         >
           Reset

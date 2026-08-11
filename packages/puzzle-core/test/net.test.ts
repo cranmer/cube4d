@@ -11,10 +11,11 @@
 import { describe, expect, it } from 'vitest';
 
 import { loadGeometry } from './fixtures.js';
-import { cellAxis, cellName, faceOnAxis, netCompass, netStateLayout, netTransition, netLayout, netTearing, netTurn, netTween, netView } from '../src/net.js';
+import { cellAxis, cellName, faceOnAxis, netCompass, netMiddleFacing, netStateLayout, netTransition, netLayout, netTearing, netTurn, netTurnToMiddle, netTween, netView, netViewMatching } from '../src/net.js';
 import { isValidTwist, numSlicesForGrip, permutationFor } from '../src/twist.js';
 import { makeRowRotMat, mxm, vxm } from '../src/vecmath.js';
 import { interpolateRotation } from '../src/so4.js';
+import { CANONICAL_VIEWS } from '../src/canonicalViews.js';
 
 const geo = loadGeometry('4-3-3_3');
 const N = 4;
@@ -290,7 +291,7 @@ describe('the compass, unfolded', () => {
       // Every arrangement, not just the opening one. The cells travel through the slots as the
       // puzzle is turned, so a compass that reads the cut rather than the arrangement points six
       // spokes at the wrong cells the moment a button is pressed -- which is what it used to do.
-      for (const layout of everyArrangement(base)) {
+      for (const { layout } of everyArrangement(base)) {
         const compass = netCompass(geo, layout, view);
         for (const cell of layout.cells) {
           if (cell.role !== 'neighbour') continue;
@@ -318,7 +319,7 @@ describe('the compass, unfolded', () => {
 
   it('aims the axis in the middle at the viewer, wherever the turning has left it', () => {
     const base = netLayout(geo, 0, 2, 1.35);
-    for (const layout of everyArrangement(base)) {
+    for (const { layout } of everyArrangement(base)) {
       const middle = layout.cells.find((c) => c.role === 'centre')!;
       const compass = netCompass(geo, layout, netView(base));
       const { axis, sign } = cellAxis(geo, middle.face);
@@ -332,20 +333,86 @@ describe('the compass, unfolded', () => {
   });
 });
 
-/** Every arrangement the cross's buttons can reach from a given layout, the opening one included. */
+/**
+ * Changing how a pane is drawn without changing where it is looking.
+ *
+ * The two modes describe an orientation differently — a projection points all four axes somewhere on
+ * screen, a net has folded one away — so the camera cannot simply carry across. What can is what the
+ * axes are doing, and these are the two directions of that translation.
+ */
+describe('carrying an orientation between projected and unfolded', () => {
+  const base = netLayout(geo, faceOnAxis(geo, 3, -1), faceOnAxis(geo, 2, -1), 1.35);
+
+  it('never lets the fourth axis leak into an unfolded view', () => {
+    for (const { layout } of everyArrangement(base)) {
+      for (const view of CANONICAL_VIEWS) {
+        const matching = netViewMatching(geo, layout, view.mat);
+        // The reduced coordinates have to stay inside the screen's three, or the perspective divide
+        // gets something to divide by and the whole cross swells and shrinks as it turns.
+        for (let i = 0; i < 3; ++i) expect(matching[i * 4 + 3], `view ${view.id}`).toBeCloseTo(0, 12);
+        expect(determinant4(Float64Array.from(matching)), `view ${view.id}`).toBeCloseTo(1, 9);
+        expect(isOrthogonal(Float64Array.from(matching)), `view ${view.id}`).toBe(true);
+      }
+    }
+  });
+
+  // What the app does when a pane is unfolded, in one line: take up the arrangement whose middle
+  // cube is the cell the projection had facing away, then match the view to it. With the same cell
+  // folded away in both, every axis lands exactly where the projection had it.
+  it('leaves every axis exactly where the projection had it', () => {
+    for (const { rotation } of everyArrangement(base)) {
+      for (const view of CANONICAL_VIEWS) {
+        const adopted = netTurnToMiddle(geo, base, rotation, netMiddleFacing(geo, view.mat));
+        const placed = netStateLayout(geo, base, adopted);
+        const carried = netCompass(geo, placed, netViewMatching(geo, placed, view.mat));
+        for (let i = 0; i < 16; ++i) {
+          expect(carried[i], `view ${view.id}, entry ${i}`).toBeCloseTo(view.mat[i], 9);
+        }
+      }
+    }
+  });
+
+  // And the reverse, which needs no adopting: a projection built from a net already has that net's
+  // cell facing away, so toggling back and forth is a round trip rather than a drift.
+  it('comes back to the same net view', () => {
+    for (const { layout } of everyArrangement(base)) {
+      const view = netView(base, 0.3);
+      const there = netCompass(geo, layout, view);
+      expect(netMiddleFacing(geo, there)).toBe(layout.cells.find((c) => c.role === 'centre')!.face);
+      const back = netViewMatching(geo, layout, there);
+      for (let i = 0; i < 16; ++i) expect(back[i]).toBeCloseTo(view[i], 9);
+    }
+  });
+
+  it('turns any cell into the middle in one rotation', () => {
+    for (const { rotation } of everyArrangement(base)) {
+      for (let face = 0; face < geo.nFaces; ++face) {
+        const turned = netStateLayout(geo, base, netTurnToMiddle(geo, base, rotation, face));
+        expect(turned.cells.find((c) => c.role === 'centre')!.face).toBe(face);
+        // Still a genuine arrangement: eight cells, one per slot.
+        expect(new Set(turned.cells.map((c) => c.face)).size).toBe(8);
+      }
+    }
+  });
+});
+
+/**
+ * Every arrangement the cross's buttons can reach from a given layout, the opening one included:
+ * the rotation that reaches it, and the layout it produces.
+ */
 function everyArrangement(base: ReturnType<typeof netLayout>) {
   const presses = [0, 1, 2, 3].flatMap((a) =>
     [1, 2, 3]
       .filter((b) => b > a)
       .flatMap((b) => [1, -1].map((way) => ({ plane: [a, b] as const, radians: (way * Math.PI) / 2 }))),
   );
-  const seen = new Map<string, ReturnType<typeof netLayout>>();
+  const seen = new Map<string, { rotation: Float64Array; layout: ReturnType<typeof netLayout> }>();
   const queue = [identity4()];
   while (queue.length) {
     const at = queue.shift()!;
     const key = [...at].map((v) => Math.round(v)).join(',');
     if (seen.has(key)) continue;
-    seen.set(key, netStateLayout(geo, base, at));
+    seen.set(key, { rotation: at, layout: netStateLayout(geo, base, at) });
     for (const press of presses) queue.push(netTurn(at, press.plane, press.radians));
   }
   return [...seen.values()];
