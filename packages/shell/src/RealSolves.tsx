@@ -16,17 +16,26 @@ export function RealSolves({
   actions,
   io,
   base,
+  offers,
 }: {
   session: PuzzleSession;
   actions: PuzzleActions;
   io: SolveIO;
   base: string;
+  /**
+   * Which puzzles this app can open. An app that offers a solve it cannot load has wasted the one
+   * click a visitor was willing to spend on it, and the message it gets back -- that the file is for
+   * a puzzle this app does not offer -- reads as a fault rather than as a limit.
+   */
+  offers?: (puzzleId: string) => boolean;
 }) {
+  const shown = offers ? EXAMPLES.filter((e) => offers(e.puzzleId)) : EXAMPLES;
+  const hidden = EXAMPLES.length - shown.length;
   return (
         <Section
           id="examples"
           title="Real solves"
-          badge={`${EXAMPLES.length}`}
+          badge={`${shown.length}`}
         >
           <p className="hint">
             Actual solves from the{' '}
@@ -40,6 +49,13 @@ export function RealSolves({
             . Each loads at the position the solver faced — press Play to watch it come apart, or
             download the log to keep or to open in the original.
           </p>
+          {hidden > 0 && (
+            <p className="hint">
+              {hidden} more {hidden === 1 ? 'is' : 'are'} of puzzles this app does not open yet. They
+              are all in the{' '}
+              <a href={`${base}multi/`}>multi-view interface</a>, which opens every puzzle.
+            </p>
+          )}
           {/* A transport for whatever solve is loaded. Step back and forward are undo and redo,
               named for what you are doing here: reading someone else's moves rather than making
               your own. */}
@@ -85,7 +101,7 @@ export function RealSolves({
           />
 
           <div className="examples">
-            {EXAMPLES.map((example) => (
+            {shown.map((example) => (
               <div key={example.file} className="example">
                 <button className="example-load" onClick={() => void io.loadExample(example)}>
                   <span className="who">{example.solver}</span>

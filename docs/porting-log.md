@@ -14,16 +14,18 @@ If you want the conclusions rather than the story:
 | Traps found in the original | [`quirks-and-bugs.md`](quirks-and-bugs.md) |
 | What gets built, in what order | [`plan.md`](plan.md) |
 | Known rough edges and deferred design | [`polish-backlog.md`](polish-backlog.md) |
+| Folding the projection into the net | [`folding-animation.md`](folding-animation.md) |
 | Catalog measurements | [`phase0-results.md`](phase0-results.md) |
 
 ---
 
 ## Status
 
-**Phases 0–6 and 8 of 8 complete.** All 128 four-dimensional puzzles are playable in a browser,
+**All eight phases complete.** All 128 four-dimensional puzzles are playable in a browser,
 solves persist and can be saved, shared or exported, the real Hall-of-Fame records replay on demand,
 the front-end is split so that alternative layouts are separate apps rather than more controls in one
-panel — and the engine now builds three-dimensional puzzles too, which the original never could.
+panel, the engine builds three-dimensional puzzles too, which the original never could — and the
+hypercube can now be unfolded into a solid cross beside its own projection.
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -34,13 +36,13 @@ panel — and the engine now builds three-dimensional puzzles too, which the ori
 | 4 | Interaction — twisting, undo, scramble | ✅ complete |
 | 5 | Catalog + persistence | ✅ complete |
 | 6 | Several apps on one engine | ✅ complete |
-| 7 | A hypercube-specific app | next |
+| 7 | A hypercube-specific app | ✅ complete |
 | 8 | 3D puzzles on the same engine | ✅ complete |
 
 What exists today: all 136 puzzles export to binary assets — 128 four-dimensional and 8 three-dimensional; `@mc4d/puzzle-core` decodes, twists,
 scrambles and tracks history; `@mc4d/legacy-format` reads and writes `.log` files, with an
 `mc4d-convert` CLI; and `@mc4d/render` puts the whole 4D→3D projection into a vertex shader.
-409 tests, plus a headless browser that scrambles and solves the puzzle end to end.
+448 tests, plus a headless browser that scrambles and solves the puzzle end to end.
 
 **Playable at <https://theoryandpractice.org/cube4d/>.**
 
@@ -789,11 +791,110 @@ genuinely 4D-specific code, and not in the geometry.
 
 ---
 
+## 2026-08-10 — Phase 7, prototype: the hypercube unfolded
+
+Tagged `v0.7.0-unfolded` on the `flattened-ui` branch. Everything below began as a prototype at
+`/flat/`, kept beside the projected view rather than replacing it; it has since become the hypercube
+app at `/hypercube/`, where any pane can be either.
+
+A cube's six faces unfold into a flat cross; a hypercube's eight cells unfold into a solid one — the
+shape Dalí painted. Drawn that way every cell is a genuine undistorted 3×3×3 cube, all eight are
+visible at once, and nothing is hidden behind a projection or foreshortened into a cube-inside-a-cube.
+
+### It goes through the existing pipeline untouched
+
+The unfolded points land at exactly `w = 0`. That is not incidental: it makes the perspective divide
+a division by `eyeW/eyeW`, so the view rotation, the framing and the **pick pass** all run unchanged
+over an unfolded puzzle. It is the same trick that lets the genuinely three-dimensional puzzles from
+Phase 8 through a four-dimensional pipeline. Unfolding is one bool and two small uniform arrays —
+eight matrices with the axis-drop folded in, eight translations — and the cull turned off, since
+unfolded there is no cell facing the 4D eye to hide.
+
+What it costs is countable, so it is pinned in a test: about 64% of the stickers a single-layer twist
+moves change cell, and 72% for an all-layer twist. The net has cut precisely the connections a twist
+turns through, so those stickers cannot move rigidly in the net at all. That is the argument for
+showing both panes at once: whatever the net has to fake, the projection beside it is doing honestly.
+
+### Four bugs worth recording, because each was a different kind of wrong
+
+**Half the arrangements were mirrored.** Cells came out inside-out — normals pointing inward, which
+reads as bad lighting rather than as bad geometry. Three attempted fixes measured a determinant that
+could not see it: the 4×4 unfold rotation is always +1, and the 3×3 block that actually places a cell
+was being measured against an unoriented basis, so it flipped with the normal's sign and measured
+nothing. The real fix was structural. The state is no longer a *cut* re-derived from scratch each
+time but a **rotation applied to one layout known to be right**. Every rotation preserves
+orientation, so no sequence of them can flip it: 192 of 384 cells mirrored before, none over a
+400-step walk after. The cut does not determine handedness; the path taken to reach it does.
+
+**The animation drew shadows instead of cells.** A press is a rotation of 4-space, so the obvious way
+to show one is the uniform a twist already uses. Unfolded that is wrong twice over: the net draws a
+cell by dropping an axis, so a cell part way through the turn is half out of the hyperplane and what
+gets drawn is its shadow — it flattens, passes through itself, springs back — and it never leaves its
+slot, because the offset putting it on its arm knows nothing about the turn. Cells are solid cubes in
+a 3-space of their own, so they now move like solid cubes, each travelling from the slot it held to
+the slot it is going to. The relative rotation between two placements fixes the dropped axis, and a
+geodesic between rotations that fix an axis fixes it the whole way, which is what keeps every
+intermediate frame a real unfolding rather than a projection of one.
+
+**Presses composed in the wrong frame.** They are named for places in the cross — up, left, front —
+and the cross never moves, so a press belongs to its frame, not the puzzle's. Composed on the inside
+it is right until something has been pressed: after that each press turns about an axis an earlier
+one carried off somewhere else. One press behaved; the second left the bottom of the cross standing
+while the other seven swung around it; the third rolled all eight bodily. Every one of those is a
+real move of the puzzle and none is the one the button says. `n · (R · rotation)` is
+`(n · R) · rotation`: ask which slot the cell comes from first, in the frame the slots are named in.
+
+**Half turns rolled the wrong way.** A half turn has no shorter way round — both ways are the same
+length and end in the same place — so the geodesic settled the tie on a quaternion sign and got it
+right about half the time. Against the arc it is riding, a cube reads as slipping rather than
+turning. The arc is the only thing with an opinion, so it now decides.
+
+### What the tests learned
+
+The last two were caught by the person using it, not by the suite, and the reason is the same in both
+cases: **sampling**. The first version of the rolling test walked a random sequence of presses and
+passed while the app was visibly wrong — whether a cell makes a half turn depends on where the cross
+has got to, and the ones that go wrong are a minority of a minority. It now enumerates every
+arrangement the buttons can reach — there are 192 — and tries all twelve presses from each. The
+compass test had the same shape of hole: it checked the opening layout only, so it never noticed that
+the compass read the cut rather than the arrangement and pointed six spokes at the wrong cells the
+moment anything was pressed.
+
+### The controls that survived
+
+Three attempts. Pickers for fold/middle/arm — accurate, and nobody could predict what pressing one
+would do. Cyclers — smaller, no more predictable. What works is **six buttons that move the middle
+cube one slot** (up/down, left/right, front/back) and **four that rotate it where it stands**, about
+the left–right or the front–back axis. Each is exactly the whole-puzzle twist that would put it
+there, so pressing and watching are the same thing; four cells stand still and spin, four change
+slot, every time.
+
+Motion follows the geometry rather than the button: a cell whose two slots are a quarter turn apart
+swings round the middle cube at constant radius, a cell arriving in the middle goes straight in, and
+the one a move pushes off the end of the long arm — whose slots are opposite ends of a line through
+everything — swings out a step wider than the cross and round the back. Some cell has to make that
+crossing. The net cut exactly the connection it needs.
+
+---
+
 ## Next
 
-**Phase 7: a hypercube-specific app.** A layout built around `{4,3,3}` rather than around a catalog
-of 128 puzzles — the first front-end that will use the multi-viewport support, and a design question
-before it is an engineering one.
+**Phase 7: a hypercube-specific app**, now at `/hypercube/` and tagged `v0.7.0-hypercube`. Up to
+three panes, each with its own camera, its own arrangement of the cross, and its own choice of
+projected or unfolded — the word in the corner of a pane is the switch, and a pane changing mode
+keeps looking where it was.
+
+**The fold itself, animated.** A pane changes mode in one step; watching the projection open into the
+cross would say what the whole app is arguing — that these are one puzzle — better than any amount of
+prose beside it. Most of the geometry exists already: `netLayout` stores each cell's fold, `netTween`
+already uploads a layout per frame, and the orientation work means the camera would not have to move
+at all. Planned in [`folding-animation.md`](folding-animation.md), including the one risky part (the
+shader forces `w = 0`, and mid-fold the cells have a real one) and the reason to build it short
+before polishing it.
+
+Nearer to hand: the unfolded app opens the 3×3×3×3 only, which is a scoping decision and not a
+limitation — every hypercube unfolds into the same cross whatever it is sliced into. Costed in
+[`polish-backlog.md`](polish-backlog.md#other-hypercube-sizes).
 
 Still open from earlier phases: the 622 KB bundle, now more visible as a shared chunk and so more
 worth trimming; a guided "what is 4D" tour for people arriving without a hypercube already in their

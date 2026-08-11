@@ -149,6 +149,33 @@
         panel. See docs/multi-app.md.
       -->
       <nav class="apps">
+        <!-- First because it is the one nothing else does: every other app draws the puzzle by
+             projecting it, and this one can lay it out flat instead. -->
+        <a class="app" href="hypercube/">
+          <h2>
+            <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor"
+              stroke-width="1.5" stroke-linejoin="round" aria-hidden="true">
+              <!-- A cube's net, standing in for a hypercube's: the same shape one dimension down. -->
+              <rect x="6.3" y="0.6" width="3.4" height="3.4" rx="0.6"/>
+              <rect x="2.4" y="4.5" width="3.4" height="3.4" rx="0.6"/>
+              <rect x="6.3" y="4.5" width="3.4" height="3.4" rx="0.6"/>
+              <rect x="10.2" y="4.5" width="3.4" height="3.4" rx="0.6"/>
+              <rect x="6.3" y="8.4" width="3.4" height="3.4" rx="0.6"/>
+              <rect x="6.3" y="12.3" width="3.4" height="3.4" rx="0.6"/>
+            </svg>
+            Unfolded hypercube interface
+            <span class="tag new">New</span>
+          </h2>
+          <p>
+            A cube&rsquo;s six faces flatten into a paper cross; a hypercube&rsquo;s eight cells
+            flatten into a solid one. Drawn that way every cell is an ordinary
+            3&times;3&times;3 cube, all eight are visible at once, and nothing is hidden or
+            foreshortened. Put an unfolded pane beside a projected one and twist &mdash; they are the
+            same puzzle, and watching them disagree about where a sticker went is the clearest look
+            at 4D on this site. The hypercube only: a solid cross is its own net, and there is no
+            equivalent for the other shapes.
+          </p>
+        </a>
         <a class="app" href="multi/">
           <h2>
             <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor"
@@ -157,15 +184,15 @@
               <rect x="5.4" y="5.4" width="9" height="9" rx="1"/>
               <path d="M1.6 1.6 5.4 5.4M10.6 1.6l3.8 3.8M1.6 10.6l3.8 3.8M10.6 10.6l3.8 3.8"/>
             </svg>
-            New interface
-            <span class="tag new">New</span>
+            Multi-view interface
           </h2>
           <p>
             The same puzzle from up to three angles at once &mdash; twist in any pane and every pane
             turns, hover a sticker and it lights up in all of them. Each pane has its own view
             controls: <b>Turn</b>, <b>Tip</b> and <b>Flip</b> step between the eight ways of facing
             the puzzle instead of leaving you to drag until it looks about right, and a compass in
-            the corner says which axis you are looking down.
+            the corner says which axis you are looking down. Every one of the 128 puzzles opens
+            here, from the 2&times;2&times;2&times;2 to the 120-cell.
           </p>
         </a>
         <a class="app" href="gallery/">
@@ -181,7 +208,7 @@
           </h2>
           <p>
             Every puzzle worth solving, pictured &mdash; from the familiar 3&times;3&times;3&times;3
-            to a 120-cell made of dodecahedra. Pick one and it opens in the new interface.
+            to a 120-cell made of dodecahedra. Pick one and it opens in the multi-view interface.
           </p>
         </a>
         <a class="app" href="classic/">

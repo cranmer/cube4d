@@ -120,8 +120,14 @@ export function AxisInset({
           // An axis with no screen direction still needs its label somewhere legible, so it is
           // parked clear of the middle. Only the one pointing away survives to be drawn there.
           const collapsed = length < COLLAPSED;
-          const lx = collapsed ? C : C + (x / length) * (R + 11);
-          const ly = collapsed ? C + (w > 0 ? -13 : 15) : C - (y / length) * (R + 11);
+          // Just past the end of its own spoke, rather than out on a fixed ring. A foreshortened
+          // axis draws a short spoke, and a label pinned at full radius floats away from the dot it
+          // names — badly enough, on a view where two axes are half length, that the label looks
+          // like it belongs to nothing. The floor keeps a very short spoke's label from crowding
+          // the middle, where the collapsed axis puts its own.
+          const reach = Math.max(length, 0.5) * R + 11;
+          const lx = collapsed ? C : C + (x / length) * reach;
+          const ly = collapsed ? C + (w > 0 ? -13 : 15) : C - (y / length) * reach;
 
           // Fades to nothing as the axis turns towards the viewer, because that is precisely when
           // its cell stops being drawn. Everything from side-on to straight-away stays at full

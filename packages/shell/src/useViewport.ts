@@ -74,6 +74,14 @@ export interface Viewport {
   /** The current 4D view rotation, row-major, as `.log` files store it. */
   getRotation(): number[];
   setRotation(mat4d: readonly number[]): void;
+  /**
+   * Ease to a rotation over the same half second the viewpoint buttons take, rather than jumping.
+   *
+   * The interpolation is through SO(4) proper — a pair of quaternions slerped together — so it
+   * takes the shortest path and never passes through a squashed intermediate. An app whose view
+   * is not one of the named viewpoints uses this to move like one that is.
+   */
+  glideTo(mat4d: readonly number[] | Float64Array): void;
   resetView(): void;
   /** Which named viewpoint this camera is at or heading for; null once it has been dragged away. */
   readonly canonicalView: string | null;
@@ -103,6 +111,14 @@ export function useViewport(
      * kept clear of the puzzle. Watched, so it stays right as the strip grows or shrinks.
      */
     reserveBelow?: React.RefObject<HTMLElement | null> | undefined;
+    /**
+     * How many dimensions a drag may turn through. Defaults to the puzzle's own.
+     *
+     * A viewport showing the puzzle unfolded wants 3 even though the puzzle has 4: the net lies in
+     * one hyperplane, and a rotation that took it out of that hyperplane would project the cells
+     * back into a jumble, undoing the only thing the layout is for.
+     */
+    dragDims?: number | undefined;
   } = {},
 ): Viewport {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -301,7 +317,7 @@ export function useViewport(
         // that turns the puzzle through the fourth dimension — which a 3D puzzle does not have, so
         // it passes its own dimension and the W planes are withheld.
         shift: event.shiftKey,
-        dims: geometry.nDims,
+        dims: optionsRef.current.dragDims ?? geometry.nDims,
       });
       rendererRef.current?.setRotation(rotationRef.current.mat);
     };
@@ -439,6 +455,7 @@ export function useViewport(
     getRenderer,
     getRotation,
     setRotation,
+    glideTo,
     resetView,
     canonicalView,
     goToCanonicalView,
