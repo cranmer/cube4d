@@ -14,6 +14,7 @@ If you want the conclusions rather than the story:
 | Traps found in the original | [`quirks-and-bugs.md`](quirks-and-bugs.md) |
 | What gets built, in what order | [`plan.md`](plan.md) |
 | Known rough edges and deferred design | [`polish-backlog.md`](polish-backlog.md) |
+| Folding the projection into the net | [`folding-animation.md`](folding-animation.md) |
 | Catalog measurements | [`phase0-results.md`](phase0-results.md) |
 
 ---
@@ -877,11 +878,18 @@ crossing. The net cut exactly the connection it needs.
 
 ## Next
 
-**Phase 7: a hypercube-specific app.** A layout built around `{4,3,3}` rather than around a catalog
-of 128 puzzles — the first front-end that will use the multi-viewport support, and a design question
-before it is an engineering one. The unfolded prototype above answers the hardest part of it: what a
-hypercube-specific view is *for*. What remains is folding it into the multi-viewport app, so that any
-pane can be unfolded or projected and the two can be watched side by side on one puzzle.
+**Phase 7: a hypercube-specific app**, now at `/hypercube/` and tagged `v0.7.0-hypercube`. Up to
+three panes, each with its own camera, its own arrangement of the cross, and its own choice of
+projected or unfolded — the word in the corner of a pane is the switch, and a pane changing mode
+keeps looking where it was.
+
+**The fold itself, animated.** A pane changes mode in one step; watching the projection open into the
+cross would say what the whole app is arguing — that these are one puzzle — better than any amount of
+prose beside it. Most of the geometry exists already: `netLayout` stores each cell's fold, `netTween`
+already uploads a layout per frame, and the orientation work means the camera would not have to move
+at all. Planned in [`folding-animation.md`](folding-animation.md), including the one risky part (the
+shader forces `w = 0`, and mid-fold the cells have a real one) and the reason to build it short
+before polishing it.
 
 Still open from earlier phases: the 622 KB bundle, now more visible as a shared chunk and so more
 worth trimming; a guided "what is 4D" tour for people arriving without a hypercube already in their
